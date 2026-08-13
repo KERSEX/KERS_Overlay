@@ -18,13 +18,20 @@ dict und weiss nicht, woher er kommt.
 import json
 import math
 import random
+import sys
 import time
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-# Der Ordner mit overlay_settings.json - eine Ebene ueber hud/.
-ROOT = Path(__file__).resolve().parent.parent
+from common import DATA_DIR
+
+# Der Ordner mit overlay_settings.json: als EXE der Datenordner neben der EXE,
+# im Dev-Betrieb eine Ebene ueber hud/ (dort schreibt main.py die Datei).
+if getattr(sys, "frozen", False):
+    ROOT = DATA_DIR
+else:
+    ROOT = Path(__file__).resolve().parent.parent
 
 
 def _real_settings() -> dict:

@@ -64,7 +64,7 @@ except ImportError as exc:  # pragma: no cover - reine Startdiagnose
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from api_client import ApiClient          # noqa: E402
-from common import load_state, make_icon, save_state  # noqa: E402
+from common import load_state, make_icon, migrate_data, save_state  # noqa: E402
 from subsystems_panel import SubsystemsPanel  # noqa: E402
 
 # overlay_window (QtWebEngine) und qml_overlay werden erst in main() geladen -
@@ -228,6 +228,10 @@ def main() -> int:
     parser.add_argument("--devtools", action="store_true",
                         help="DevTools auf Port 9222 (nur --web)")
     args = parser.parse_args()
+
+    # Muss VOR load_state() stehen: holt Zustand, Einstellungen, WM-Staende und die
+    # entpackte main.exe aus dem alten Ort (neben der EXE) in den Datenordner.
+    migrate_data()
 
     state = load_state()
     if args.url:

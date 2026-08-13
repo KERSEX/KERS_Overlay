@@ -1,0 +1,38 @@
+# Virtuelle Umgebung - wird per requirements.txt neu erzeugt (run.bat)
+venv/
+.venv/
+
+# Python-Bytecode
+__pycache__/
+*.py[cod]
+
+# Laufzeit-Zustand, kein Quelltext:
+# Fensterposition, Bildschirmgroesse und Renderer-Wahl des HUD.
+hud/hud_state.json
+
+# Persoenliche Einstellungen - seit 0.1.1 bewusst weder in der EXE noch im Repo:
+# Branding, Logo, Skalierung. main.py legt fehlende beim ersten Lauf selbst an.
+overlay_settings.json
+presets.json
+
+# Aufzeichnungen und Mitschnitte (koennen sehr gross werden)
+sessions/
+recordings/
+*.f1rec
+
+# Sicherungen
+Backups/
+*.bak
+
+# Build-Ergebnisse (die EXE haengt am Release, nicht im Repo)
+build/
+dist/
+output/
+*.exe
+*.spec
+
+# Windows / Editoren
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

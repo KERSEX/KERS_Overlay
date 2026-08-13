@@ -28,6 +28,16 @@ from flask import Flask, render_template, jsonify, Response, request, abort
 # mit, index.html zeigt danach also die Version, die auch wirklich drinsteckt.
 __version__ = "0.0.1"
 
+# Version der ANWENDUNG (KERS_Subsystems) - eine gemeinsame Quelle fuer Server und
+# Schaltbrett, siehe hud/common.py. Liegt in static/, weil der Ordner ohnehin in beide
+# EXEs gebuendelt wird. `__version__` darueber bleibt die Version DIESER Datei.
+def _read_app_version() -> str:
+    try:
+        with open(os.path.join(BUNDLE_DIR, "static", "version.txt"), encoding="utf-8") as f:
+            return f.read().strip() or "0.0.0"
+    except OSError:
+        return "0.0.0"
+
 # Hash der eigenen Quelldatei beim Start. Weicht er spaeter vom Inhalt auf der Platte ab,
 # wurde main.py seit dem Start bearbeitet -> ein Neustart steht aus. Genau das haben wir
 # hier staendig (Templates laden nach, main.py nicht), deshalb wird es in /settings gezeigt.
@@ -84,6 +94,8 @@ if getattr(sys, "frozen", False):
     BUNDLE_DIR = getattr(sys, "_MEIPASS", BASE_DIR)          # eingebündelte Vorlagen (read-only)
 else:
     BASE_DIR = BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+APP_VERSION = _read_app_version()      # braucht BUNDLE_DIR, deshalb erst hier
 
 SETTINGS_FILE = os.path.join(BASE_DIR, "overlay_settings.json")
 CHAMP_FILE = os.path.join(BASE_DIR, "championship.json")   # A3: WM-Stand (manuell gepflegt, neben der .exe)
@@ -1512,7 +1524,11 @@ def api_version():
         info = _template_version(name)
         info.update({"file": name, "label": label, "restart_needed": False})
         files.append(info)
-    return jsonify({"app": __version__, "restart_needed": stale, "files": files})
+    # `app` ist die Version der ANWENDUNG (aus static/version.txt), nicht die dieser
+    # Datei. `frozen` sagt der Settings-Seite, ob die Dateiliste ueberhaupt Sinn ergibt:
+    # in der EXE ist alles eingebacken und kann sich zur Laufzeit nicht aendern.
+    return jsonify({"app": APP_VERSION, "frozen": bool(getattr(sys, "frozen", False)),
+                    "restart_needed": stale, "files": files})
 
 @app.route("/api/presets", methods=["GET", "POST"])
 def api_presets():

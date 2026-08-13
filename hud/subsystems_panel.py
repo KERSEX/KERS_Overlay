@@ -34,7 +34,9 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame,
                                QWidget)
 
 from api_client import ApiClient
-from common import HZ_CHOICES, PAGES, RENDERERS, make_icon
+from common import (APP_VERSION, DATA_DIR, HZ_CHOICES, PAGES, RENDERERS,
+                    make_icon)
+from updater import Updater
 
 # ⚠ overlay_window (WebEngine) wird hier BEWUSST nicht importiert. Der Import zog
 # frueher nur fuer eine Typangabe das komplette QtWebEngine mit hoch - auch dann,
@@ -42,11 +44,16 @@ from common import HZ_CHOICES, PAGES, RENDERERS, make_icon
 # spricht ohnehin nur ueber die gemeinsame Schnittstelle mit dem Fenster
 # (set_locked, apply_geometry, hudGeometryChanged, ...), die beide Renderer haben.
 
-# Ordner mit main.py, run.bat und venv/ - eine Ebene ueber hud/.
-# Als EXE muss das der Ordner NEBEN der EXE sein (main.py/venv werden dort
-# gesucht, nicht im Pyinstaller-Temp-Ordner, auf den __file__ dann zeigt).
+# Ordner, in dem der Server liegt und arbeitet.
+#   Dev-Betrieb: eine Ebene ueber hud/ - dort stehen main.py, run.bat und venv/.
+#   Als EXE:     der Unterordner data neben KERS_Subsystems.exe (DATA_DIR).
+#
+# ⚠ Dass main.exe IM Datenordner liegt, ist Absicht: main.py leitet seine Pfade aus
+# dem eigenen Standort ab (BASE_DIR = dirname(sys.executable)). Dadurch landen
+# overlay_settings.json, championship.json, presets.json und recordings/ von selbst
+# im richtigen Ordner - ohne eine einzige Pfadaenderung in main.py.
 if getattr(sys, "frozen", False):
-    ROOT = Path(sys.executable).resolve().parent
+    ROOT = DATA_DIR
 else:
     ROOT = Path(__file__).resolve().parent.parent
 
@@ -54,7 +61,7 @@ else:
 SERVER_BUSY_HINT = (
     "Neben dem Programm liegt eine main.exe aus einem aelteren Build, und sie laesst "
     "sich nicht ersetzen - der Server laeuft offenbar noch.\n\n"
-    "Bitte zuerst auf \"Server stoppen\" klicken (oder das Konsolenfenster des Servers "
+    "Bitte zuerst auf \"Stop Server\" klicken (oder das Konsolenfenster des Servers "
     "schliessen) und dann erneut starten."
 )
 
@@ -129,8 +136,10 @@ def _ensure_server_payload() -> tuple[Path | None, str]:
     except OSError as e:
         return None, f"main.exe liess sich nicht entpacken: {e}"
 
-    # Config-Dateien nur ergaenzen, nie ueberschreiben - da stecken eigene Daten drin
-    # (WM-Stand, Einstellungen, Presets).
+    # Seit 0.1.1 liegen KEINE *.json mehr im Payload: Einstellungen, WM-Stand und
+    # Presets sind persoenliche Daten und haben in einer verteilten EXE nichts zu
+    # suchen. main.py legt fehlende Dateien beim ersten Lauf selbst an. Die Schleife
+    # bleibt als Rueckfallebene fuer aeltere Builds - und kopiert nur, was fehlt.
     for f in bundled.parent.glob("*.json"):
         dest = ROOT / f.name
         if not dest.exists():
@@ -256,6 +265,7 @@ class SubsystemsPanel(QWidget):
         self.state = state
         self.hud = hud
         self.api = api
+        self._update_manuell = False   # True = Suche kam per Knopf, darf sich melden
         self._starting = False   # True, solange auf den frisch gestarteten Server gewartet wird
         self._loading = False    # True, waehrend die Spinboxen nachgezogen werden
         self._server_proc = None  # von hier gestarteter Server (Popen), sonst None
@@ -294,6 +304,18 @@ class SubsystemsPanel(QWidget):
         if bool(state.get("panel_on_top")):
             self._set_on_top(True)
 
+        # ── Update-Suche ────────────────────────────────────────────────────
+        # Parent ist bewusst self: ohne Qt-Ownership raeumt der Python-GC das
+        # Objekt weg, waehrend seine Netzwerkabfrage noch laeuft (Absturz).
+        self._updater = Updater(self)
+        self._updater.updateAvailable.connect(self._update_gefunden)
+        self._updater.upToDate.connect(self._update_aktuell)
+        self._updater.failed.connect(self._update_fehler)
+        self._updater.progress.connect(self._update_fortschritt)
+        self._updater.ready.connect(self._update_bereit)
+        # Einmal beim Start still nachsehen - nur melden, nie von selbst laden.
+        QTimer.singleShot(3000, self._updater.check)
+
     # ── Kopf: Status + Server starten ───────────────────────────────────────
     def _build_header(self) -> QVBoxLayout:
         box = QVBoxLayout()
@@ -328,7 +350,20 @@ class SubsystemsPanel(QWidget):
         row.addWidget(self.dot_udp)
         row.addWidget(self.lbl_udp)
         row.addStretch(1)
+        # Version rechts in derselben Zeile: immer im Blick, kostet keine eigene.
+        # Liegt ein Update bereit, faerbt sie sich und zeigt "v0.0.1 -> 0.0.2".
+        self.lbl_version = QLabel(f"v{APP_VERSION}")
+        self.lbl_version.setObjectName("hint")
+        self.lbl_version.setToolTip("Version dieser Anwendung")
+        row.addWidget(self.lbl_version)
         box.addLayout(row)
+
+        # Erscheint nur, wenn es wirklich etwas Neues gibt - wie der
+        # Renderer-Hinweis weiter unten.
+        self.btn_update = QPushButton()
+        self.btn_update.hide()
+        self.btn_update.clicked.connect(self._update_holen)
+        box.addWidget(self.btn_update)
 
         srv = QHBoxLayout()
         self.btn_server = QPushButton("Server starten")
@@ -337,7 +372,7 @@ class SubsystemsPanel(QWidget):
             f"{ROOT} in einem eigenen Konsolenfenster, damit du die\n"
             "Ausgaben mitlesen kannst.")
         self.btn_server.clicked.connect(self.start_server)
-        self.btn_stop = QPushButton("Server stoppen")
+        self.btn_stop = QPushButton("Stop Server")
         self.btn_stop.setToolTip(
             "Beendet den Server. Einen von hier gestarteten sofort, einen fremden\n"
             "(run.bat, eigenes Terminal) erst nach Rueckfrage - der wird ueber den\n"
@@ -408,6 +443,66 @@ class SubsystemsPanel(QWidget):
         self.btn_server.setEnabled(True)
         self.btn_server.setText("Server starten (letzter Versuch lief nicht an)")
 
+    # ── Update ──────────────────────────────────────────────────────────────
+    def _update_suchen(self) -> None:
+        """Suche von Hand - anders als beim Start darf sie sich hier melden."""
+        self._update_manuell = True
+        self.lbl_version.setToolTip("Suche laeuft …")
+        self._updater.check()
+
+    def _update_gefunden(self, version: str, groesse: int, datum: str) -> None:
+        mb = groesse / (1024 * 1024)
+        self.lbl_version.setText(f"v{APP_VERSION} → {version}")
+        self.lbl_version.setStyleSheet("color:#e10600;font-weight:bold")
+        self.lbl_version.setToolTip(
+            f"Neue Fassung {version} vom {datum}\n{mb:.0f} MB")
+        self.btn_update.setText(f"Auf {version} aktualisieren  ({mb:.0f} MB)")
+        self.btn_update.setEnabled(True)
+        self.btn_update.show()
+
+    def _update_aktuell(self) -> None:
+        self.lbl_version.setToolTip("Version dieser Anwendung — auf dem neuesten Stand")
+        if self._update_manuell:
+            self._update_manuell = False
+            QMessageBox.information(self, "Nach Update suchen",
+                                    f"Version {APP_VERSION} ist die neueste.")
+
+    def _update_fehler(self, text: str) -> None:
+        # Beim stillen Start-Check nicht mit einem Dialog dazwischenfahren; die
+        # Meldung steht im Tooltip und wird beim Klick auf "Suchen" gezeigt.
+        self.lbl_version.setToolTip(f"Update-Suche: {text}")
+        if self._update_manuell:
+            self._update_manuell = False
+            QMessageBox.information(self, "Nach Update suchen", text)
+
+    def _update_holen(self) -> None:
+        self.btn_update.setEnabled(False)
+        self.btn_update.setText("Wird geladen …")
+        self._updater.download()
+
+    def _update_fortschritt(self, geladen: int, gesamt: int) -> None:
+        if gesamt > 0:
+            self.btn_update.setText(
+                f"Wird geladen … {geladen * 100 // gesamt} %"
+                f"  ({geladen / (1024 * 1024):.0f} von {gesamt / (1024 * 1024):.0f} MB)")
+
+    def _update_bereit(self, pfad: str) -> None:
+        self.btn_update.setText("Neu starten und übernehmen")
+        self.btn_update.setEnabled(True)
+        try:
+            self.btn_update.clicked.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+        self.btn_update.clicked.connect(self._update_anwenden)
+
+    def _update_anwenden(self) -> None:
+        fehler = self._updater.tausch_starten()
+        if fehler:
+            QMessageBox.warning(self, "Update", fehler)
+            return
+        # Der Helfer wartet, bis dieser Prozess weg ist - also jetzt beenden.
+        QApplication.quit()
+
     # ── Server beenden ──────────────────────────────────────────────────────
     def _server_port(self) -> int:
         try:
@@ -432,7 +527,7 @@ class SubsystemsPanel(QWidget):
         if kind == "none":
             self.btn_stop.setEnabled(False)
             self.btn_stop.setText(f"nichts auf Port {self._server_port()}")
-            QTimer.singleShot(2500, lambda: self.btn_stop.setText("Server stoppen"))
+            QTimer.singleShot(2500, lambda: self.btn_stop.setText("Stop Server"))
             return False
 
         if kind == "foreign":
@@ -481,7 +576,7 @@ class SubsystemsPanel(QWidget):
             self.stop_server(confirm=False)   # Rueckfrage gab es schon
         QApplication.instance().quit()
 
-    # ── Hauptschalter + Bildschirm fuellen ──────────────────────────────────
+    # ── Hauptschalter + An Bildschirm anpassen ──────────────────────────────
     def _build_power(self) -> QWidget:
         wrap = QWidget()
         lay = QVBoxLayout(wrap)
@@ -496,7 +591,7 @@ class SubsystemsPanel(QWidget):
         self._apply_power(bool(self.state["visible"]))
 
         row = QHBoxLayout()
-        btn_fill = QPushButton("Bildschirm fuellen")
+        btn_fill = QPushButton("An Bildschirm anpassen")
         btn_fill.setToolTip(
             "Setzt das HUD auf die volle Groesse des Bildschirms, auf dem es gerade liegt,\n"
             "und sperrt es dabei (klick-durch) - sonst laege eine bildschirmfuellende\n"
@@ -833,14 +928,20 @@ class SubsystemsPanel(QWidget):
         box.setSpacing(6)
 
         row = QHBoxLayout()
-        btn_regie = QPushButton("Regie oeffnen")
+        btn_regie = QPushButton("Regie")
         btn_regie.setToolTip("Manuelle Einblendungen: Charts, Strategie, WM-Stand")
         btn_regie.clicked.connect(lambda: webbrowser.open(f"{self.api.base_url}/regie"))
-        btn_settings = QPushButton("Settings oeffnen")
+        btn_settings = QPushButton("Settings")
         btn_settings.setToolTip("Bausteine an/aus, Regler, Branding, Presets, Trackmap")
         btn_settings.clicked.connect(lambda: webbrowser.open(f"{self.api.base_url}/settings"))
+        btn_upd = QPushButton("Nach Update suchen")
+        btn_upd.setToolTip(
+            "Fragt bei GitHub nach der neuesten Fassung.\n"
+            "Beim Programmstart passiert das ohnehin einmal von selbst.")
+        btn_upd.clicked.connect(self._update_suchen)
         row.addWidget(btn_regie)
         row.addWidget(btn_settings)
+        row.addWidget(btn_upd)
         box.addLayout(row)
 
         self.btn_quit_all = QPushButton("ALLES BEENDEN")
@@ -890,10 +991,11 @@ class SubsystemsPanel(QWidget):
     def _apply_status(self, server_ok: bool, udp_ok: bool, drivers: int) -> None:
         self.dot_server.setStyleSheet(
             f"background: {'#3ddc84' if server_ok else '#e10600'}; border-radius: 5px;")
-        self.lbl_server.setText("Server laeuft" if server_ok else "Server nicht erreichbar")
+        self.lbl_server.setText("Server online" if server_ok else "Server offline")
         self.dot_udp.setStyleSheet(
             f"background: {'#3ddc84' if udp_ok else '#e10600'}; border-radius: 5px;")
-        self.lbl_udp.setText(f"UDP aktiv - {drivers} Fahrer" if udp_ok else "keine UDP-Daten")
+        # Ohne Daten reicht der blosse Name - den Zustand sagt der Punkt davor.
+        self.lbl_udp.setText(f"UDP aktiv - {drivers} Fahrer" if udp_ok else "UDP-Daten")
 
         if server_ok:
             self._starting = False

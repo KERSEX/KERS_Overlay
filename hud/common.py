@@ -7,6 +7,7 @@ Settings-Seite und du musst nicht zweimal ueberlegen, was was ist.
 """
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -17,11 +18,25 @@ from PySide6.QtGui import (QBitmap, QColor, QIcon, QImage, QPainter, QPen,
 # Als EXE (PyInstaller) liegt __file__ im temporären Entpack-Ordner, der beim
 # Beenden gelöscht wird. hud_state.json (Fensterposition, Renderer-Wahl, ...)
 # muss daher neben der EXE liegen, sonst ist der Zustand nach jedem Neustart weg.
+#
+# DATA_DIR ist der Ort fuer ALLES, was dem Nutzer gehoert: hud_state.json,
+# overlay_settings.json, championship.json (und weitere WM-Staende), presets.json,
+# recordings/ sowie die entpackte main.exe. Als EXE ist das der Unterordner `data`,
+# damit im Verteilordner nur KERS_Subsystems.exe steht. Im Dev-Betrieb bleibt alles
+# genau dort, wo es war (hud/ fuer den Zustand) - sonst muesste man beim Entwickeln
+# auch umziehen.
 if getattr(sys, "frozen", False):
     HERE = Path(sys.executable).resolve().parent
+    DATA_DIR = HERE / "data"
+    try:
+        DATA_DIR.mkdir(exist_ok=True)
+    except OSError as exc:                       # z.B. Programmordner schreibgeschuetzt
+        print(f"[HUD] Datenordner nicht anlegbar: {exc}")
+        DATA_DIR = HERE                          # Rueckfall: wie frueher neben die EXE
 else:
     HERE = Path(__file__).resolve().parent
-STATE_FILE = HERE / "hud_state.json"
+    DATA_DIR = HERE
+STATE_FILE = DATA_DIR / "hud_state.json"
 
 # Die mitgebuendelten Bilder liegen dagegen NEBEN dem Code - als EXE also im
 # Entpack-Ordner unter sys._MEIPASS, sonst eine Ebene ueber hud/. Gleiche
@@ -31,6 +46,24 @@ if getattr(sys, "frozen", False):
 else:
     ASSET_ROOT = Path(__file__).resolve().parent.parent
 BRAND_ICON = ASSET_ROOT / "static" / "brand" / "Icon.png"
+
+# ── Version der Anwendung ─────────────────────────────────────────────────────
+# EINE Quelle fuer beide Prozesse (Schaltbrett und Server): static/version.txt.
+# Sie liegt im static-Ordner, weil der ohnehin in BEIDE EXEs gebuendelt wird -
+# build.bat braucht dafuer keine zusaetzliche Zeile.
+#
+# ⚠ Nicht in hud_state.json: die liegt neben der EXE und bleibt beim Update
+# unveraendert liegen - die neue Fassung wuerde sich dauerhaft fuer veraltet halten.
+# Die Nummer muss IN der EXE stecken.
+def _read_app_version() -> str:
+    try:
+        text = (ASSET_ROOT / "static" / "version.txt").read_text(encoding="utf-8")
+    except OSError:
+        return "0.0.0"                  # fehlt sie, meldet sich der Update-Check still ab
+    return text.strip() or "0.0.0"
+
+
+APP_VERSION = _read_app_version()
 
 # ── Gespeicherter Zustand ─────────────────────────────────────────────────────
 DEFAULT_STATE = {
@@ -71,6 +104,44 @@ RENDERERS = [
     ("qml", "QML - die neue Szene"),
     ("web", "Web - die HTML-Seiten (WebEngine)"),
 ]
+
+
+# Was frueher direkt neben der EXE lag und jetzt in data/ gehoert. Alle weiteren
+# *.json (frei benannte WM-Staende) kommen in migrate_data() dazu.
+_MIGRATE = ("hud_state.json", "overlay_settings.json", "presets.json",
+            "championship.json", "main.exe", "recordings")
+
+
+def migrate_data() -> list:
+    """Alte Dateien aus dem EXE-Ordner nach data/ holen. Gibt die Namen zurueck.
+
+    ⚠ MUSS vor dem ersten load_state() laufen. Bis 08/2026 lag alles direkt neben
+    der EXE; ohne diesen Umzug waeren WM-Stand, Einstellungen und Fensterposition
+    nach dem Update scheinbar verschwunden - in Wahrheit laegen sie nur eine Ebene
+    hoeher und wuerden nie wieder gelesen.
+
+    Im Dev-Betrieb passiert nichts: dort ist DATA_DIR unveraendert.
+    """
+    if not getattr(sys, "frozen", False) or DATA_DIR == HERE:
+        return []
+    namen = list(_MIGRATE)
+    try:                                  # frei benannte WM-Staende mitnehmen
+        namen += [f.name for f in HERE.glob("*.json") if f.name not in namen]
+    except OSError:
+        pass
+    umgezogen = []
+    for name in namen:
+        alt, neu = HERE / name, DATA_DIR / name
+        if not alt.exists() or neu.exists():
+            continue                      # nichts da, oder im Ziel schon vorhanden
+        try:
+            shutil.move(str(alt), str(neu))
+            umgezogen.append(name)
+        except OSError as exc:            # z.B. main.exe laeuft gerade
+            print(f"[HUD] {name} nicht verschiebbar: {exc}")
+    if umgezogen:
+        print(f"[HUD] Nach {DATA_DIR.name}/ verschoben: {', '.join(umgezogen)}")
+    return umgezogen
 
 
 def load_state() -> dict:

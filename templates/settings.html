@@ -354,15 +354,25 @@ async function loadVersions(){
     if(note) note.textContent = "";
     return;
   }
-  box.innerHTML = (d.files || []).map(f => {
-    const ver = f.version
-      ? `<span class="vver">v${esc(f.version)}</span>`
-      : `<span class="vver miss">${esc(f.note || "keine Version")}</span>`;
-    const meta = [f.changed, f.hash ? "#" + esc(f.hash) : ""].filter(Boolean).join(" · ");
-    return `<div class="vrow${f.restart_needed ? " stale" : ""}">`
-         + `<span class="vname">${esc(f.file)}<small>${esc(f.label || "")}</small></span>`
-         + `<span class="vmeta">${meta}</span>${ver}</div>`;
-  }).join("") || `<div class="pempty">keine Dateien gemeldet</div>`;
+  // Die Version der Anwendung steht immer oben — das ist die Zahl, die auch im
+  // Schaltbrett und im Release-Tag auf GitHub steht.
+  let html = `<div class="vrow"><span class="vname">KERS Subsystems`
+           + `<small>diese Anwendung</small></span>`
+           + `<span class="vver">v${esc(d.app || "?")}</span></div>`;
+  // Die Liste der Einzeldateien nur im Dev-Betrieb: als EXE ist alles eingebacken
+  // und kann sich zur Laufzeit gar nicht ändern — dort wäre sie nur Rauschen.
+  if(!d.frozen){
+    html += (d.files || []).map(f => {
+      const ver = f.version
+        ? `<span class="vver">v${esc(f.version)}</span>`
+        : `<span class="vver miss">${esc(f.note || "keine Version")}</span>`;
+      const meta = [f.changed, f.hash ? "#" + esc(f.hash) : ""].filter(Boolean).join(" · ");
+      return `<div class="vrow${f.restart_needed ? " stale" : ""}">`
+           + `<span class="vname">${esc(f.file)}<small>${esc(f.label || "")}</small></span>`
+           + `<span class="vmeta">${meta}</span>${ver}</div>`;
+    }).join("");
+  }
+  box.innerHTML = html;
   if(note) note.textContent = d.restart_needed
     ? "main.py wurde seit dem Start bearbeitet — die laufende Instanz nutzt noch den alten Code. Server neu starten."
     : "";

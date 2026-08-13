@@ -29,14 +29,16 @@ das Tray-Menue kommen damit ohne Sonderfaelle aus, egal welcher Renderer laeuft.
 import ctypes
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import PySide6
-from PySide6.QtCore import Property, QObject, QUrl, Qt, Signal, Slot
+from PySide6.QtCore import Property, QObject, QTimer, QUrl, Qt, Signal, Slot
 from PySide6.QtGui import QColor, QSurfaceFormat
 from PySide6.QtQuick import QQuickView
 
 from bridge import OverlayBridge
+from common import DATA_DIR
 from theme import Theme, load_fonts
 
 # Als EXE liegt das gebuendelte qml/ unter sys._MEIPASS/hud/qml, nicht relativ
@@ -48,11 +50,68 @@ else:
 
 MIN_W, MIN_H = 240, 160
 
+
+def _ist_weggeblendet(hwnd) -> bool:
+    """DWM-Cloaking: Fenster gilt als sichtbar, ist aber weggeblendet."""
+    wert = ctypes.c_int(0)
+    try:
+        ok = ctypes.windll.dwmapi.DwmGetWindowAttribute(
+            ctypes.c_void_p(hwnd), DWMWA_CLOAKED,
+            ctypes.byref(wert), ctypes.sizeof(wert))
+    except Exception:  # pylint: disable=broad-exception-caught
+        return False                          # dwmapi fehlt: dann eben ungefiltert
+    return ok == 0 and wert.value != 0
+
+
+def _fensterklasse(hwnd) -> str:
+    puffer = ctypes.create_unicode_buffer(128)
+    ctypes.windll.user32.GetClassNameW(ctypes.c_void_p(hwnd), puffer, 128)
+    return puffer.value
+
+
+def _fenster_beschreiben(hwnd) -> str:
+    """Klasse, Titel und Prozess-ID - genug, um den Stoerenfried zu erkennen."""
+    user32 = ctypes.windll.user32
+    klasse = ctypes.create_unicode_buffer(128)
+    user32.GetClassNameW(ctypes.c_void_p(hwnd), klasse, 128)
+    titel = ctypes.create_unicode_buffer(160)
+    user32.GetWindowTextW(ctypes.c_void_p(hwnd), titel, 160)
+    pid = ctypes.c_ulong(0)
+    user32.GetWindowThreadProcessId(ctypes.c_void_p(hwnd), ctypes.byref(pid))
+    eigen = " [wir selbst]" if pid.value == os.getpid() else ""
+    return f"{klasse.value!r} \"{titel.value}\" (PID {pid.value}){eigen}"
+
 # Win32-Konstanten fuer den Auffindbar-Schalter (siehe _apply_native_toolwindow).
 GWL_EXSTYLE = -20
 WS_EX_TOOLWINDOW = 0x00000080
 SW_HIDE = 0
 SW_SHOWNOACTIVATE = 4
+
+# ... und fuer das Nachfassen der Vordergrund-Lage (siehe _reassert_topmost).
+HWND_TOPMOST = -1
+WS_EX_TOPMOST = 0x00000008
+SWP_NOSIZE = 0x0001
+SWP_NOMOVE = 0x0002
+SWP_NOACTIVATE = 0x0010
+SWP_NOOWNERZORDER = 0x0200
+GW_HWNDPREV = 3
+DWMWA_CLOAKED = 14
+# Wie oft nachgefasst wird. 2 s ist ein Kompromiss: haeufig genug, dass ein
+# Wegrutschen kaum auffaellt, selten genug, dass es nichts kostet.
+TOPMOST_INTERVAL_MS = 2000
+# Die Taskleiste ist selbst ein Vordergrundfenster und liegt beim bildschirm-
+# fuellenden HUD staendig darueber - sie waere die haeufigste Meldung im Log und
+# wuerde den echten Fund zudecken. Nachgemessen mit GetClassNameW: der Balken
+# heisst Shell_TrayWnd, auf den weiteren Bildschirmen Shell_SecondaryTrayWnd.
+DIAGNOSE_EGAL = ("Shell_TrayWnd", "Shell_SecondaryTrayWnd")
+# Wie weit die Diagnose die Fensterreihenfolge hochlaeuft, bevor sie aufgibt.
+# Ueber einem Vordergrundfenster liegen normalerweise 0-2 Fenster; die Grenze
+# ist nur da, damit der Timer unter keinen Umstaenden haengen bleibt.
+MAX_ZORDER_WALK = 60
+# Wohin die Diagnose schreibt. Im Dev-Betrieb neben hud/, als EXE in data/ -
+# denn die EXE hat ohne "build.bat -c" gar keine Konsole, in der ein print
+# landen koennte.
+TOPMOST_LOG = DATA_DIR / "hud_topmost.log"
 
 # Unter diesen Namen sieht die QML-Szene die drei Python-Objekte:
 #     Kers    der Rennstand (bridge.OverlayBridge)
@@ -271,6 +330,14 @@ class QmlOverlayWindow(QQuickView):
 
         self.statusChanged.connect(self._on_status)
 
+        # Faellt das Fenster in der Vordergrund-Schicht zurueck, holt der Timer es
+        # wieder nach vorn. Begruendung steht bei _reassert_topmost.
+        self._topmost_timer = QTimer(self)
+        self._topmost_timer.setInterval(TOPMOST_INTERVAL_MS)
+        self._topmost_timer.timeout.connect(self._reassert_topmost)
+        # Letzter Diagnose-Befund, damit nur ZUSTANDSWECHSEL im Log landen.
+        self._letzter_befund = ""
+
         self.setGeometry(state["x"], state["y"], state["w"], state["h"])
         self.setOpacity(state["opacity"] / 100.0)
         self.set_chroma(bool(state.get("obs_chroma", False)),
@@ -350,6 +417,11 @@ class QmlOverlayWindow(QQuickView):
         if self._want_visible:
             self.show()
         self._apply_native_toolwindow()
+        # setFlags() baut das native Fenster neu auf - danach steht es zwar wieder
+        # in der Vordergrund-Schicht, aber nicht zwingend vorn. Deshalb hier gleich
+        # nachfassen, statt bis zum naechsten Timer-Schlag zu warten.
+        self._reassert_topmost()
+        self._sync_topmost_timer()
 
     def _apply_native_toolwindow(self) -> None:
         """WS_EX_TOOLWINDOW am NATIVEN Fenster setzen bzw. wegnehmen.
@@ -394,10 +466,115 @@ class QmlOverlayWindow(QQuickView):
         except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"[HUD] Fensterstil nicht aenderbar: {e}")
 
+    # ── Vordergrund halten ───────────────────────────────────────────────────
+    def _reassert_topmost(self) -> None:
+        """Das Fenster wieder an die Spitze der Vordergrund-Schicht setzen.
+
+        ⚠ Warum das noetig ist, obwohl WindowStaysOnTopHint gesetzt ist:
+        WS_EX_TOPMOST sagt unter Windows nur, dass das Fenster in die OBERE
+        Schicht gehoert - nicht, dass es dort das oberste ist. Innerhalb dieser
+        Schicht gilt weiter die normale Reihenfolge, und jedes Fenster, das sich
+        SPAETER als Vordergrundfenster anmeldet, legt sich davor: Spiel-Overlays,
+        Discord, OBS-Projektor, Windows-Benachrichtigungen. Das HUD ist dann
+        immer noch "always on top" und trotzdem verdeckt - genau das Bild, das
+        der Fehler macht.
+
+        SetWindowPos(HWND_TOPMOST) meldet uns erneut oben an. NOACTIVATE ist
+        dabei Pflicht: ohne das nimmt das Overlay dem Spiel den Fokus.
+        NOOWNERZORDER laesst das Besitzerfenster in Ruhe - Qt.Tool haengt das
+        HUD an ein solches, und ohne das Flag wuerde es mitwandern.
+
+        Was das NICHT heilt: ein Spiel im exklusiven Vollbild. Dort gibt es
+        ueberhaupt keine Fensterschicht mehr - dafuer muss F1 auf randloses
+        Fenster bzw. Vollbild-Fenster stehen.
+        """
+        if sys.platform != "win32" or not self.isVisible():
+            return
+        try:
+            hwnd = ctypes.c_void_p(int(self.winId()))
+            self._diagnose_lage(hwnd)
+            ctypes.windll.user32.SetWindowPos(
+                hwnd, ctypes.c_void_p(HWND_TOPMOST), 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            # Einmal melden reicht - der Timer liefe sonst alle 2 s in die Ausgabe.
+            print(f"[HUD] Vordergrund nicht durchsetzbar: {e}")
+            self._topmost_timer.stop()
+
+    # ── Diagnose: WER legt sich davor? ───────────────────────────────────────
+    # Der Fehler tritt selten und ohne erkennbaren Ausloeser auf. Statt zu raten
+    # schreibt das HUD deshalb mit, sobald es sich verdeckt vorfindet - und zwar
+    # NUR bei einer Aenderung, sonst stuende alle 2 s dieselbe Zeile im Log.
+    def _diagnose_lage(self, hwnd) -> None:
+        user32 = ctypes.windll.user32
+        get = getattr(user32, "GetWindowLongPtrW", None) or user32.GetWindowLongW
+        get.restype = ctypes.c_ssize_t
+        get.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+        # Zwei verschiedene Fehlerbilder, die man auseinanderhalten muss:
+        #   Flag weg   -> das Fenster gehoert gar nicht mehr in die obere Schicht
+        #   Flag da    -> es gehoert hinein, ist dort aber nicht das oberste
+        hat_flag = bool(get(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST)
+        darueber = self._fenster_ueber_uns(hwnd)
+
+        if hat_flag and not darueber:
+            befund = ""                      # alles in Ordnung
+        elif not hat_flag:
+            befund = f"WS_EX_TOPMOST verloren; darueber: {darueber or 'nichts'}"
+        else:
+            befund = f"verdeckt von {darueber}"
+
+        if befund == self._letzter_befund:
+            return
+        self._letzter_befund = befund
+        if not befund:
+            return
+        zeile = f"{datetime.now():%Y-%m-%d %H:%M:%S}  {befund}"
+        print(f"[HUD] {zeile}")
+        try:
+            with open(TOPMOST_LOG, "a", encoding="utf-8") as f:
+                f.write(zeile + "\n")
+        except OSError:
+            pass                             # Diagnose darf den Betrieb nie stoeren
+
+    def _fenster_ueber_uns(self, hwnd) -> str:
+        """Das naechste SICHTBARE Fenster ueber uns - leerer String: keins.
+
+        ⚠ IsWindowVisible allein reicht nicht. Store-/UWP-Anwendungen lassen
+        staendig Fenster stehen, die als sichtbar gelten, von der DWM aber
+        "cloaked" (weggeblendet) sind. Ohne diese zweite Pruefung meldet die
+        Diagnose bei praktisch jedem Durchgang einen Stoerenfried, den man auf
+        dem Bildschirm gar nicht sieht - und waere damit wertlos.
+        """
+        user32 = ctypes.windll.user32
+        cur = user32.GetWindow(hwnd, GW_HWNDPREV)
+        for _ in range(MAX_ZORDER_WALK):
+            if not cur:
+                return ""
+            if (user32.IsWindowVisible(cur)
+                    and not _ist_weggeblendet(cur)
+                    and _fensterklasse(cur) not in DIAGNOSE_EGAL):
+                return _fenster_beschreiben(cur)
+            cur = user32.GetWindow(cur, GW_HWNDPREV)
+        return "(Reihenfolge zu lang - abgebrochen)"
+
+    def _sync_topmost_timer(self) -> None:
+        """Nur mitlaufen lassen, solange das HUD ueberhaupt zu sehen ist."""
+        if sys.platform != "win32":
+            return
+        if self.isVisible():
+            if not self._topmost_timer.isActive():
+                self._topmost_timer.start()
+        else:
+            self._topmost_timer.stop()
+
     def set_findable(self, on: bool) -> None:
         """Fuer OBS auffindbar machen (kostet einen Taskleisten-Eintrag)."""
         self.state["obs_findable"] = bool(on)
         self._apply_native_toolwindow()
+        # Der Stilwechsel blendet das Fenster kurz aus und wieder ein - dabei kann
+        # es in der Vordergrund-Schicht nach hinten rutschen.
+        self._reassert_topmost()
         self.hud._set_findable_silent(bool(on))
 
     def set_locked(self, locked: bool) -> None:
@@ -413,6 +590,9 @@ class QmlOverlayWindow(QQuickView):
         self._want_visible = bool(visible)
         self.state["visible"] = self._want_visible
         self.setVisible(self._want_visible)
+        # Beim Wiedereinblenden landet das Fenster nicht zwangslaeufig vorn.
+        self._reassert_topmost()
+        self._sync_topmost_timer()
         self.hudVisibilityChanged.emit(self._want_visible)
 
     # ── OBS-Hintergrund ──────────────────────────────────────────────────────

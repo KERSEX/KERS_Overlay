@@ -25,12 +25,27 @@ Item {
         border.color: Theme.panelBorder
 
         // border-left: var(--accent) solid var(--rm-accent)
-        Rectangle {
+        //
+        // ⚠ Die beiden Radien direkt auf einem 3 px schmalen Rechteck bleiben
+        // wirkungslos: Qt kappt jeden Radius auf die HAELFTE der kleineren
+        // Kantenlaenge, aus 10 px werden hier also 1,5 px - der Balken stand
+        // dadurch fast eckig vor der runden Panelkante. Deshalb ein Rechteck in
+        // voller Panelbreite mit der richtigen Rundung, das ein schmaler Container
+        // auf die Akzentbreite beschneidet. Der Schnitt liegt rechts, also auf einer
+        // geraden Kante - dort stoert es nicht, dass `clip: true` in Qt Quick
+        // rechteckig beschneidet und die Rundung selbst nicht anfasst.
+        Item {
             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
             width: Theme.accentWidth
-            color: banner.src.accent
-            topLeftRadius: Theme.panelRadius
-            bottomLeftRadius: Theme.panelRadius
+            clip: true
+
+            Rectangle {
+                width: pill.width
+                height: parent.height
+                color: banner.src.accent
+                topLeftRadius: Theme.panelRadius
+                bottomLeftRadius: Theme.panelRadius
+            }
         }
 
         Row {

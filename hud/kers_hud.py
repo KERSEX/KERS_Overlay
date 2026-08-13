@@ -143,8 +143,8 @@ def build_tray(app: QApplication, hud, panel) -> QSystemTrayIcon:
                                          panel.activateWindow()) if panel else None)
     menu.addAction(act_panel)
     if panel is not None:
-        menu.addAction(QAction("Server starten", menu, triggered=panel.start_server))
-        menu.addAction(QAction("Server stoppen", menu, triggered=lambda: panel.stop_server()))
+        menu.addAction(QAction("Start Server", menu, triggered=panel.start_server))
+        menu.addAction(QAction("Stop Server", menu, triggered=lambda: panel.stop_server()))
     menu.addSeparator()
 
     act_show = QAction("HUD anzeigen", menu, checkable=True)

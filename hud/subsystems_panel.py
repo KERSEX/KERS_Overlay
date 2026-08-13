@@ -88,7 +88,7 @@ def _same_content(a: Path, b: Path) -> bool:
     Die Groesse allein waere zu wacklig - zwei Builds koennen gleich gross sein,
     ohne gleich zu sein. Gehasht wird deshalb nur, wenn die Groesse schon passt;
     das kostet bei ~18 MB wenige Millisekunden und nur beim Klick auf
-    "Server starten".
+    "Start Server".
     """
     try:
         if a.stat().st_size != b.stat().st_size:
@@ -103,7 +103,7 @@ def _ensure_server_payload() -> tuple[Path | None, str]:
 
     KERS_Subsystems.exe traegt main.exe (+ dessen Config-JSONs) als eingebettete
     Kopie in sich (--add-binary/--add-data, siehe build.bat), damit sich nur EINE
-    Datei verteilen laesst. Beim "Server starten" wird main.exe von dort daneben
+    Datei verteilen laesst. Beim "Start Server" wird main.exe von dort daneben
     entpackt - ab da laeuft sie als eigener, stabiler Prozess (nicht aus dem
     Pyinstaller-Temp-Ordner, der beim Beenden wieder verschwindet).
 
@@ -366,7 +366,7 @@ class SubsystemsPanel(QWidget):
         box.addWidget(self.btn_update)
 
         srv = QHBoxLayout()
-        self.btn_server = QPushButton("Server starten")
+        self.btn_server = QPushButton("Start Server")
         self.btn_server.setToolTip(
             f"Startet main.exe (oder main.py, falls keine EXE da ist) aus\n"
             f"{ROOT} in einem eigenen Konsolenfenster, damit du die\n"
@@ -403,9 +403,9 @@ class SubsystemsPanel(QWidget):
         if payload_err:
             # Kein stiller Fehlschlag: sonst laeuft entweder gar nichts oder - schlimmer -
             # der alte Server weiter, und man sucht den Fehler im Overlay.
-            QMessageBox.warning(self, "Server starten", payload_err)
+            QMessageBox.warning(self, "Start Server", payload_err)
             self.btn_server.setEnabled(True)
-            self.btn_server.setText("Server starten")
+            self.btn_server.setText("Start Server")
             return
         script = ROOT / "main.py"
 
@@ -434,14 +434,14 @@ class SubsystemsPanel(QWidget):
 
         self._starting = True
         self.btn_server.setEnabled(False)
-        self.btn_server.setText("Server startet ...")
+        self.btn_server.setText("Server Starting ...")
         self._start_timeout.start()
 
     def _start_gave_up(self) -> None:
         """Nach der Wartezeit ohne Lebenszeichen wieder freigeben."""
         self._starting = False
         self.btn_server.setEnabled(True)
-        self.btn_server.setText("Server starten (letzter Versuch lief nicht an)")
+        self.btn_server.setText("Start Server (letzter Versuch lief nicht an)")
 
     # ── Update ──────────────────────────────────────────────────────────────
     def _update_suchen(self) -> None:
@@ -535,14 +535,14 @@ class SubsystemsPanel(QWidget):
             lname = name.lower()
             if "python" not in lname and "main" not in lname:
                 QMessageBox.warning(
-                    self, "Server stoppen",
+                    self, "Stop Server",
                     f"Auf Port {self._server_port()} laeuft "
                     f"{name or 'ein unbekannter Prozess'} (PID {pid}).\n\n"
                     "Das sieht nicht nach main.py/main.exe aus - es wird nichts beendet.")
                 return False
             if confirm:
                 answer = QMessageBox.question(
-                    self, "Server stoppen",
+                    self, "Stop Server",
                     f"Der Server wurde nicht von hier gestartet.\n\n"
                     f"{name} (PID {pid}) auf Port {self._server_port()} jetzt beenden?")
                 if answer != QMessageBox.StandardButton.Yes:
@@ -1001,14 +1001,14 @@ class SubsystemsPanel(QWidget):
             self._starting = False
             self._start_timeout.stop()
             self.btn_server.setEnabled(False)
-            self.btn_server.setText("Server laeuft")
+            self.btn_server.setText("Server Run")
             self.btn_stop.setEnabled(True)
-            self.btn_stop.setText("Server stoppen")
+            self.btn_stop.setText("Stop Server")
         else:
             self.btn_stop.setEnabled(False)
             if not self._starting:
                 self.btn_server.setEnabled(True)
-                self.btn_server.setText("Server starten")
+                self.btn_server.setText("Start Server")
 
     # ── Fenster ─────────────────────────────────────────────────────────────
     def _set_checked(self, cb: QCheckBox, value: bool) -> None:

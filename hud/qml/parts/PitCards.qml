@@ -78,6 +78,14 @@ Column {
                     id: head
                     width: parent.width
                     height: 26
+                    // ⚠ Die Ecken muessen HIER noch einmal gesetzt werden - gleiche
+                    // Begruendung wie in Battles.qml: die Karte ist zwar abgerundet,
+                    // aber `clip: true` beschneidet in Qt Quick nur auf das Rechteck
+                    // des Items und ignoriert die Rundung. Ohne die beiden Radien
+                    // deckt dieser Verlauf die oberen Ecken zu und die Karte wirkt
+                    // oben eckig.
+                    topLeftRadius: card.radius
+                    topRightRadius: card.radius
                     gradient: Gradient {
                         GradientStop { position: 0.0; color: Theme.headBg1 }
                         GradientStop { position: 1.0; color: Theme.headBg2 }
@@ -111,10 +119,27 @@ Column {
                     width: parent.width
                     height: 50
 
-                    Rectangle {
+                    // ⚠ Kein schmales Rechteck mit bottomLeftRadius: Qt kappt jeden
+                    // Radius auf die HAELFTE der kleineren Kantenlaenge, aus 10 px
+                    // wuerden bei 3 px Breite also 1,5 px - die Kante stuende eckig
+                    // vor der runden Ecke. Deshalb ein Rechteck in voller Kartenbreite
+                    // mit der richtigen Rundung, das ein schmaler Container auf die
+                    // Akzentbreite beschneidet. Der Schnitt liegt rechts, also auf
+                    // einer geraden Kante - dort stoert es nicht, dass `clip: true`
+                    // die Rundung selbst nicht beschneidet.
+                    // Unten gerundet nur, wenn keine Auskommen-Zeile folgt; sonst
+                    // sitzt die Kante mitten in der Karte und muss durchlaufen.
+                    Item {
                         anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
                         width: Theme.accentWidth
-                        color: holder.teamColor
+                        clip: true
+
+                        Rectangle {
+                            width: card.width
+                            height: parent.height
+                            color: holder.teamColor
+                            bottomLeftRadius: exit.visible ? 0 : card.radius
+                        }
                     }
                     Rectangle {
                         anchors.fill: parent

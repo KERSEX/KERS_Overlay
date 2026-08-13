@@ -10,6 +10,10 @@ __pycache__/
 # Fensterposition, Bildschirmgroesse und Renderer-Wahl des HUD.
 hud/hud_state.json
 
+# Diagnose-Mitschrift zur Vordergrund-Lage (qml_overlay._diagnose_lage)
+hud_topmost.log
+hud/hud_topmost.log
+
 # Persoenliche Einstellungen - seit 0.1.1 bewusst weder in der EXE noch im Repo:
 # Branding, Logo, Skalierung. main.py legt fehlende beim ersten Lauf selbst an.
 overlay_settings.json

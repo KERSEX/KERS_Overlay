@@ -1,0 +1,108 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   KERS F1 Overlay — gemeinsame Basis für die einzelnen Bausteinseiten (/part/<name>)
+   1:1 aus templates/test.html übernommen (Kopf-<style>, Z. 9–58).
+
+   ⚠ Pfade sind hier ABSOLUT (/static/...). Diese Datei liegt unter /static/css/,
+     relative url() würden sonst zu /static/css/static/fonts/... auflösen (404).
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Lokale Fonts (Variable Fonts, decken alle Gewichte ab) -> Overlay läuft komplett offline */
+@font-face { font-family: 'Inter'; src: url('/static/fonts/Inter.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Teko';  src: url('/static/fonts/Teko.woff2')  format('woff2'); font-weight: 300 700; font-style: normal; font-display: swap; }
+
+:root {
+    /* Deckkraft-Faktor aus den Settings (`opacity`). 1 = wie bisher, kleiner = durchsichtiger.
+       Wird von applyBrand() in core.js gesetzt. Browser klemmen Alpha bei 1 -> ab ~1.25
+       ist alles komplett deckend. Muss identisch zu templates/test.html bleiben. */
+    --ui-alpha: 1;
+
+    --bg-color: rgba(14, 14, 19, calc(0.94 * var(--ui-alpha)));       /* dichter -> Text bleibt über unruhigem Gameplay klar */
+    /* Enthaelt den frueher darunterliegenden Container-Hintergrund mit — sieht identisch
+       aus wie vorher, reagiert aber voll auf den Regler. Siehe templates/test.html. */
+    --row-bg: rgba(24, 24, 33, calc(0.988 * var(--ui-alpha)));
+    --row-bg-alt: rgba(16, 16, 23, calc(0.988 * var(--ui-alpha)));
+    --text-main: #ffffff;
+    --text-muted: #a6a6b4;   /* war #8e8e9e - auf dunklem Panel + über Video zu schwach */
+    --accent-red: #e10600;
+    --accent-glow: rgba(225, 6, 0, 0.5);
+
+    /* ── Vereinheitlichte Panel-/Text-Tokens (zentral steuerbar) ── */
+    --panel-bg: rgba(14, 14, 19, calc(0.94 * var(--ui-alpha)));          /* einheitlicher Panel-Ton */
+    /* Panel-Kopfzeilen waren fest undurchsichtig -> muessen mitziehen, sonst bleibt der
+       Kopf deckend stehen, waehrend der Koerper durchsichtig wird. */
+    --head-bg-1: rgba(27, 27, 34, var(--ui-alpha));
+    --head-bg-2: rgba(17, 17, 22, var(--ui-alpha));
+    --towerhead-1: rgba(22, 22, 30, var(--ui-alpha));
+    --towerhead-2: rgba(40, 40, 50, var(--ui-alpha));
+    --panel-radius: 10px;                        /* einheitlicher Eck-Radius */
+    --panel-border: 1px solid rgba(255, 255, 255, 0.09);
+    --panel-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);   /* weicher Tiefenschatten */
+    --panel-blur: blur(10px);                    /* einheitlicher Backdrop-Blur */
+    --accent: 3px;                               /* Akzent-Kanten-Dicke (Tower rot, sonst Team) */
+    --tsh: 0 1px 2px rgba(0, 0, 0, 0.7);         /* Kontrast-Textschatten */
+    --tsh-soft: 0 1px 1px rgba(0, 0, 0, 0.55);
+
+    --team-redbull:   #3671C6;
+    --team-mclaren:   #FF8000;
+    --team-ferrari:   #E80020;
+    --team-mercedes:  #27F4D2;
+    --team-aston:     #229971;
+    --team-haas:      #B6BABD;
+    --team-rb:        #6692FF;
+    --team-alpine:    #0093CC;
+    --team-williams:  #64C4FF;
+    --team-sauber:    #52E252;
+    --team-audi:      #C8102E;   /* 2026: Audi (anpassbar) */
+    --team-cadillac:  #C9A227;   /* 2026: Cadillac (anpassbar) */
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Inter', sans-serif;
+    color: var(--text-main);
+    background-color: transparent;
+    /* Schärfe: Graustufen-Antialiasing statt Subpixel. Auf transparentem Grund (OBS)
+       erzeugt Subpixel-AA Farbsäume an den Buchstabenkanten -> wirkt unscharf. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+/* ═══ Einzelseiten-Modus ════════════════════════════════════════════════════════
+   Im Gesamt-Overlay (test.html) sitzt jeder Baustein per `position: fixed` an einem
+   festen Bildschirmplatz. Auf einer Einzelseite soll er stattdessen oben-links in der
+   Ecke kleben, damit die OBS-Browserquelle klein sein und frei geschoben werden kann.
+
+   `body.part` ist der Schalter. Die Teil-CSS setzt zusätzlich .part-root auf ihr
+   eigenes Wurzelelement — und kümmert sich selbst um `transform`, denn dort steckt
+   bei manchen Bausteinen NICHT nur die Zentrierung (translateX(-50%)), sondern auch
+   die Einblend-Animation und ein Scale (z.B. #lower-third: scale(1.14)).
+   ═══════════════════════════════════════════════════════════════════════════════ */
+body.part {
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+    /* Der Inhalt bestimmt die Größe; die Canvas der OBS-Quelle schneidet den Rest ab. */
+    display: block;
+    width: 100%;
+    min-height: 100vh;
+}
+
+body.part .part-root {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    inset: auto !important;
+    margin: 0 !important;
+    /* transform NICHT anfassen — macht die jeweilige Teil-CSS, s.o. */
+}
+
+/* Etwas Luft, damit Schatten/Glow und überstehende Elemente (Strafen-Pillen am Tower,
+   Glow-Rahmen) nicht am Rand der Browserquelle abgeschnitten werden.
+   Abschaltbar per ?pad=0 -> body bekommt zusätzlich .nopad. */
+body.part .part-pad { padding: 10px; }
+body.part.nopad .part-pad { padding: 0; }

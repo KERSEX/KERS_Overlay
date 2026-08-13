@@ -1,0 +1,17 @@
+/* WM-Stand — 1:1 aus templates/test.html (Z. 1091–1102). */
+
+/* ════ Welle7 · A3: WM-Stand ═══════════════════════════════════════════════ */
+#champ-panel { position: fixed; bottom: 40px; right: 24px; z-index: 45; max-width: 92vw; width: 420px; padding-bottom: 8px;
+    background: var(--panel-bg); border-radius: var(--panel-radius); border: var(--panel-border); box-shadow: var(--panel-shadow);
+    backdrop-filter: var(--panel-blur); text-shadow: var(--tsh); opacity: 0; pointer-events: none; overflow: hidden;
+    transform: translate(0, 14px); transition: opacity .35s, transform .4s; }   /* #3: WM-Stand unten rechts */
+#champ-panel.show { opacity: 1; transform: translate(0, 0); }
+#champ-panel .champ-title { font-family:'Teko',sans-serif; font-size:17px; letter-spacing:2px; padding:8px 16px; text-transform:uppercase; border-bottom: var(--accent) solid var(--accent-red); }
+#champ-panel .champ-row { position:relative; display:flex; align-items:center; gap:10px; height:32px; padding:0 12px; border-left: var(--accent) solid var(--t,#fff); }
+#champ-panel .champ-row::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg, var(--t,#fff), transparent 45%); opacity:.10; }
+#champ-panel .champ-pos { position:relative; font-family:'Teko',sans-serif; font-size:16px; width:22px; color:var(--text-muted); }
+#champ-panel .champ-name { position:relative; flex:1; font-size:13px; font-weight:600; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#champ-panel .champ-pts { position:relative; font-family:'Teko',sans-serif; font-size:17px; font-weight:600; min-width:42px; text-align:right; }
+#champ-panel .champ-delta { position:relative; font-size:11px; color:#00e676; width:36px; text-align:right; }
+
+/* Einzelseite: das transform ist reine Einblend-Bewegung (kein Zentrieren) -> bleibt. */

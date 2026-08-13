@@ -1,0 +1,729 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Leaderboard-Tower — 1:1 aus templates/test.html extrahiert.
+   Enthaelt auch den Wetter-Ticker: der sitzt im .leaderboard-header und laesst sich
+   ohne Umbau nicht davon trennen.
+
+   ⚠ Bild-Pfade sind hier ABSOLUT (/static/...), weil diese Datei unter
+     /static/parts/ liegt — relative url() wuerden sonst ins Leere zeigen.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ══════ Tower-Grundgeruest, Zeilen, Spalten, Ticker, Quali-Modus, Safety Car / VSC   (test.html Z. 60–593) ══════ */
+.leaderboard-container {
+    position: relative;
+    width: 628px;
+    /* ⚠ BEWUSST ohne eigenen Hintergrund — identisch zu templates/test.html.
+       Jede sichtbare Flaeche bringt ihren eigenen mit (.leaderboard-header, .header-row,
+       .driver-row). Mit --panel-bg hier stapelten sich zwei halbtransparente Schichten
+       und der Deckkraft-Regler haette kaum Wirkung (bei 0.8: Zeilen 0.91 statt 0.64).
+       Der backdrop-filter unten bleibt und liefert weiter das Milchglas. */
+    background: transparent;
+    border-radius: var(--panel-radius);
+    border: var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: var(--panel-blur);
+    overflow: visible;        /* Strafen-Pillen dürfen links aus dem Leaderboard ragen */
+    /* Grundvergrößerung (früher: transform: scale(1.12)) setzt jetzt setTowerScale()
+       als zoom -> scharfer Text statt hochskaliertem Bild. Siehe TOWER_BASE im JS.
+       Bewusst NICHT hier als CSS-zoom: towerRawHeight() setzt zum Messen nur den
+       Inline-Style zurück, eine CSS-Regel würde die Rohhöhe verfälschen. */
+    transform-origin: top left;
+}
+
+.leaderboard-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    column-gap: 14px;
+    padding: 18px 24px;
+    background: linear-gradient(90deg, var(--towerhead-1) 0%, var(--towerhead-2) 100%);
+    border-bottom: var(--accent) solid var(--header-accent, var(--accent-red));   /* #7: eigene Header-Streifenfarbe */
+    border-radius: var(--panel-radius) var(--panel-radius) 0 0;   /* obere Ecken runden, da Container jetzt overflow:visible */
+}
+
+.championship-title {
+    order: 2;
+    font-family: 'Teko', sans-serif;
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(255,255,255,0.2);
+    line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* "Letzte Runde" / "Safety Car"-Anzeige direkt neben Runde X/Y */
+.session-flag {
+    display: none;
+    margin-left: 14px;
+    font-size: 0.55em;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 3px 13px;
+    border-radius: 20px;
+    vertical-align: middle;
+    text-shadow: none;
+}
+.session-flag.sc  { display: inline-block; color: #2a1f00; background: #ffcc00; animation: flag-blink 1.4s ease-in-out infinite; }
+.session-flag.fin { display: inline-block; color: #fff; background: #15151c; border: 1px solid #fff; }
+@keyframes flag-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+.live-indicator {
+    order: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--accent-red);
+    letter-spacing: 1px;
+}
+.live-indicator.waiting { color: var(--text-muted); }
+
+.pulse-dot {
+    width: 10px; height: 10px;
+    background-color: var(--accent-red);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent-glow);
+    animation: pulse 1.5s infinite;
+}
+.waiting .pulse-dot { background-color: var(--text-muted); box-shadow: none; animation: none; }
+
+@keyframes pulse {
+    0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(225,6,0,0.7); }
+    70%  { transform: scale(1);    box-shadow: 0 0 0 6px rgba(225,6,0,0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(225,6,0,0); }
+}
+
+/* POS | strip | DRIVER | LEADER | INTERVAL | TYRE | SECTORS | DRS */
+.leaderboard-row {
+    display: grid;
+    grid-template-columns: 36px 48px 169px 90px 90px 90px 110px 44px;
+    align-items: center;
+    padding: 0 12px;
+    gap: 0 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.header-row {
+    height: 36px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    background: rgba(10, 10, 15, calc(0.994 * var(--ui-alpha)));   /* enthaelt den weggefallenen Container-Hintergrund mit */
+}
+
+.standings-body { position: relative; }
+
+.driver-row {
+    position: absolute;
+    width: 100%;
+    height: 62px;
+    box-sizing: border-box;
+    /* Sanftes Gleiten beim Positionswechsel + weiches Ein-/Ausblenden */
+    transition: transform 0.6s cubic-bezier(0.65, 0, 0.35, 1),
+                background-color 0.5s ease,
+                box-shadow 0.1s ease,       /* Fokus-Rand snappier wechseln */
+                opacity 0.45s ease;
+    will-change: transform, opacity;
+    opacity: 1;
+}
+.driver-row.entering,
+.driver-row.leaving { opacity: 0; }
+/* alternating set via data-even attr in JS (position-based, not DOM order) */
+.driver-row[data-even="1"] { background: var(--row-bg); }
+.driver-row[data-even="0"] { background: var(--row-bg-alt); }
+/* Unterste Zeile schliesst das Panel ab — Gegenstueck zu .leaderboard-header oben.
+   Ohne das deckt die eckige Zeile die Rundung ab und der Safety-Car-/VSC-Leuchtrand
+   bekommt unten spitze Ecken. Klasse setzt tower.js (idx === letzter), nicht :last-child:
+   die Zeilen sind absolut positioniert und stehen im DOM in Eintrittsreihenfolge.
+   Kein overflow:hidden — die Strafen-Pillen muessen links herausragen duerfen. */
+.driver-row.last-row {
+    border-bottom-left-radius: var(--panel-radius);
+    border-bottom-right-radius: var(--panel-radius);
+    border-bottom: 0;
+}
+/* Aktuell betrachtetes Auto ("auf wen bin ich drauf") -> weiße Umrandung + leichter Schein */
+.driver-row.focused {
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.92), 0 0 14px rgba(255,255,255,0.20);
+    border-radius: 5px;
+    z-index: 6;
+}
+
+.col-pos {
+    font-family: 'Teko', sans-serif;
+    font-size: 27px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    line-height: 1;
+}
+.col-pos .rank { text-shadow: 0 1px 2px rgba(0,0,0,0.7); }   /* Kontrast über Gameplay */
+/* Podium-Zahlen: metallischer Verlauf + periodischer Glanz-Sweep ("glänzen") */
+.rank-1 .col-pos .rank,
+.rank-2 .col-pos .rank,
+.rank-3 .col-pos .rank {
+    background-repeat: no-repeat;
+    background-size: 280% 100%, 100% 100%;       /* Layer 1 = Glanz (breit), Layer 2 = Metall */
+    background-position: 0% 0, 0 0;
+    -webkit-background-clip: text;
+            background-clip: text;
+    -webkit-text-fill-color: transparent;
+            color: transparent;
+    /* KEIN text-shadow hier: bei background-clip:text würde er die transparente Füllung
+       überlagern und das Metallic abdunkeln. Tiefe stattdessen per Filter (schattet die
+       gerenderte Gold-/Silber-/Bronze-Form, ohne sie zu verdunkeln). */
+    text-shadow: none;
+    filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.55));
+    animation: medal-glint 3.5s ease-in-out infinite;
+}
+.rank-1 .col-pos .rank {   /* Gold */
+    background-image:
+        linear-gradient(115deg, transparent 30%, rgba(255,255,255,1) 50%, transparent 70%),
+        linear-gradient(180deg, #FFF3A6 0%, #FFD700 45%, #C99100 72%, #FFE680 100%);
+}
+.rank-2 .col-pos .rank {   /* Silber */
+    background-image:
+        linear-gradient(115deg, transparent 30%, rgba(255,255,255,1) 50%, transparent 70%),
+        linear-gradient(180deg, #FFFFFF 0%, #C8CFD8 45%, #8A9099 72%, #EAEEF3 100%);
+    animation-delay: -1.3s;
+}
+.rank-3 .col-pos .rank {   /* Bronze */
+    background-image:
+        linear-gradient(115deg, transparent 30%, rgba(255,248,235,1) 50%, transparent 70%),
+        linear-gradient(180deg, #F6C88A 0%, #D2843C 45%, #8C5A2B 72%, #EBA96A 100%);
+    animation-delay: -2.6s;
+}
+@keyframes medal-glint {
+    0%        { background-position: 0% 0, 0 0; }   /* Glanz links, noch nicht auf der Zahl */
+    35%, 100% { background-position: 100% 0, 0 0; } /* schneller Sweep über die Zahl, dann Pause */
+}
+
+/* Positions-Flash: bei Überholung leuchtet die Nummer kurz auf (grün = gewonnen, rot = verloren) */
+@keyframes pos-flash-up {
+    0%   { transform: scale(1.22); text-shadow: 0 0 3px rgba(0,255,136,1), 0 0 14px rgba(0,255,136,0.9); }
+    100% { transform: scale(1);    text-shadow: 0 0 0 rgba(0,255,136,0); }
+}
+@keyframes pos-flash-down {
+    0%   { transform: scale(1.22); text-shadow: 0 0 3px rgba(255,70,70,1), 0 0 14px rgba(255,70,70,0.9); }
+    100% { transform: scale(1);    text-shadow: 0 0 0 rgba(255,70,70,0); }
+}
+.col-pos.pos-flash-up   { animation: pos-flash-up 1.1s ease-out; }
+.col-pos.pos-flash-down { animation: pos-flash-down 1.1s ease-out; }
+
+.change-indicator { font-size: 13px; font-weight: 700; width: 10px; display: inline-block; transition: opacity 0.3s ease, color 0.3s ease; }
+.change-up   { color: #00ff88; }
+.change-down { color: #ff3333; }
+.change-none { color: transparent; }
+
+.team-color-strip {
+    width: 4px;
+    height: 28px;
+    border-radius: 2px;
+    background: #fff;
+    flex-shrink: 0;
+    transition: background-color 0.4s ease;
+}
+
+.col-driver {
+    font-weight: 600;
+    font-size: 17px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    line-height: 1.2;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);   /* Lesbarkeit über Gameplay */
+}
+/* Spalte 2: Team-Logo (mittig, für alle Teams gleich große Box) VOR dem Farbstreifen.
+   Der Farbstreifen bleibt rechts an die Namensspalte angedockt. */
+.id-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+}
+.logo-wrap {
+    flex: 1;                 /* füllt den Platz vor dem Streifen -> Logo wird zentriert */
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+/* Feste, gleich große Box; object-fit contain zentriert jedes Logo darin. */
+.team-logo {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+}
+.id-cell .team-color-strip { flex-shrink: 0; }
+.driver-team-sub {
+    font-size: 13.5px;           /* 12 -> 13.5, siehe Kommentar bei .col-gap.leader */
+    color: #c2c2ce;              /* heller als --text-muted: stand über Video oft im Nichts */
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-shadow: var(--tsh-soft);
+}
+
+.col-gap {
+    font-variant-numeric: tabular-nums;
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffcc00;
+    text-align: right;
+    transition: color 0.3s ease;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+}
+/* Die folgenden Größen wurden angehoben: der Tower wird bei vollem Feld auf ~0.56
+   skaliert, aus 11px werden dann effektiv gut 6px -> praktisch unlesbar. */
+.col-gap.leader { color: var(--accent-red); font-size: 15px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+.col-gap.lapped { color: #ffcc00; font-size: 14px; letter-spacing: 0.5px; }   /* überrundet: +N Lap(s), gelb wie normaler Gap */
+.col-gap.dnf { color: #9a9a9a; font-size: 14px; font-weight: 800; letter-spacing: 1px; }
+.col-gap.dsq { color: #ff6600; font-size: 14px; font-weight: 800; letter-spacing: 1px; }
+.fl-lap .driver-name { color: #c44dff; }
+.col-gap.in-pit { color: #ffcc00; font-size: 14px; font-weight: 800; }
+.col-gap.leader-banner {
+    grid-column: span 2;
+    text-align: center;
+}
+
+.col-tyre {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.tyre-icon {
+    width: 30px; height: 30px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+/* Boxenstopp: neuer Reifen dreht sich rein */
+@keyframes tyre-spin-in { 0% { transform: rotate(-200deg) scale(0.35); opacity: 0; } 65% { opacity: 1; } 100% { transform: rotate(0) scale(1); opacity: 1; } }
+.tyre-spin { animation: tyre-spin-in 0.6s cubic-bezier(0.2,0.8,0.3,1); }
+.tyre-age {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-size: 15px;
+    color: var(--text-main);
+    font-weight: 700;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);   /* wie Interval: fett + hell + Kontrast */
+}
+.tyre-age b { color: var(--text-main); font-weight: 700; }
+
+.col-lap {
+    font-variant-numeric: tabular-nums;
+    font-size: 18px;
+    font-weight: 700;
+    text-align: right;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+}
+.col-lap.no-data { color: var(--text-muted); font-size: 12px; }
+
+.col-sectors {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 14.5px;           /* 12.5 -> 14.5: nach der Tower-Skalierung sonst zu klein */
+    color: #dcdce4;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    text-shadow: var(--tsh);
+}
+.col-sectors span { color: var(--text-main); font-weight: 700; }
+
+.col-drs {
+    text-align: center;
+    font-size: 12.5px;           /* 11 -> 12.5, siehe Kommentar bei .col-gap.leader */
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.04);
+    color: var(--text-muted);
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: all 0.3s;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);   /* wie Interval lesbar (MOM/DRS) */
+}
+.quali-mode .col-drs { display: none; }
+.quali-mode .leaderboard-row {
+    grid-template-columns: 36px 48px 169px 90px 90px 90px 150px;
+}
+.col-drs.in-pit-q {
+    background: rgba(255,200,0,0.12);
+    color: #ffc800;
+    border-color: rgba(255,200,0,0.35);
+}
+.col-drs.active {
+    background: rgba(0,255,136,0.12);
+    color: #00ff88;
+    border-color: rgba(0,255,136,0.35);
+    box-shadow: 0 0 6px rgba(0,255,136,0.2);
+}
+
+/* F1 26 Boost / Override (MOM) – blauer Lichtpunkt läuft am Rand entlang,
+   gleiche Idee wie beim VSC-Rahmen, nur blau und auf der kleinen Pille. */
+@property --mom-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+@keyframes boost-pop {
+    0%   { transform: scale(0.85); }
+    55%  { transform: scale(1.07); }
+    100% { transform: scale(1); }
+}
+@keyframes mom-text-glow {
+    0%, 100% { text-shadow: 0 0 4px rgba(47,217,255,0.35); }
+    50%      { text-shadow: 0 0 9px rgba(140,235,255,0.85); }
+}
+/* 2026 Overtake Mode verfügbar (im 1s-Fenster), aber noch nicht aktiviert */
+.col-drs.boost-ready {
+    background: rgba(0,150,255,0.06);
+    color: #7fc7ff;
+    border-color: rgba(0,150,255,0.22);
+}
+.col-drs.boost-active {
+    position: relative;
+    background: rgba(0,150,255,0.12);
+    color: #2fd9ff;
+    border-color: rgba(0,180,255,0.30);
+    /* Einmaliger "Pop" beim Aktivieren + sanft atmender Text-Glow auf "MOM" */
+    animation: boost-pop 0.35s cubic-bezier(0.34,1.56,0.64,1),
+               mom-text-glow 2.6s ease-in-out infinite;
+}
+.col-drs.boost-active::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 3px;          /* wie .col-drs */
+    padding: 2px;                /* Dicke des Laufrands */
+    /* Komet: heller Kopf am Startwinkel, Schweif klingt nach hinten aus */
+    background: conic-gradient(from var(--mom-angle),
+                  rgba(150,240,255,1)    0deg,
+                  rgba(90,226,255,0.6)   20deg,
+                  rgba(47,217,255,0.28)  55deg,
+                  rgba(47,217,255,0.10)  100deg,
+                  rgba(47,217,255,0)     160deg,
+                  rgba(47,217,255,0)     360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    z-index: 2;
+    animation: mom-run 6s linear infinite;
+}
+@keyframes mom-run { to { --mom-angle: 360deg; } }
+
+/* Battery ERS removed */
+
+/* Ticker */
+.ticker-wrap {
+    overflow: hidden;
+    order: 3;
+    flex: 0 0 100%;
+    margin: 9px 0 0;
+    min-height: 74px;
+    display: flex;
+    align-items: center;
+    justify-content: center;   /* Wetter-Chips mittig statt links angeschlagen */
+}
+.ticker-items {
+    display: flex;
+    gap: 0;
+}
+.ticker-item {
+    font-family: 'Teko', sans-serif;
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    line-height: 1;
+    white-space: nowrap;
+    opacity: 0;
+    position: absolute;
+    transition: opacity 0.5s ease;
+}
+.ticker-item.active {
+    opacity: 1;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.tk-now { color: #fff; font-size: 26px; }
+/* Wetter: aktuelles Wetter + Vorhersagen als gleich große Felder (Chip),
+   vertikal gestapelt: Zeit oben, Emoji Mitte, Regen% unten. */
+.fc-chip {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    box-sizing: border-box;
+    min-width: 98px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.14);
+    line-height: 1;
+}
+.fc-chip.fc-now { background: rgba(255,255,255,0.11); }
+.fc-chip .fc-t    { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+.fc-chip .fc-ico  { font-size: 22px; }
+.fc-chip .fc-rain { font-size: 15px; font-weight: 600; color: #4db8ff; }
+
+/* Sectors hidden in race */
+.sectors-hidden .col-sectors { display: none; }
+.sectors-hidden .leaderboard-row {
+    grid-template-columns: 36px 48px 169px 90px 90px 90px 44px !important;
+}
+.quali-mode {
+    width: 732px;
+}
+.quali-mode .leaderboard-row {
+    grid-template-columns: 36px 48px 169px 90px 90px 90px 150px 44px;
+}
+
+/* ══ Safety Car ══ kräftig leuchtender, weicher gelber Rand (Puls) ════════════ */
+@keyframes sc-glow {
+    0%, 100% {
+        border-color: #ffcc00;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5),
+                    inset 0 0 30px 5px rgba(255,196,0,0.45),
+                    0 0 18px 3px rgba(255,196,0,0.50);
+    }
+    50% {
+        border-color: #ffe680;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5),
+                    inset 0 0 52px 13px rgba(255,196,0,0.90),
+                    0 0 26px 6px rgba(255,204,0,0.90);
+    }
+}
+.leaderboard-container.sc-active {
+    border-width: 2px;
+    border-style: solid;
+    border-color: #ffcc00;
+    animation: sc-glow 1.9s ease-in-out infinite;  /* kräftiger Glow, leicht blinkend */
+}
+
+/* ══ Virtual Safety Car ══ Lichtpunkt läuft am Rand entlang (kein Blinken) ═════ */
+@property --vsc-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+.leaderboard-container.vsc-active {
+    border-width: 2px;
+    border-style: solid;
+    border-color: rgba(255,204,0,0.22);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5),
+                inset 0 0 16px 1px rgba(255,204,0,0.18);
+}
+.leaderboard-container.vsc-active::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    padding: 4px;                 /* Dicke des Laufrands */
+    background: conic-gradient(from var(--vsc-angle),
+                  rgba(255,204,0,0)    0deg,
+                  rgba(255,204,0,0.45) 50deg,
+                  rgba(255,214,51,1)   90deg,
+                  rgba(255,204,0,0.45) 130deg,
+                  rgba(255,204,0,0)    180deg,
+                  rgba(255,204,0,0.45) 230deg,
+                  rgba(255,214,51,1)   270deg,
+                  rgba(255,204,0,0.45) 310deg,
+                  rgba(255,204,0,0)    360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    z-index: 25;
+    animation: vsc-run 4s linear infinite;  /* smooth, langsam */
+}
+@keyframes vsc-run { to { --vsc-angle: 360deg; } }
+
+
+/* ══════ Quali: Elimination, Sektor-Farben, Statuspille   (test.html Z. 689–724) ══════ */
+/* ════ Quali: Elimination, Sektor-Farben, Status ════════════════════════════ */
+.quali-mode .col-drs { display: flex; align-items: center; justify-content: center; }   /* in der Quali = Status */
+.quali-mode .leaderboard-row { grid-template-columns: 36px 48px 151px 90px 78px 80px 116px 86px; }
+.driver-row.elim-zone { background: rgba(225,6,0,0.22) !important; }
+.driver-row.elim-zone .rank { color: #ff9090; }
+.driver-row.elim-zone .driver-name { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+.driver-row.elim-zone .driver-team-sub { color: #d9a0a0; }
+.driver-row.elim-zone .col-sectors { color: #e2e2e8; }
+.driver-row.elim-zone .col-gap,
+.driver-row.elim-zone .col-lap { text-shadow: 0 1px 2px rgba(0,0,0,0.55); }
+#elim-line { position: absolute; left: 0; right: 0; height: 0; z-index: 60; pointer-events: none; display: none; }
+#elim-line::after { content: ""; position: absolute; left: 8px; right: 8px; top: -1px; height: 2px; z-index: 1;
+    background: linear-gradient(90deg, transparent, #ff2a1a 18%, #ff2a1a 82%, transparent);
+    box-shadow: 0 0 10px rgba(225,6,0,0.9); }
+#elim-line::before {
+    content: "ELIMINATION";
+    position: absolute; left: 50%; top: 0; z-index: 2;
+    transform: translate(-50%, -50%);
+    padding: 2px 16px;
+    background: #15151c;
+    border: 1px solid rgba(255,60,45,0.85);
+    border-radius: 11px;
+    font-family: 'Teko', sans-serif;
+    font-size: 15px; font-weight: 700; letter-spacing: 4px;
+    color: #ff6b6b;
+    white-space: nowrap;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+}
+.col-sectors span.sp { color: #b14bff; }
+.col-sectors span.sg { color: #00d56a; }
+.col-sectors span.sy { color: #ffd000; }
+.col-drs.st { font-size: 11px; padding: 3px 6px; letter-spacing: 0.7px; }
+.col-drs.st-track { color: #00e676; background: rgba(0,230,118,0.12); border-color: rgba(0,230,118,0.4); }
+.col-drs.st-out   { color: #ffd000; background: rgba(255,208,0,0.12); border-color: rgba(255,208,0,0.4); }
+.col-drs.st-box   { color: #9aa0aa; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); }
+.col-drs.st-inlap { color: #4db8ff; background: rgba(77,184,255,0.12); border-color: rgba(77,184,255,0.4); }
+
+/* ══════ Track-Limits (ungueltige Runde) + Strafen-Pillen   (test.html Z. 767–797) ══════ */
+/* ════ Q5: Track-Limits / ungültige Runde -> Sektoren rot ════════════════════ */
+.driver-row.lap-invalid .col-sectors { color: #ff6b6b; }
+.driver-row.lap-invalid .col-sectors span { color: #ff3b30 !important; }
+
+/* ════ Strafen/Track-Limits: Pillen links neben der Position, ragen raus ════ */
+.pen-stack {
+    position: absolute;
+    right: 100%;             /* links neben der Zeile -> vor der Positionsnummer */
+    top: 50%;
+    transform: translateY(-50%);
+    margin-right: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    z-index: 5;
+}
+.pen-badge, .tl-badge {
+    font-family: 'Teko', sans-serif;
+    font-weight: 700; letter-spacing: 0.5px; line-height: 1;
+    white-space: nowrap;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.55);
+    display: none;
+}
+.pen-badge { font-size: 16px; padding: 4px 7px; color: #fff; background: var(--accent-red); }   /* Zeitstrafe +Xs */
+.pen-badge.dt { background: #ff8000; }                    /* Durchfahrtstrafe (Drive-Through) */
+.tl-badge { font-size: 13px; padding: 3px 6px; color: #1a1a1a; }   /* Track-Limits */
+.tl-badge.warn1 { background: #ffd000; }                 /* 1. Verwarnung = gelb */
+.tl-badge.warn2 { background: #ff8000; color: #fff; }    /* 2. Verwarnung = orange */
+.pen-badge.show, .tl-badge.show { display: block; }
+
+/* ══════ "Warte auf Telemetrie"-Zustand   (test.html Z. 799–810) ══════ */
+/* ════ A1: "Warte auf Telemetrie"-Zustand ═══════════════════════════════════ */
+.leaderboard-container.disconnected { min-height: 200px; }
+#waiting-overlay {
+    position: absolute; inset: 0; z-index: 60; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: rgba(12,12,16,0.93); backdrop-filter: blur(3px); border-radius: 12px; text-align: center; padding: 20px;
+}
+.leaderboard-container.disconnected #waiting-overlay { display: flex; }
+#waiting-overlay .wo-pulse { width: 16px; height: 16px; border-radius: 50%; background: #ffcc00; animation: wait-pulse 1.6s infinite; }
+@keyframes wait-pulse { 0% { box-shadow: 0 0 0 0 rgba(255,204,0,0.5); } 70% { box-shadow: 0 0 0 16px rgba(255,204,0,0); } 100% { box-shadow: 0 0 0 0 rgba(255,204,0,0); } }
+#waiting-overlay .wo-title { font-family: 'Teko', sans-serif; font-size: 30px; font-weight: 700; letter-spacing: 3px; }
+#waiting-overlay .wo-sub { font-size: 14px; color: #9a9aa8; }
+
+/* ══════ Damage-Icons (Fluegel neben dem Team-Namen)   (test.html Z. 917–930) ══════ */
+/* ════ Damage-Icons: kleine Flügel-Symbole neben dem Team-Namen ══════════════
+   Frontflügel = zwei Hälften (links/rechts getrennt einfärbbar), Heckflügel =
+   Querbalken. Farbe = Schwere (gelb -> rot); unbeschädigte Teile bleiben dunkel. */
+.driver-sub-row { display: flex; align-items: center; gap: 6px; }
+.dmg-icons { display: inline-flex; gap: 5px; align-items: center; }
+/* Flügel-Bilder (FWL/FWR/RW) als Maske -> background-color = Schadensfarbe färbt die Form. */
+.dmg-wing { display: inline-block; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.7)); }
+.dw-fwl, .dw-fwr { width: 18px; height: 17px; transform: scale(-1, -1); }   /* horizontal + vertikal gedreht */
+.dw-rw { width: 26px; height: 16px; }
+.dw-fwl { -webkit-mask: url(/static/damage/FWL.png) center/contain no-repeat; mask: url(/static/damage/FWL.png) center/contain no-repeat; }
+.dw-fwr { -webkit-mask: url(/static/damage/FWR.png) center/contain no-repeat; mask: url(/static/damage/FWR.png) center/contain no-repeat; }
+.dw-rw  { -webkit-mask: url(/static/damage/RW.png)  center/contain no-repeat; mask: url(/static/damage/RW.png)  center/contain no-repeat; }
+.dmg-wing.crit { animation: dmg-blink 1.15s ease-in-out infinite; }   /* schwer -> pulsiert */
+@keyframes dmg-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* ══════ Rote Flagge: Glow-Rahmen   (test.html Z. 1015–1020) ══════ */
+/* ════ Rote Flagge: roter Glow-Rahmen (15s nach RDFL) ════════════════════════ */
+@keyframes rf-glow {
+    0%,100% { border-color:#ff2a1a; box-shadow:0 10px 30px rgba(0,0,0,.5), inset 0 0 30px 5px rgba(255,42,26,.4), 0 0 18px 3px rgba(255,42,26,.45); }
+    50%     { border-color:#ff8a80; box-shadow:0 10px 30px rgba(0,0,0,.5), inset 0 0 52px 13px rgba(255,42,26,.8), 0 0 26px 6px rgba(255,42,26,.85); }
+}
+.leaderboard-container.rf-active { border-width:2px; border-style:solid; border-color:#ff2a1a; animation: rf-glow 1.6s ease-in-out infinite; }
+
+/* ══════ Comeback-Badge   (test.html Z. 1049–1053) ══════ */
+/* ════ Welle2 · R6: Comeback-Badge (Plätze seit dem Start) ═══════════════════ */
+.comeback-badge { display: none; font-family: 'Teko', sans-serif; font-size: 13px; font-weight: 700; margin-left: 7px; line-height: 1; }
+.comeback-badge.show { display: inline-block; }
+.comeback-badge.cb-up { color: #00e676; }
+.comeback-badge.cb-down { color: #ff5a5a; }
+
+/* ══════ Zielflagge in der Zeile   (test.html Z. 1055–1068) ══════ */
+/* ════ #4: statische Zielflagge rechts in der Zeile (Fahrer hat beendet) ══════ */
+/* Echte Karo-Flagge: feines 3,75px-Schachbrett (klassisch aus zwei 45°-Gradients), Flaggen-
+   Format, dunkler Rand + Schlagschatten. Statisch, klebt am rechten Tower-Rand. */
+.finish-flag { position: absolute; right: -27px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 15px; z-index: 4; display: none; border-radius: 2px;
+    background-color: #f4f4f6;
+    background-image:
+      linear-gradient(45deg, #14141a 25%, transparent 25%, transparent 75%, #14141a 75%, #14141a),
+      linear-gradient(45deg, #14141a 25%, transparent 25%, transparent 75%, #14141a 75%, #14141a);
+    background-size: 7.5px 7.5px;
+    background-position: 0 0, 3.75px 3.75px;
+    border: 1px solid rgba(0,0,0,0.65);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.55); }
+.driver-row.is-finished .finish-flag { display: block; }
+
+/* ══════ Bestrunde-Flash   (test.html Z. 1070–1075) ══════ */
+/* ════ Welle2 · R7: Bestrunde-Flash (grün = persönl. Best, lila = Session-Best) ═ */
+/* #5: einmaliger, sanfter Glow an der Zeile (0 -> Peak -> 0), nicht wiederholend */
+@keyframes pbflash-g { 0% { box-shadow: inset 0 0 0 rgba(0,230,118,0); } 35% { box-shadow: inset 0 0 38px rgba(0,230,118,0.5); } 100% { box-shadow: inset 0 0 0 rgba(0,230,118,0); } }
+@keyframes pbflash-p { 0% { box-shadow: inset 0 0 0 rgba(177,75,255,0); } 35% { box-shadow: inset 0 0 38px rgba(177,75,255,0.55); } 100% { box-shadow: inset 0 0 0 rgba(177,75,255,0); } }
+.driver-row.pb-flash-g { animation: pbflash-g 1.6s ease-in-out; }
+.driver-row.pb-flash-p { animation: pbflash-p 1.6s ease-in-out; }
+
+/* ══════ Branding: Titel-Slot + eigenes Logo im Kopf   (test.html Z. 1115–1128) ══════ */
+/* ════ Welle6 · A2: Branding — Titel-Slot im Tower-Header ═════════════════════ */
+.brand-slot { font-family:'Teko',sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 3px; color: var(--accent-red);
+    text-transform: uppercase; line-height: 1; padding: 2px 0 4px; }
+/* Eigenes Logo im Tower-Header (static/logos/, Auswahl in den Settings).
+   Reihenfolge der Kopfzeile: brand-slot 0 · live-indicator 1 · Titel 2 · Ticker 3.
+   Der Ticker hat flex: 0 0 100%, die Kopfzeile bricht also IMMER um. Ein Logo mit einer
+   order groesser 3 landet damit zwangslaeufig unter dem Ticker (war vorher unten rechts).
+   Deshalb: rechts = order 2 (gleiche Zeile wie der Titel, per margin-left an den Rand),
+   links = order -1 (ganz vorne). Das <img> steht im Markup hinter dem Titel, damit bei
+   gleicher order die Dokumentreihenfolge es dahinter einsortiert. */
+.brand-logo { display: none; object-fit: contain; max-width: 260px; flex-shrink: 0; }
+.brand-logo.show { display: block; }
+.brand-logo.left { order: -1; margin-right: 4px; margin-left: 0; }
+.brand-logo.right { order: 2; margin-left: auto; }
+
+/* ── Einzelseiten-Modus ────────────────────────────────────────────────────────
+   .leaderboard-container ist `position: relative` (kein fixed) und steht im
+   Gesamt-Overlay einfach oben links im body-Padding — hier reicht deshalb der
+   .part-root-Override aus core.css. Die Skalierung macht setTowerScale() per
+   `zoom` in tower.js.
+
+   ⚠ Die Strafen-Pillen (.pen-stack) haengen mit `right: 100%` LINKS aus der Zeile
+   heraus. Im Gesamt-Overlay faengt das ein `padding-left: 72px` am body auf.
+   Hier macht das der Wrapper, sonst waeren sie abgeschnitten. */
+body.part .part-pad { padding: 10px 10px 10px 72px; }
+body.part.nopad .part-pad { padding: 0 0 0 62px; }
+body.part { overflow: visible; }

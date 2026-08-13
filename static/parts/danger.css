@@ -1,0 +1,21 @@
+/* Gefahrenzone-Countdown (Quali) — 1:1 aus templates/test.html (Z. 1035–1047). */
+
+/* ════ Welle1 · Q3: Gefahrenzone-Countdown (Quali) ═══════════════════════════ */
+#danger-zone { position: fixed; left: 50%; bottom: 40px; transform: translate(-50%, 14px); z-index: 46;
+    min-width: 240px; padding: 12px 26px; text-align: center; border-radius: var(--panel-radius);
+    background: var(--panel-bg); border: 1px solid rgba(225,6,0,0.45); box-shadow: var(--panel-shadow);
+    backdrop-filter: var(--panel-blur); text-shadow: var(--tsh); opacity: 0; pointer-events: none;
+    transition: opacity .4s, transform .4s; }
+#danger-zone.show { opacity: 1; transform: translate(-50%, 0); animation: dz-pulse 1.4s infinite; }
+@keyframes dz-pulse { 0%,100% { box-shadow: var(--panel-shadow), 0 0 0 0 rgba(225,6,0,0); } 50% { box-shadow: var(--panel-shadow), 0 0 22px 2px rgba(225,6,0,0.4); } }
+#danger-zone .dz-lbl { font-size: 11px; letter-spacing: 1px; color: #9aa0aa; text-transform: uppercase; }
+#danger-zone .dz-pos { font-family:'Teko',sans-serif; font-size: 40px; font-weight: 700; color: #ff5a5a; line-height: 1; }
+#danger-zone .dz-name { font-size: 13px; font-weight: 600; text-transform: uppercase; color: #fff; margin-top: 2px; }
+#danger-zone .dz-time { font-family:'Teko',sans-serif; font-variant-numeric: tabular-nums; font-size: 30px; color: #ffd000; margin-top: 6px; }
+#danger-zone .dz-sub { font-size: 11px; color: #9aa0aa; }
+
+/* Einzelseite: Zentrier-Anteil raus, Einblend-Bewegung (14px -> 0) bleibt.
+   `width: fit-content` ist Pflicht (fixed schrumpft auf den Inhalt, static nicht) —
+   die min-width von 240px bleibt dabei erhalten. */
+body.part #danger-zone { transform: translate(0, 14px); width: fit-content; max-width: 100%; }
+body.part #danger-zone.show { transform: translate(0, 0); }

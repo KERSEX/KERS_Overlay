@@ -1,0 +1,118 @@
+/* Battle-Boxen — 1:1 aus templates/test.html (Z. 594–687, 1078–1079, 345–346). */
+
+/* ══ Bottom-center "Battle"-Box (F1-Broadcast-Stil) ═══════════════════════════ */
+#battle-area {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 28px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 16px;
+    z-index: 40;
+    pointer-events: none;
+}
+.battle-box {
+    width: 310px;
+    background: var(--panel-bg);
+    border-radius: var(--panel-radius);
+    border: var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: var(--panel-blur);
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    text-shadow: var(--tsh);
+    display: none;
+}
+.battle-box.in  { animation: box-in 0.7s cubic-bezier(0.2,0.85,0.3,1) both; }
+.battle-box.out { animation: box-out 0.7s cubic-bezier(0.33, 0, 0.2, 1) forwards; }
+@keyframes box-in  { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: none; } }
+@keyframes box-out { 0% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(6px) scale(0.99); } }
+
+.battle-header {
+    position: relative;
+    text-align: center;
+    font-family: 'Teko', sans-serif;
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #fff;
+    background: linear-gradient(180deg, var(--head-bg-1), var(--head-bg-2));
+    padding: 7px 0 6px;
+}
+.battle-header::after {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-red) 35%, #ff5a3c 50%, var(--accent-red) 65%, transparent);
+    box-shadow: 0 0 8px rgba(225,6,0,0.6);
+}
+.battle-sub {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-family: 'Teko', sans-serif;
+    text-transform: uppercase;
+    background: rgba(225,6,0,0.12);
+    padding: 4px 0 3px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.battle-sub.show { display: flex; }
+.battle-sub .bs-ico  { font-size: 15px; }
+.battle-sub .bs-txt  { font-size: 14px; font-weight: 500; letter-spacing: 1.5px; color: #ffb38a; }
+.battle-sub .bs-laps { font-size: 21px; font-weight: 700; color: #ffd000; line-height: 1; }
+.battle-sub .bs-laps.now { color: #ff5a5a; }
+.battle-sub .bs-unit { font-size: 14px; font-weight: 500; letter-spacing: 1px; color: #ffb38a; }
+@keyframes bs-pop { 0% { transform: scale(1.5); } 100% { transform: scale(1); } }
+.battle-sub .bs-pop { animation: bs-pop 0.4s ease-out; display: inline-block; }
+.battle-rows { position: relative; }
+.battle-row {
+    position: absolute; left: 0; right: 0; top: 0;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 0 14px;
+    height: 44px;
+    border-left: var(--accent) solid var(--row-override, var(--row-team, #fff));   /* #7: eigene Row-Streifenfarbe (leer = Team-Farbe) */
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    transition: transform 0.55s cubic-bezier(0.22,0.61,0.36,1), opacity 0.4s ease;
+    will-change: transform;
+}
+.battle-row.entering { opacity: 0; }
+.battle-row::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, var(--row-team, #fff), transparent 42%);
+    opacity: 0.10; pointer-events: none;
+}
+.bd-pos { position: relative; width: 24px; flex-shrink: 0; font-family: 'Teko', sans-serif; font-size: 24px; font-weight: 600; color: #fff; line-height: 1; text-align: center; }
+.bd-name { position: relative; flex: 1; min-width: 0; font-weight: 600; font-size: 15px; text-transform: uppercase; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.3px; }
+.bd-tyre { position: relative; width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
+.bd-right { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 9px; flex-shrink: 0; }
+.gap-bar { position: absolute; left: 8px; right: 8px; top: 0; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.07); overflow: hidden; pointer-events: none; z-index: 1; }
+.gap-bar-fill { width: 0; height: 100%; border-radius: 2px; transition: width 0.2s linear, background 0.3s; }
+.bd-gap { position: relative; min-width: 58px; font-family: 'Teko', sans-serif; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 21px; letter-spacing: 0.5px; text-align: right; color: #ffcc00; }
+.bd-gap-lead { color: rgba(255,255,255,0.22); }
+
+/* R3.3: Frische-Reifen-Badge am Jaeger (test.html Z. 1078–1079) */
+.battle-row .bd-fresh { display: none; font-family:'Teko',sans-serif; font-size: 12px; font-weight: 700; color: #00e676; margin-right: 6px; white-space: nowrap; }
+.battle-row .bd-fresh.show { display: inline-block; }
+
+/* Reifenwechsel-Animation (test.html Z. 345–346) — setTyreIcon() in core.js setzt .tyre-spin */
+@keyframes tyre-spin-in { 0% { transform: rotate(-200deg) scale(0.35); opacity: 0; } 65% { opacity: 1; } 100% { transform: rotate(0) scale(1); opacity: 1; } }
+.tyre-spin { animation: tyre-spin-in 0.6s cubic-bezier(0.2,0.8,0.3,1); }
+
+/* ── Einzelseiten-Modus: Box-Reihe oben-links statt unten-mittig ───────────────
+   #battle-area traegt im Gesamt-Overlay `transform: translateX(-50%)` — reine
+   Zentrierung, keine Animation. Die kann hier komplett weg. Die Einblend-Animation
+   sitzt auf .battle-box (box-in/box-out) und bleibt dadurch unberuehrt. */
+body.part #battle-area {
+    transform: none !important;
+    justify-content: flex-start;
+    align-items: flex-start;
+    /* fixed schrumpft auf den Inhalt, static nicht -> sonst ist die Quelle immer
+       bildschirmbreit, auch wenn nur eine Box steht. */
+    width: fit-content;
+    max-width: 100%;
+}

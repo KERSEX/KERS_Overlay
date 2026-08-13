@@ -1,0 +1,47 @@
+/* Trackmap — 1:1 aus templates/test.html (Z. 932–967, 1166–1170, 116). */
+
+/* ════ Trackmap (Minimap) ════════════════════════════════════════════════════ */
+#trackmap {
+    position: fixed; top: 24px; right: 24px; z-index: 42;
+    width: 400px; height: 400px;
+    display: none;                 /* erst sichtbar, wenn die Strecke fertig gelernt ist */
+}
+#trackmap.show { display: block; }
+#trackmap svg {
+    width: 100%; height: 100%; overflow: visible;
+    /* Drehung/Spiegelung wird in die Koordinaten gerechnet (normPoint), NICHT per
+       CSS-transform -> vermeidet den Chromium/OBS-Versatz zwischen gefilterter Linie
+       und ungefilterten Punkten. */
+}
+/* Dunkle Unter-/Umrandungslinie ("Casing") unter der farbigen Kontur: erzeugt zwischen
+   eng nebeneinander/gegenüber laufenden Streckenteilen einen klaren dunklen Trennstreifen.
+   Filter nur auf dieser STATISCHEN Linie -> einmal gerendert + gecacht (kein Blur pro
+   Auto-Frame -> kein Ruckeln im OBS-Browser). */
+.tm-casing {
+    fill: none; stroke: #0b0b12; stroke-width: 4.4;
+    stroke-linejoin: round; stroke-linecap: round;
+    filter: drop-shadow(0 3px 7px rgba(0,0,0,0.75));
+}
+.tm-line {
+    fill: none; stroke: rgba(255,255,255,0.95); stroke-width: 2.0;
+    stroke-linejoin: round; stroke-linecap: round;
+}
+.tm-dot { stroke: rgba(0,0,0,0.6); stroke-width: 0.5; transition: cx 0.18s linear, cy 0.18s linear; }
+.tm-dot.focused { stroke: #fff; stroke-width: 0.7; }
+/* on track ausgeschieden: Punkt bleibt in Teamfarbe (fill per Attribut), orange blinkender Ring */
+.tm-dot.retired { stroke: #ff8000; stroke-width: 2; animation: dnf-blink 1s ease-in-out infinite; }
+@keyframes dnf-blink { 0%,100% { stroke-opacity: 1; } 50% { stroke-opacity: 0.12; } }
+
+/* ════ N4/N5: Trackmap-Extras (Flaggen-Segmente, Positions-Nummern) ══════════ */
+@keyframes flag-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+.tm-flag { fill: none; stroke: #ffcc00; stroke-width: 3.4; stroke-linejoin: round; stroke-linecap: round;
+    animation: flag-blink 1.2s ease-in-out infinite; }
+.tm-num { fill: #fff; font-family:'Inter',sans-serif; font-weight: 800; text-anchor: middle;
+    paint-order: stroke; stroke: rgba(0,0,0,0.75); stroke-width: 0.5px; pointer-events: none; }
+
+/* ── Einzelseite ───────────────────────────────────────────────────────────────
+   ⚠ applyMapCorner() setzt top/left/right/bottom UND transform per JS (Setting
+   `mapcorner`). Auf der Einzelseite ist das sinnlos — die Ecke bestimmst du in OBS.
+   trackmap.js ueberspringt applyMapCorner deshalb im Part-Modus; hier nur die
+   Absicherung, falls doch etwas gesetzt wurde. */
+body.part #trackmap { transform: none !important; }

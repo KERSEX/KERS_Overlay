@@ -1,0 +1,23 @@
+/* Fastest-Lap-Banner — 1:1 aus templates/test.html (Z. 1022–1033). */
+
+/* ════ N8: Fastest-Lap-Banner (oben mittig, lila) ════════════════════════════ */
+#fl-banner { position: fixed; top: 84px; left: 50%; transform: translate(-50%, -16px); z-index: 47;
+    display: flex; align-items: center; gap: 14px; padding: 10px 24px; border-radius: var(--panel-radius);
+    background: linear-gradient(90deg, rgba(177,75,255,0.30), var(--panel-bg));
+    border: 1px solid rgba(177,75,255,0.55);
+    box-shadow: 0 0 26px rgba(177,75,255,0.45), var(--panel-shadow); backdrop-filter: var(--panel-blur); text-shadow: var(--tsh);
+    opacity: 0; transition: opacity .35s, transform .45s cubic-bezier(.2,.9,.3,1); pointer-events: none; }
+#fl-banner.show { opacity: 1; transform: translate(-50%, 0); }
+#fl-banner .flb-ico { font-size: 24px; }
+#fl-banner .flb-lbl { font-family:'Teko',sans-serif; font-size: 15px; letter-spacing: 3px; color: #d49bff; font-weight: 700; line-height: 1; }
+#fl-banner .flb-name { font-weight: 700; font-size: 18px; text-transform: uppercase; line-height: 1.1; }
+#fl-banner .flb-time { font-family:'Teko',sans-serif; font-variant-numeric: tabular-nums; font-size: 30px; font-weight: 600; color: #fff; }
+
+/* ── Einzelseite ───────────────────────────────────────────────────────────────
+   ⚠ Das transform traegt hier BEIDES: die Zentrierung (-50%) UND die Einblend-
+   Bewegung (-16px -> 0). Nur den Zentrier-Anteil entfernen, das Hochgleiten bleibt. */
+/* ⚠ `width: fit-content` ist Pflicht: `position: fixed` schrumpft auf den Inhalt,
+   `position: static` (Part-Modus) nicht — sonst zieht sich der lila Banner ueber die
+   volle Quellenbreite. */
+body.part #fl-banner { transform: translate(0, -16px); width: fit-content; max-width: 100%; }
+body.part #fl-banner.show { transform: translate(0, 0); }

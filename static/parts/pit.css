@@ -1,0 +1,40 @@
+/* Live-Pit-Timer — 1:1 aus templates/test.html (Z. 726–754, 621–622). */
+
+/* ════ Pit-Stop-Popup ══════════════════════════════════════════════════════ */
+#pit-stack { position: fixed; right: 24px; bottom: 28px; z-index: 45; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; pointer-events: none; }
+.pit-card { width: 280px; background: var(--panel-bg); border-radius: var(--panel-radius); border: var(--panel-border);
+    box-shadow: var(--panel-shadow); backdrop-filter: var(--panel-blur); text-shadow: var(--tsh);
+    overflow: hidden; animation: box-in 0.45s cubic-bezier(0.2,0.9,0.3,1); }
+.pit-card.leaving { animation: box-out 0.4s ease-in forwards; }
+/* box-in/box-out stehen im Gesamt-Overlay bei den Battle-Boxen (Z. 621–622) */
+@keyframes box-in  { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: none; } }
+@keyframes box-out { 0% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(6px) scale(0.99); } }
+
+.pp-head { text-align: center; font-family: 'Teko', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 3px;
+    background: linear-gradient(180deg, var(--head-bg-1), var(--head-bg-2)); padding: 5px 0 4px; position: relative; }
+.pp-head::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:linear-gradient(90deg,transparent,#e10600,transparent); }
+.pp-body { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-left: var(--accent) solid var(--pt,#fff); position: relative; }
+.pp-body::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg,var(--pt,#fff),transparent 45%); opacity:.10; }
+.pp-name { position: relative; flex: 1; font-weight: 600; font-size: 15px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-tyres { position: relative; display: flex; align-items: center; gap: 6px; }
+.pp-tyres img { width: 28px; height: 28px; object-fit: contain; }
+.pp-arrow { color: #6a6a78; }
+.pp-time { position: relative; font-family: 'Teko', sans-serif; font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 600; color: #00e676; min-width: 46px; text-align: right; }
+/* Live-Pit-Timer: solange der Wagen in der Box ist tickt die Zeit amber hoch, bei der
+   Ausfahrt springt die Card auf die finale Standzeit (grün) um. */
+.pit-card.live .pp-time { color: #ffcf3a; }
+.pit-card .pp-exit { font-size: 11px; color: #fff; padding: 0 14px 8px; text-align: right; }   /* #1: Auskommen-Position */
+.pit-card .pp-exit b { font-family:'Teko',sans-serif; font-size: 15px; color: #fff; }
+.pit-card.live .pp-head { color: #ffcf3a; }
+.pit-card.live .pp-head::after { background: linear-gradient(90deg,transparent,#ffcf3a,transparent); }
+/* Neuer Frontflügel montiert: FWR-Symbol grün (wie der frische Reifen-Grün-Ton).
+   ⚠ Pfad absolut, weil diese Datei unter /static/parts/ liegt. */
+.pp-fw { position: relative; flex: none; width: 22px; height: 20px; transform: scale(-1,-1);
+    background-color: #27e06a; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.7));
+    -webkit-mask: url(/static/damage/FWR.png) center/contain no-repeat; mask: url(/static/damage/FWR.png) center/contain no-repeat; }
+@keyframes tyre-spin-pp { 0% { transform: rotate(-200deg) scale(0.3); opacity: 0; } 65% { opacity: 1; } 100% { transform: rotate(0) scale(1); opacity: 1; } }
+.pp-spin { animation: tyre-spin-pp 0.6s cubic-bezier(0.2,0.8,0.3,1); }
+
+/* Einzelseite: Karten oben-links stapeln statt unten-rechts.
+   fixed schrumpft auf den Inhalt, static nicht -> fit-content. */
+body.part #pit-stack { align-items: flex-start; width: fit-content; max-width: 100%; }

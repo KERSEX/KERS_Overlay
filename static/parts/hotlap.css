@@ -1,0 +1,83 @@
+/* Quali-Hotlap-Boxen — 1:1 aus templates/test.html (Z. 812–874, 621–622, 345–346). */
+
+/* ════ Quali: Hot-Lap-Boxen (unten mittig, Ersatz für die Battle-Boxen) ═══════ */
+#hotlap-area {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 28px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 16px;
+    z-index: 40;
+    pointer-events: none;
+}
+.hotlap-box {
+    width: 300px;
+    background: var(--panel-bg);
+    border-radius: var(--panel-radius);
+    border: var(--panel-border);
+    border-top: var(--accent) solid var(--hl-team, #fff);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: var(--panel-blur);
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    text-shadow: var(--tsh);
+    display: none;
+}
+.hotlap-box.in  { animation: box-in 0.6s cubic-bezier(0.2,0.85,0.3,1) both; }
+.hotlap-box.out { animation: box-out 0.45s ease-in forwards; }
+/* box-in/box-out stehen im Gesamt-Overlay bei den Battle-Boxen (Z. 621–622) */
+@keyframes box-in  { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: none; } }
+@keyframes box-out { 0% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(6px) scale(0.99); } }
+
+@keyframes hl-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.hl-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    background: linear-gradient(180deg, var(--head-bg-1), var(--head-bg-2));
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.hl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+    background: #00e676; box-shadow: 0 0 8px rgba(0,230,118,0.7); animation: hl-blink 1.3s ease-in-out infinite; }
+.hotlap-box.invalid .hl-dot { background: #ff3b30; box-shadow: 0 0 8px rgba(255,60,45,0.7); }
+.hl-title { font-family: 'Teko', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 3px; text-transform: uppercase; color: #fff; }
+.hl-pos { font-family: 'Teko', sans-serif; font-weight: 600; font-size: 17px; color: #cfd0d8; }
+.hl-tyre { width: 24px; height: 24px; object-fit: contain; margin-left: auto; flex-shrink: 0; }
+
+.hl-body { position: relative; padding: 9px 13px 11px; }
+.hl-body::before { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, var(--hl-team, #fff), transparent 42%); opacity: 0.08; pointer-events: none; }
+.hl-namerow { position: relative; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.hl-logo { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; }
+.hl-name { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.3px; }
+.hl-timerow { position: relative; display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.hl-time { font-family: 'Teko', sans-serif; font-variant-numeric: tabular-nums; font-size: 32px; font-weight: 600; line-height: 1; color: #fff; }
+.hotlap-box.invalid .hl-time { color: #ff5a5a; }
+.hl-delta { font-family: 'Teko', sans-serif; font-variant-numeric: tabular-nums; font-size: 19px; font-weight: 600; }
+.hl-delta.up   { color: #00d56a; }   /* schneller als die Session-Bestsektoren */
+.hl-delta.down { color: #ffd000; }   /* langsamer */
+.hl-sectors { position: relative; display: flex; gap: 7px; margin-bottom: 8px; }
+.hl-sec { flex: 1; background: rgba(255,255,255,0.05); border-radius: 5px; padding: 3px 4px; text-align: center; }
+.hl-sec .lbl { font-size: 9px; font-weight: 700; letter-spacing: 1px; color: var(--text-muted); }
+.hl-sec .val { font-family: 'Teko', sans-serif; font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 600; color: #cccdd6; line-height: 1.15; }
+.hl-sec .val.sp { color: #b14bff; }   /* Session-Best (lila) */
+.hl-sec .val.sg { color: #00d56a; }   /* persönliche Bestzeit (grün) */
+.hl-sec .val.sy { color: #ffd000; }   /* langsamer (gelb) */
+
+/* Reifenwechsel-Animation (setTyreIcon in core.js setzt .tyre-spin) */
+@keyframes tyre-spin-in { 0% { transform: rotate(-200deg) scale(0.35); opacity: 0; } 65% { opacity: 1; } 100% { transform: rotate(0) scale(1); opacity: 1; } }
+.tyre-spin { animation: tyre-spin-in 0.6s cubic-bezier(0.2,0.8,0.3,1); }
+
+/* Einzelseite: reine Zentrierung, keine Animation -> kann ganz weg.
+   Die Einblend-Animation sitzt auf .hotlap-box und bleibt unberuehrt. */
+body.part #hotlap-area {
+    transform: none !important;
+    justify-content: flex-start;
+    align-items: flex-start;
+    /* fixed schrumpft auf den Inhalt, static nicht. */
+    width: fit-content;
+    max-width: 100%;
+}

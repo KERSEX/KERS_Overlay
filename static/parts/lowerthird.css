@@ -1,0 +1,43 @@
+/* Lower-Third — 1:1 aus templates/test.html (Z. 1081–1088, 1130–1143). */
+
+/* ════ N6: Lower-Third Namens-Tag (Kamera-Fahrer) ════════════════════════════ */
+#lower-third { position: fixed; left: 50%; bottom: 380px; transform: translate(-50%, 14px) scale(1.14); z-index: 41;
+    transform-origin: center bottom;   /* einen Tick größer -> wächst nach oben */
+    display: flex; align-items: stretch; border-radius: var(--panel-radius); overflow: hidden;
+    box-shadow: var(--panel-shadow); text-shadow: var(--tsh);
+    opacity: 0; transition: opacity .35s, transform .45s cubic-bezier(.2,.9,.3,1); pointer-events: none; }
+#lower-third.show { opacity: 1; transform: translate(-50%, 0) scale(1.14); }
+#lower-third .lt-pos { background: var(--lt-team,#fff); font-family:'Teko',sans-serif; font-size: 30px; font-weight: 700;
+    color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.55); padding: 6px 16px; display: flex; align-items: center; }
+#lower-third .lt-body { background: var(--panel-bg); backdrop-filter: var(--panel-blur); padding: 7px 16px; min-width: 190px; }
+#lower-third .lt-name { font-weight: 700; font-size: 17px; text-transform: uppercase; white-space: nowrap; }
+#lower-third .lt-sub  { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px;
+    display: flex; align-items: center; gap: 5px; }
+#lower-third .lt-sub img { width: 15px; height: 15px; object-fit: contain; }
+
+/* ════ #1: Reifenstrategie im Lower-Third (Stint-Strip + Reifenalter) ═════════ */
+#lower-third .lt-sub .lt-age { color: #cfd0d8; margin-left: 4px; }
+#lower-third .lt-strat { display: flex; gap: 10px; margin-top: 5px; align-items: center; }
+#lower-third .lt-stint { display: flex; align-items: center; gap: 3px; }
+#lower-third .lt-tyre { width: 20px; height: 20px; object-fit: contain; }
+#lower-third .lt-laps { font-family:'Teko',sans-serif; font-size: 14px; font-weight: 600; color: #cfd0d8; }
+#lower-third .lt-seg { font-family:'Teko',sans-serif; font-size: 11px; font-weight: 800; color: rgba(0,0,0,0.72);
+    width: 20px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+
+/* Gap-Block rechts (test.html Z. 1144–1146) */
+#lower-third .lt-gap { background: var(--panel-bg); backdrop-filter: var(--panel-blur); border-left: 1px solid rgba(255,255,255,0.08); padding: 7px 16px;
+    display: flex; align-items: center; font-family:'Teko',sans-serif; font-variant-numeric: tabular-nums;
+    font-size: 26px; font-weight: 600; color: #ffcc00; }
+
+/* ── Einzelseite ───────────────────────────────────────────────────────────────
+   ⚠ Hier steckt im transform NICHT nur die Zentrierung, sondern auch die
+   Einblend-Bewegung (14px -> 0) UND ein scale(1.14). Beides muss erhalten
+   bleiben, sonst ist das Lower-Third auf der Einzelseite kleiner als im Overlay.
+
+   ⚠ `width: fit-content` ist Pflicht: `position: fixed` schrumpft auf den Inhalt,
+   `position: static` (Part-Modus) nicht. Das Lower-Third hat `border-radius` +
+   `overflow: hidden` + Schatten — ohne fit-content laegen die runde Ecke und der
+   Schatten weit rechts neben dem Inhalt. */
+body.part #lower-third { transform: translate(0, 14px) scale(1.14); transform-origin: left bottom;
+    width: fit-content; max-width: 100%; }
+body.part #lower-third.show { transform: translate(0, 0) scale(1.14); }

@@ -1,0 +1,18 @@
+/* Undercut-Alarm — nutzt denselben Banner wie die Rennleitungs-Meldungen.
+   CSS 1:1 aus templates/test.html (Z. 756–765). */
+
+#race-msg { position: fixed; top: 22px; left: 50%; transform: translate(-50%, -18px); display: flex; align-items: center; gap: 12px;
+    height: 50px; padding: 0 18px; background: var(--panel-bg); border-radius: var(--panel-radius); border: var(--panel-border);
+    border-left: var(--accent) solid var(--rm-accent, #00e676); box-shadow: var(--panel-shadow); backdrop-filter: var(--panel-blur);
+    text-shadow: var(--tsh); z-index: 46; opacity: 0;
+    transition: opacity 0.35s, transform 0.45s cubic-bezier(0.2,0.9,0.3,1); pointer-events: none; }
+#race-msg.show { opacity: 1; transform: translate(-50%, 0); }
+#race-msg .rm-icon { color: var(--rm-accent, #00e676); font-size: 20px; line-height: 1; }
+#race-msg .rm-text { font-weight: 600; font-size: 15px; text-transform: uppercase; }
+#race-msg .rm-text small { color: #9aa0aa; font-weight: 400; text-transform: none; }
+
+/* Einzelseite: Zentrier-Anteil raus, Einblend-Bewegung bleibt.
+   `width: fit-content` ist Pflicht — ohne das waere die Meldung ein quellenbreiter
+   dunkler Balken (fixed schrumpft auf den Inhalt, static nicht). */
+body.part #race-msg { transform: translate(0, -18px); width: fit-content; max-width: 100%; }
+body.part #race-msg.show { transform: translate(0, 0); }

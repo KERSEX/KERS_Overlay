@@ -1,0 +1,15 @@
+/* Pit-Fenster-Projektion — 1:1 aus templates/test.html (Z. 1103–1113). */
+
+#pit-proj { position: fixed; left: 24px; bottom: 24px; z-index: 44; width: 230px;
+    background: var(--panel-bg); border-radius: var(--panel-radius); border: var(--panel-border); box-shadow: var(--panel-shadow);
+    backdrop-filter: var(--panel-blur); text-shadow: var(--tsh); opacity: 0; pointer-events: none; overflow: hidden; transition: opacity .35s; }
+#pit-proj.show { opacity: 1; }
+#pit-proj .pp-hd { font-family:'Teko',sans-serif; font-size:13px; letter-spacing:1px; color:var(--text-muted); padding:7px 14px 2px; text-transform:uppercase; }
+#pit-proj .pp-flow { display:flex; align-items:center; justify-content:center; gap:14px; padding:2px 14px 12px; }
+#pit-proj .pp-box { text-align:center; }
+#pit-proj .pp-box .lbl { font-size:9px; letter-spacing:1px; color:var(--text-muted); text-transform:uppercase; }
+#pit-proj .pp-box .num { font-family:'Teko',sans-serif; font-size:34px; font-weight:700; line-height:1; }
+#pit-proj .pp-box.cur .num { color:#fff; } #pit-proj .pp-box.prj .num { color:#ff9a5a; }
+#pit-proj .pp-arr { font-size:20px; color:#ffcc00; }
+
+/* Einzelseite: kein transform vorhanden -> .part-root aus core.css reicht. */

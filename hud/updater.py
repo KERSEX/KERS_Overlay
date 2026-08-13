@@ -55,6 +55,37 @@ def version_aus_tag(tag: str) -> str | None:
     return m.group(1) if m else None
 
 
+def altlasten_aufraeumen() -> list:
+    """Reste eines Updates entfernen - erst, wenn die neue Fassung wirklich laeuft.
+
+    Das .bak ist die Rueckfallebene des Austauschs (siehe tausch_starten): bis
+    hierher konnte niemand wissen, ob die neue EXE ueberhaupt startet. Dass
+    DIESER Code laeuft, ist der Beweis - Bootloader, Python und Qt sind oben,
+    also darf die alte Fassung weg. Mit ihr das Helfer-Batch, falls es sich
+    nicht selbst geloescht hat, und ein liegengebliebenes .new aus einem
+    abgebrochenen Download.
+
+    ⚠ Bewusst NICHT schon im Batch aufraeumen: waere das .bak dort geloescht,
+    gaebe es bei einer nicht startfaehigen neuen Fassung keinen Weg zurueck.
+
+    Rueckgabe: die Namen der entfernten Dateien (fuer die Meldung im Log).
+    """
+    if not getattr(sys, "frozen", False):
+        return []                       # im Dev-Betrieb gibt es nichts zu tauschen
+    exe = Path(sys.executable).resolve()
+    entfernt = []
+    for datei in (exe.with_suffix(exe.suffix + ".bak"),
+                  exe.with_suffix(exe.suffix + ".new"),
+                  exe.parent / "_kers_update.bat"):
+        try:
+            if datei.is_file():
+                datei.unlink()
+                entfernt.append(datei.name)
+        except OSError:
+            pass                        # gesperrt? Dann beim naechsten Start
+    return entfernt
+
+
 class Updater(QObject):
     """Sucht Updates auf GitHub und legt die neue EXE daneben."""
 
@@ -230,10 +261,22 @@ class Updater(QObject):
         """Helfer starten, der nach dem Beenden die EXE ersetzt.
 
         Eine laufende EXE kann sich unter Windows nicht selbst ueberschreiben.
-        Deshalb ein kleines Batch: es wartet, bis unsere PID verschwunden ist,
-        schiebt die alte Fassung als .bak beiseite, zieht die neue an ihren Platz
-        und startet sie. Bleibt etwas liegen, ist die alte einen Umbenennen
-        entfernt - und beim naechsten Start wird der Tausch erneut versucht.
+        Deshalb ein kleines Batch: es wartet, bis wir weg sind, schiebt die alte
+        Fassung als .bak beiseite, zieht die neue an ihren Platz und startet sie.
+        Bleibt etwas liegen, ist die alte einen Umbenennen entfernt - und beim
+        naechsten Start wird der Tausch erneut versucht.
+
+        ⚠ Gewartet wird auf ZWEI Prozesse. Eine onefile-EXE besteht aus dem
+        Bootloader, der sich nach %TEMP%\\_MEInnnnnn auspackt, und dem Kind
+        darin, in dem Python laeuft - `os.getpid()` ist das KIND. Beim Beenden
+        raeumt der Bootloader seinen _MEI-Ordner wieder weg. Wartete das Batch
+        nur auf das Kind, liefe die neue Fassung genau in dieses Aufraeumen
+        hinein und meldete beim Start:
+            Failed to load Python DLL '...\\_MEInnnnnn\\python313.dll'
+        Deshalb zusaetzlich `os.getppid()` - der Bootloader ueber uns.
+
+        Die Warteschleife ist begrenzt: laeuft die EXE ausnahmsweise nicht als
+        onefile, ist der Elternprozess irgendein Fenster, das nie endet.
 
         Rueckgabe: leerer String = angestossen, sonst der Fehlertext.
         """
@@ -241,21 +284,31 @@ class Updater(QObject):
         if exe is None or neu is None or not neu.is_file():
             return "Es liegt keine heruntergeladene Fassung bereit."
 
+        pid, ppid = os.getpid(), os.getppid()
         bak = exe.with_suffix(exe.suffix + ".bak")
         skript = exe.parent / "_kers_update.bat"
         inhalt = (
             "@echo off\r\n"
             "chcp 65001 >nul\r\n"
-            f':warten\r\n'
-            f'tasklist /FI "PID eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul\r\n'
-            'if not errorlevel 1 (\r\n'
-            '    timeout /t 1 /nobreak >nul\r\n'
-            '    goto warten\r\n'
-            ')\r\n'
+            "set /a versuche=0\r\n"
+            ":warten\r\n"
+            "set /a versuche+=1\r\n"
+            "if %versuche% gtr 40 goto tauschen\r\n"
+            f'tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul\r\n'
+            "if not errorlevel 1 goto nochmal\r\n"
+            f'tasklist /FI "PID eq {ppid}" 2>nul | find "{ppid}" >nul\r\n'
+            "if not errorlevel 1 goto nochmal\r\n"
+            "goto tauschen\r\n"
+            ":nochmal\r\n"
+            "timeout /t 1 /nobreak >nul\r\n"
+            "goto warten\r\n"
+            ":tauschen\r\n"
             f'if exist "{bak}" del /q "{bak}"\r\n'
             f'move /y "{exe}" "{bak}" >nul\r\n'
             f'move /y "{neu}" "{exe}" >nul\r\n'
             f'if errorlevel 1 move /y "{bak}" "{exe}" >nul\r\n'
+            # Kurz durchatmen lassen, bevor die neue Fassung sich auspackt.
+            "timeout /t 2 /nobreak >nul\r\n"
             f'start "" "{exe}"\r\n'
             'del "%~f0"\r\n'
         )

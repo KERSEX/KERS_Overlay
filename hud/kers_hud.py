@@ -233,6 +233,13 @@ def main() -> int:
     # entpackte main.exe aus dem alten Ort (neben der EXE) in den Datenordner.
     migrate_data()
 
+    # Kam dieser Start aus einem Update, liegt daneben noch die alte Fassung als
+    # .bak. Dass wir hier ankommen, heisst: der Tausch hat geklappt - weg damit.
+    from updater import altlasten_aufraeumen  # noqa: PLC0415  (nur beim Start)
+    weg = altlasten_aufraeumen()
+    if weg:
+        print(f"[HUD] Update abgeschlossen, entfernt: {', '.join(weg)}")
+
     state = load_state()
     if args.url:
         state["base_url"] = args.url.rstrip("/")

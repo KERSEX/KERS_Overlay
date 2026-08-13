@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>KERS · Trackmap</title>
+<base href="/">
+<link rel="icon" href="/static/brand/Icon.ico" type="image/x-icon">
+<link rel="stylesheet" href="/static/css/core.css">
+<link rel="stylesheet" href="/static/parts/trackmap.css">
+</head>
+<body class="part">
+
+<!-- Trackmap (Minimap) – erscheint erst, wenn die Strecke fertig gelernt ist -->
+<div class="part-pad">
+<div id="trackmap" class="part-root">
+  <svg id="tm-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+    <g id="tm-track"></g>
+    <g id="tm-flags"></g>
+    <g id="tm-cars"></g>
+  </svg>
+</div>
+</div>
+
+<script src="/static/js/core.js"></script>
+<script src="/static/parts/trackmap.js"></script>
+</body>
+</html>

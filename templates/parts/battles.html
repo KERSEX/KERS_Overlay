@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>KERS · Battle-Boxen</title>
+<!-- ⚠ Pflicht: die Seite liegt unter /part/battles, ohne <base> wuerden relative
+     Pfade wie static/tyres/S.png zu /part/static/tyres/S.png aufloesen (404). -->
+<base href="/">
+<link rel="icon" href="/static/brand/Icon.ico" type="image/x-icon">
+<link rel="stylesheet" href="/static/css/core.css">
+<link rel="stylesheet" href="/static/parts/battles.css">
+</head>
+<body class="part">
+
+<!-- Das Padding sitzt auf dem WRAPPER, damit es Aussenabstand bleibt (Schatten/Glow
+     der Boxen werden sonst am Rand der Browserquelle abgeschnitten). -->
+<div class="part-pad">
+<div id="battle-area" class="part-root">
+  <div class="battle-box"><div class="battle-header"></div><div class="battle-sub"></div><div class="battle-rows"></div></div>
+  <div class="battle-box"><div class="battle-header"></div><div class="battle-sub"></div><div class="battle-rows"></div></div>
+  <div class="battle-box"><div class="battle-header"></div><div class="battle-sub"></div><div class="battle-rows"></div></div>
+  <div class="battle-box"><div class="battle-header"></div><div class="battle-sub"></div><div class="battle-rows"></div></div>
+</div>
+</div>
+
+<script src="/static/js/core.js"></script>
+<script src="/static/parts/battles.js"></script>
+</body>
+</html>

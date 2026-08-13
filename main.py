@@ -16,8 +16,33 @@ Spezifikation angepasst. Wichtigste Unterschiede gegenüber F1 25:
 Im Spiel muss UDP-Format auf "2026" stehen.
 """
 
-import gzip, json, os, socket, struct, threading, time, webbrowser
-from flask import Flask, render_template, jsonify, Response, request
+import gzip, hashlib, json, os, re, socket, struct, sys, threading, time, webbrowser
+from flask import Flask, render_template, jsonify, Response, request, abort
+
+# ── Versionierung ─────────────────────────────────────────────────────────────
+# Jede Datei traegt ihre eigene Version und wird beim Aendern von Hand hochgezaehlt.
+# Angezeigt wird das in /settings (Abschnitt "Versionen").
+#   main.py      -> __version__ hier drunter
+#   HTML-Seiten  -> Marker `<!-- KERS-VERSION: x.y.z -->` direkt nach dem <!DOCTYPE>
+# Der Marker steht bewusst IN der Datei: beim Kopieren test.html -> index.html wandert er
+# mit, index.html zeigt danach also die Version, die auch wirklich drinsteckt.
+__version__ = "0.0.1"
+
+# Hash der eigenen Quelldatei beim Start. Weicht er spaeter vom Inhalt auf der Platte ab,
+# wurde main.py seit dem Start bearbeitet -> ein Neustart steht aus. Genau das haben wir
+# hier staendig (Templates laden nach, main.py nicht), deshalb wird es in /settings gezeigt.
+def _sha8(data):
+    return hashlib.sha1(data).hexdigest()[:8]
+
+def _read_bytes(path):
+    try:
+        with open(path, "rb") as f:
+            return f.read()
+    except Exception:
+        return None
+
+_MAIN_FILE = os.path.abspath(__file__)
+_MAIN_HASH_AT_START = _sha8(_read_bytes(_MAIN_FILE) or b"")
 
 app = Flask(__name__)
 
@@ -25,7 +50,12 @@ app = Flask(__name__)
 def _no_cache(resp):
     # API-Antworten NIE cachen -> sonst zeigt das Overlay veraltete Trackmap/Standings
     # (der Browser servierte /api/track sonst aus dem Cache und ignorierte neue Daten).
-    if request.path.startswith("/api/"):
+    # Dasselbe gilt fuer die HTML-Seiten (/, /test, /regie, /settings): OBS und vor allem
+    # die Android-WebView (cacheMode LOAD_DEFAULT) servierten sonst nach einer Aenderung
+    # die alte Seite -> man debuggt am falschen Code. Ueber den Mimetype statt einer
+    # Pfadliste, damit neue Seiten automatisch mitgenommen werden.
+    # /static/* (Logos, Fonts) bleibt cachebar - hat ohnehin SEND_FILE_MAX_AGE_DEFAULT = 0.
+    if request.path.startswith("/api/") or resp.mimetype == "text/html":
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         resp.headers["Pragma"] = "no-cache"
     return resp
@@ -45,21 +75,60 @@ DEBUG = False
 # Serverseitig gespeichert (overlay_settings.json) und live über /settings (auch vom
 # Laptop/Handy im Netz) änderbar. Das Overlay bekommt sie mit jedem Payload und wendet
 # sie sofort an. URL-Parameter im Overlay überschreiben einzelne Werte weiterhin.
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "overlay_settings.json")
-CHAMP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "championship.json")   # A3: WM-Stand (manuell gepflegt)
+# Pfad-Auflösung: Als PyInstaller-EXE liegen die vom Nutzer gepflegten Dateien
+# (championship.json, overlay_settings.json, recordings/) NEBEN der .exe — nicht im
+# temporären _MEIPASS-Entpackordner, auf den __file__ dann zeigt. Ohne diese Unter-
+# scheidung wird z.B. championship.json in der EXE nie gefunden -> WM-Stand bleibt leer.
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(sys.executable)               # Ordner der .exe (editierbare Dateien)
+    BUNDLE_DIR = getattr(sys, "_MEIPASS", BASE_DIR)          # eingebündelte Vorlagen (read-only)
+else:
+    BASE_DIR = BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+SETTINGS_FILE = os.path.join(BASE_DIR, "overlay_settings.json")
+CHAMP_FILE = os.path.join(BASE_DIR, "championship.json")   # A3: WM-Stand (manuell gepflegt, neben der .exe)
+# Eigene Presets: kompletter Settings-Schnappschuss unter einem Namen. Bewusst SERVERSEITIG
+# (nicht localStorage), damit PC und Handy dieselben Presets sehen — wie alle anderen Settings.
+# Liegt neben der .exe (BASE_DIR), sonst wäre es nach jedem Build weg (siehe K21).
+PRESETS_FILE = os.path.join(BASE_DIR, "presets.json")
+PRESETS_MAX = 12      # mehr wird in der Settings-Oberfläche unübersichtlich
+PRESET_NAME_MAX = 30
+
+# WM-Stand: nicht nur championship.json, sondern JEDE .json neben der .exe darf als
+# Quelle dienen — z.B. eine Datei pro Saison oder Liga. Welche gerade gilt, steht in
+# den Settings unter "champ_file" (leer = championship.json). Diese drei sind vom
+# Programm selbst und tauchen in der Auswahl deshalb nicht auf.
+CHAMP_HIDDEN_FILES = {"overlay_settings.json", "presets.json", "hud_state.json"}
+CHAMP_DEFAULT_NAME = "championship.json"
+
+# Wohin die Trackmap darf. "tl" (oben links) und "lc" (links mitte) sind bewusst
+# NICHT dabei - dort steht der Timing-Tower und die Karte würde ihn verdecken.
+# Ein alter gespeicherter Wert wird beim Laden auf "tr" zurückgeholt.
+MAP_CORNERS = ("tc", "tr", "rc", "bl", "bc", "br")
 POINTS_SYSTEM = {1: 25, 2: 18, 3: 15, 4: 12, 5: 10, 6: 8, 7: 6, 8: 4, 9: 2, 10: 1}   # A3: Punkte Top 10 (Logik aus KERS_WM_Overlay)
 DEFAULT_SETTINGS = {
     # Sichtbarkeit der Komponenten
     "tower": True, "battles": True, "map": True, "onboard": True,
     "lights": True, "damage": True, "msgs": True, "ticker": True,
     "lowerthird": True, "flbanner": True,
-    "undercut": True, "deltabar": True, "mapnumbers": True, "mapflags": True,
-    "pred": True, "danger": True, "comeback": True, "pbflash": True, "battlemap": True, "fresh": True,
+    "undercut": True, "deltabar": True, "ampel": True, "mapnumbers": True, "mapflags": True,
+    "pred": True, "danger": True, "comeback": True, "pbflash": True, "fresh": True,
     "strat": True, "pitproj": True,
     "brand_title": "", "brand_accent": "#e10600",   # A2: Branding (Titel standardmäßig aus)
+    # Eigenes Logo im Tower-Header. Dateien liegen in static/logos/ und werden über
+    # /api/logos aufgelistet; "" = kein Logo.
+    "tower_logo": "", "tower_logo_pos": "left", "tower_logo_h": 34,
     "header_color": "", "row_color": "",   # #7: eigene Streifenfarben (leer = Akzent / Team-Farbe)
     # Feintuning
-    "scale": 0,            # Tower-Skalierung (0 = automatisch einpassen)
+    # ⚠ MUSS ein float bleiben (0.0, nicht 0). Der Settings-POST castet mit
+    # `type(DEFAULT_SETTINGS[k])(v)` — bei einem int-Default wird 0.8 zu int(0.8) = 0
+    # ("0 = auto", also passiert scheinbar nichts) und 1.5 zu 1. Der Regler in
+    # settings.html hat step 0.02, jeder Nachkommawert ging so verloren.
+    "scale": 0.0,          # Tower-Skalierung (0 = automatisch einpassen)
+    # Deckkraft der Panel-Flächen als Faktor auf die Alpha-Werte im CSS.
+    # 1.0 = wie bisher, kleiner = durchsichtiger, ab ~1.25 komplett deckend.
+    # ⚠ Ebenfalls float (s. Kommentar bei "scale") — sonst frisst int() die Nachkommastellen.
+    "opacity": 1.0,
     "rows": 0,             # nur Top-N Zeilen (0 = alle)
     "mapsize": 400,        # Trackmap-Kantenlänge in px
     "maprot": 110,         # Trackmap-Drehung in Grad
@@ -71,16 +140,70 @@ DEFAULT_SETTINGS = {
     "flbdur": 4.5,         # Fastest-Lap-Banner Dauer (Sekunden)
     "dmgcrit": 60,         # Damage-Icon blinkt ab ... %
     "battlethresh": 1.5,   # Abstand (s), ab dem zwei Autos als "Battle" gelten
+    # WM-Stand: Dateiname der .json neben der .exe, aus der der Stand kommt.
+    # "" = championship.json. Auswahlliste liefert /api/champfiles.
+    "champ_file": "",
     "preset": "voll",
 }
+
+# Eigene Logos fürs Overlay: alles, was in static/logos/ liegt, taucht in den Settings auf.
+# Bewusst im static-Ordner, damit Flask die Dateien ohne eigene Route ausliefert.
+# HINWEIS für die PyInstaller-EXE: static/ wird mitgebündelt, neue Logos müssen dann mit
+# in den Build — anders als championship.json lassen sie sich nicht daneben legen.
+LOGOS_DIR = os.path.join(BUNDLE_DIR, "static", "logos")
+LOGO_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
+
+def _list_logos():
+    try:
+        return sorted(f for f in os.listdir(LOGOS_DIR)
+                      if os.path.splitext(f)[1].lower() in LOGO_EXTS
+                      and os.path.isfile(os.path.join(LOGOS_DIR, f)))
+    except Exception:
+        return []
+
+def _list_champ_files():
+    """Die .json-Dateien neben der .exe, die als WM-Stand gewählt werden können.
+
+    championship.json steht immer an erster Stelle — auch wenn sie (noch) nicht
+    daneben liegt, denn dann greift die eingebündelte Vorlage.
+    """
+    try:
+        found = sorted(f for f in os.listdir(BASE_DIR)
+                       if f.lower().endswith(".json")
+                       and f not in CHAMP_HIDDEN_FILES
+                       and os.path.isfile(os.path.join(BASE_DIR, f)))
+    except Exception:
+        found = []
+    return [CHAMP_DEFAULT_NAME] + [f for f in found if f != CHAMP_DEFAULT_NAME]
+
+def _champ_path():
+    """Datei, aus der der WM-Stand gelesen wird.
+
+    Reihenfolge: die in den Settings gewählte Datei neben der .exe -> sonst
+    championship.json daneben -> sonst die eingebündelte Vorlage (falls sie
+    mitkompiliert statt danebengelegt wurde).
+    """
+    name = os.path.basename(str(overlay_settings.get("champ_file") or ""))
+    if name:
+        chosen = os.path.join(BASE_DIR, name)
+        if os.path.isfile(chosen):
+            return chosen
+    if os.path.exists(CHAMP_FILE):
+        return CHAMP_FILE
+    return os.path.join(BUNDLE_DIR, CHAMP_DEFAULT_NAME)
 
 def _load_settings():
     try:
         with open(SETTINGS_FILE, encoding="utf-8") as f:
             saved = json.load(f)
-        return {**DEFAULT_SETTINGS, **{k: v for k, v in saved.items() if k in DEFAULT_SETTINGS}}
+        cfg = {**DEFAULT_SETTINGS, **{k: v for k, v in saved.items() if k in DEFAULT_SETTINGS}}
     except Exception:
-        return dict(DEFAULT_SETTINGS)
+        cfg = dict(DEFAULT_SETTINGS)
+    # Eine früher gespeicherte, inzwischen abgeschaffte Trackmap-Position ("tl"/"lc")
+    # würde sonst weiterwirken, ohne dass sie im Dropdown noch auswählbar wäre.
+    if cfg.get("mapcorner") not in MAP_CORNERS:
+        cfg["mapcorner"] = DEFAULT_SETTINGS["mapcorner"]
+    return cfg
 
 def _save_settings():
     try:
@@ -91,9 +214,39 @@ def _save_settings():
 
 overlay_settings = _load_settings()
 
+# ── Eigene Presets ────────────────────────────────────────────────────────────
+# {name: {settings-key: wert}}. Beim Laden werden unbekannte Keys verworfen und fehlende
+# aus DEFAULT_SETTINGS ergänzt -> ein Preset aus einer älteren Version bleibt benutzbar,
+# auch wenn seitdem neue Settings dazugekommen sind (z.B. `opacity`).
+def _load_user_presets():
+    try:
+        with open(PRESETS_FILE, encoding="utf-8") as f:
+            raw = json.load(f)
+        if not isinstance(raw, dict):
+            return {}
+        out = {}
+        for name, vals in list(raw.items())[:PRESETS_MAX]:
+            if not isinstance(vals, dict):
+                continue
+            out[str(name)[:PRESET_NAME_MAX]] = {
+                k: v for k, v in vals.items() if k in DEFAULT_SETTINGS and k != "preset"
+            }
+        return out
+    except Exception:
+        return {}
+
+def _save_user_presets():
+    try:
+        with open(PRESETS_FILE, "w", encoding="utf-8") as f:
+            json.dump(user_presets, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"[PRESETS] Speichern fehlgeschlagen: {e}")
+
+user_presets = _load_user_presets()
+
 # Regie-Zustand: manuelle Einblendungen, gesteuert über /regie (zweites Gerät/Handy). Kommt im
-# Payload mit; das Overlay spiegelt ihn (Verlaufs-Charts, Strategie, Head-to-Head, WM-Stand).
-regie_state = {"chart": "none", "strat": False, "h2h": False, "champ": False}
+# Payload mit; das Overlay spiegelt ihn (Verlaufs-Charts, Strategie, WM-Stand).
+regie_state = {"chart": "none", "strat": False, "champ": False, "battles": True, "hotlap": True}
 
 UDP_IP   = "0.0.0.0"
 UDP_PORT = 20777
@@ -123,7 +276,7 @@ last_packet_time = 0.0
 
 # ── UDP-Recorder: rohe Pakete mitschneiden (für Replay in der Test-GUI) ──────────
 # Format .f1rec = gzip: 1 JSON-Metazeile, danach Records [<d rel_ts][<I len][raw].
-RECORDINGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recordings")
+RECORDINGS_DIR = os.path.join(BASE_DIR, "recordings")
 PARSED_PIDS = {0, 1, 2, 3, 4, 6, 7, 8, 10, 15, 16}   # nur was das Overlay verarbeitet
 rec_lock = threading.Lock()
 recorder = {"active": False, "fh": None, "t0": 0.0, "count": 0, "bytes": 0, "filter": None, "path": ""}
@@ -165,6 +318,10 @@ _last_session_uid = None   # erkennt Session-Wechsel -> Runden/FL/Fahrer zurück
 _player_idx = 0            # Header playerCarIndex -> "auf wen bin ich drauf" (wenn nicht zuschauend)
 race_control: list = []     # Rennleitungs-Meldungen (Strafen, MOM/Override, ...) fürs Overlay
 _rc_id = 0
+# Wie viele Meldungen vorgehalten werden. Das Overlay braucht nur die neuen (es filtert über
+# die id), die Regie zeigt daraus den Verlauf -> lieber etwas mehr Historie. Die Liste geht in
+# JEDEN SSE-Payload, deshalb nicht unbegrenzt wachsen lassen.
+RC_KEEP = 30
 PENALTY_LABELS = {0: "Drive Through Penalty", 1: "Stop-&-Go-Strafe", 2: "Startplatzstrafe",
                   4: "Zeitstrafe", 5: "Verwarnung", 6: "Disqualifiziert", 9: "Reifen-Regel"}
 
@@ -231,7 +388,9 @@ def get_driver(idx):
     if idx not in drivers:
         drivers[idx] = {"index": idx, "name": "", "team": "", "team_id": -1, "position": 0, "gap_to_leader": 0.0, "gap_to_ahead": 0.0, "compound": "?", "tyre_age": 0, "last_lap": 0.0, "current_lap_time": 0.0, "sector1": 0.0, "sector2": 0.0, "drs": False, "ers_pct": 0.0, "ers_mode": 0, "in_pit": False, "dnf": False, "dsq": False, "race_number": 0, "best_lap": 0.0, "driver_status": 0, "pit_time": 0.0, "overtake_active": False, "overtake_available": False,
                        "lap_invalid": False, "penalties": 0, "pen_dt": 0, "corner_warnings": 0, "pit_stops": 0, "stints": [],
-                       "lap_num": 0, "lap_distance": 0.0, "laps_down": 0, "sector": 0, "grid_position": 0, "speed": 0, "throttle": 0.0, "brake": 0.0, "gear": 0, "dmg_fl": 0, "dmg_fr": 0, "dmg_rw": 0}
+                       "lap_num": 0, "lap_distance": 0.0, "laps_down": 0, "sector": 0, "grid_position": 0, "speed": 0, "throttle": 0.0, "brake": 0.0, "gear": 0, "dmg_fl": 0, "dmg_fr": 0, "dmg_rw": 0, "tyre_wear": 0,
+                       # aus Packet 11 (Session History) - auch von Runden VOR dem Overlay-Start:
+                       "best_sectors": [0.0, 0.0, 0.0], "name_hidden": False}
     return drivers[idx]
 
 def parse_header(data):
@@ -397,6 +556,7 @@ def handle_participants(data):
         d["team"]        = team_display
         d["team_id"]     = team_id
         d["race_number"] = race_number
+        d["name_hidden"] = name_hidden   # fuer die Datenqualitaets-Anzeige in der Regie
 
 # F1 26 LapData: unverändert 57 Bytes, gleiche Offsets wie F1 25
 LAP_DATA_SIZE = 57
@@ -715,6 +875,13 @@ def handle_car_damage(data):
         d["dmg_fl"] = data[start + 28]   # Frontflügel links
         d["dmg_fr"] = data[start + 29]   # Frontflügel rechts
         d["dmg_rw"] = data[start + 30]   # Heckflügel
+        # Reifenabnutzung: m_tyresWear float[4] @0 (RL, RR, FL, FR in %). Mittelwert der 4 Reifen
+        # als ein "Reifen-%" für den Tower (I24). struct 46 Bytes -> die 4 Floats liegen bei 0..15.
+        try:
+            wear = struct.unpack_from("<4f", data, start)
+            d["tyre_wear"] = round(sum(wear) / 4)
+        except struct.error:
+            pass
 
 # Packet 15: Lap Positions – Position jedes Autos zu Beginn jeder Runde (fürs Chart).
 def handle_lap_positions(data):
@@ -736,14 +903,75 @@ def handle_lap_positions(data):
         if entry:
             lap_positions[lap_start + L + 1] = entry   # 1-basierte Rundennummer
 
+# LapHistoryData = 14 Bytes: lapTimeMS uint32 @0, dann 3x (msPart uint16 + minPart uint8)
+# fuer S1/S2/S3 @4..12, validFlags uint8 @13.
+LAP_HISTORY_SIZE = 14
+
+def handle_session_history(data):
+    """Packet 11: die ECHTE Bestzeit eines Fahrers (rotierend, ein Auto pro Frame).
+
+    Ohne das wird best_lap nur aus Runden gebildet, die dieser Listener SELBST gehoert
+    hat -> alles vor dem Overlay-Start fehlt. Genau das war im Vergleich Spiel/Overlay
+    (27.07.) zu sehen: der Pole-Setter stand ohne Zeit da, andere mit einer zu langsamen
+    (naemlich ihrer ersten Runde NACH dem Start des Overlays).
+    """
+    base = HEADER_SIZE
+    if len(data) < base + 7:
+        return
+    car_idx = data[base]
+    if car_idx >= MAX_CARS:
+        return
+
+    def _lap_off(lap_num):
+        """Byte-Offset der Runde `lap_num` (1-basiert) in der History, oder None."""
+        if not (1 <= lap_num <= 100):
+            return None
+        o = base + 7 + (lap_num - 1) * LAP_HISTORY_SIZE
+        return o if o + LAP_HISTORY_SIZE <= len(data) else None
+
+    d = get_driver(car_idx)
+
+    # ── Bestzeit (m_bestLapTimeLapNum @3) ───────────────────────────────────────
+    off = _lap_off(data[base + 3])     # 0 = noch keine Bestzeit gefahren
+    if off is not None:
+        ms = struct.unpack_from("<I", data, off)[0]
+        if 30000 < ms < 600000:
+            lap_s = ms / 1000.0
+            d["best_lap"] = lap_s      # autoritativ - das Spiel weiss es besser als unsere Beobachtung
+            # Session-Bestzeit (lila) mitziehen; sonst fehlt sie, wenn sie vor dem Start fiel.
+            if (session_info["fastest_lap_time"] == 0.0 or lap_s < session_info["fastest_lap_time"]) and d["name"]:
+                session_info["fastest_lap_time"] = lap_s
+                session_info["fastest_lap_driver"] = d["name"]
+
+    # ── Bestsektoren (m_bestSector1/2/3LapNum @4/@5/@6) ─────────────────────────
+    # Jeder Sektor kann in einer ANDEREN Runde gefallen sein -> je Sektor die eigene
+    # Runde nachschlagen. Sektorzeit = minPart*60 + msPart/1000 (wie in LapData).
+    # Ohne das kennt das Overlay nur Sektoren, die es selbst mitgehoert hat.
+    SEC_OFFSETS = ((4, 6), (7, 9), (10, 12))   # je (msPart uint16, minPart uint8) in LapHistoryData
+    secs = []
+    for k in range(3):
+        so = _lap_off(data[base + 4 + k])
+        if so is None:
+            secs.append(0.0)
+            continue
+        ms_part = struct.unpack_from("<H", data, so + SEC_OFFSETS[k][0])[0]
+        mn_part = data[so + SEC_OFFSETS[k][1]]
+        t = mn_part * 60 + ms_part / 1000.0
+        secs.append(t if 0 < t < 300 else 0.0)
+    if any(s > 0 for s in secs):
+        d["best_sectors"] = secs
+
 def _car_name(veh):
     return (drivers.get(veh) or {}).get("name") or f"Auto #{veh}"
 
 def push_rc(type_, text):
     global _rc_id
     _rc_id += 1
-    race_control.append({"id": _rc_id, "type": type_, "text": text})
-    if len(race_control) > 12:
+    # lap/t sind für den Regie-Feed ("Runde 14 · vor 2 min"). Das Overlay ignoriert beide
+    # Felder — es zieht sich nur die Meldungen mit neuer id heraus.
+    race_control.append({"id": _rc_id, "type": type_, "text": text,
+                         "lap": session_info.get("current_lap", 0), "t": time.time()})
+    if len(race_control) > RC_KEEP:
         race_control.pop(0)
 
 # Packet 3: Event – Strafen / Track-Limits, DRS bzw. MOM/Override aktiviert.
@@ -803,9 +1031,10 @@ def handle_event(data):
 
 _debug_count = 0
 _warned_format = None
+_rx_format = 0          # zuletzt EMPFANGENES UDP-Format (0 = noch nichts) -> Diagnose in der Regie
 
 def udp_listener():
-    global last_packet_time, _debug_count, _warned_format, _last_session_uid, _player_idx
+    global last_packet_time, _debug_count, _warned_format, _rx_format, _last_session_uid, _player_idx
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -832,6 +1061,7 @@ def udp_listener():
                             pass
             if DEBUG:
                 print(f"[PKT] pid={pid} len={len(data)} fmt={h['format']}")
+            _rx_format = h["format"]
             if h["format"] != EXPECTED_FORMAT and h["format"] != _warned_format:
                 print("=" * 70)
                 print(f"[WARN] UDP-Format {h['format']} empfangen, 26.py erwartet {EXPECTED_FORMAT}!")
@@ -896,6 +1126,8 @@ def udp_listener():
                     handle_final_classification(data)
                 elif pid == 10:
                     handle_car_damage(data)
+                elif pid == 11:
+                    handle_session_history(data)   # echte Bestzeiten (auch von vor dem Start)
                 elif pid == 15:
                     handle_lap_positions(data)
         except Exception as e:
@@ -910,10 +1142,40 @@ def index_test():
     # Test-Overlay (Kopie von index.html, hier wird Neues ausprobiert) -> /test
     return render_template("test.html")
 
+@app.route("/opti")
+def index_opti():
+    # Sparfassung: wie test.html, aber auf Leistungsbedarf getrimmt (Renderdrossel,
+    # keine Dauerschleifen, kein backdrop-filter, keine Schatten). Bewusst eine
+    # EIGENE Datei, damit /test und /opti im Betrieb nebeneinander vergleichbar sind.
+    return render_template("testopti.html")
+
 @app.route("/regie")
 def regie_page():
     # Regie-Steuerung (zweites Gerät): blendet manuelle Panels im Overlay ein/aus.
     return render_template("regie.html")
+
+# ── Einzelne Overlay-Bausteine als eigene Seiten (fuer OBS) ────────────────────
+# Jeder Baustein laesst sich als eigene Browser-Quelle einbinden und in OBS frei
+# platzieren/skalieren: http://127.0.0.1:5100/part/<name>
+# Die Seiten liegen in templates/parts/, ihr CSS/JS in static/parts/.
+# Gemeinsamer Unterbau: static/css/core.css + static/js/core.js.
+# ⚠ test.html/index.html bleiben unveraendert — das Gesamt-Overlay laeuft weiter wie bisher.
+PARTS = {
+    "tower", "battles", "hotlap", "trackmap", "onboard", "lowerthird", "pit",
+    "lights", "flbanner", "undercut", "danger", "champ", "pitproj", "racemsg", "charts",
+}
+
+@app.route("/part/<name>")
+def part_page(name):
+    # Feste Whitelist: kein Pfad, kein "..", nichts ausserhalb von templates/parts/.
+    if name not in PARTS:
+        abort(404)
+    return render_template(f"parts/{name}.html")
+
+@app.route("/parts")
+def parts_index():
+    # Kleine Uebersicht mit allen Baustein-URLs zum Kopieren in OBS.
+    return render_template("parts_index.html", parts=sorted(PARTS))
 
 @app.route("/api/regie", methods=["GET", "POST"])
 def api_regie():
@@ -923,7 +1185,7 @@ def api_regie():
         with state_lock:
             if d.get("chart") in ("none", "pos", "gap", "lap"):
                 regie_state["chart"] = d["chart"]
-            for k in ("strat", "h2h", "champ"):
+            for k in ("strat", "champ", "battles", "hotlap"):
                 if k in d:
                     regie_state[k] = bool(d[k])
     with state_lock:
@@ -934,8 +1196,11 @@ def calculate_championship():
     # Gesamtpunkte = base_points + Punkte für die aktuelle Rennposition (nur Top 10). Der Namens-
     # abgleich läuft über in_game_name -> name -> Teilstring, damit die Anzeige echte Namen zeigen
     # kann, während telemetrisch der Spiel-Handle ankommt. Live-Positionen aus dem Overlay-Zustand.
+    # Welche Datei gelesen wird, entscheidet _champ_path() — Standard ist championship.json
+    # neben der .exe, in den Settings ist aber jede andere .json aus dem Ordner wählbar.
+    path = _champ_path()
     try:
-        with open(CHAMP_FILE, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             cfg = json.load(f)
     except Exception:
         return {"title": "", "standings": []}
@@ -984,6 +1249,9 @@ def build_live_payload():
             if p:
                 entry["pos_xz"] = p            # Weltposition für die Trackmap
             active.append(entry)
+    # Reihenfolge kommt vom Spiel (m_carPosition) — die stimmt auch online (Vergleich
+    # Overlay/Spiel-Screenshot 27.07.: identische Reihenfolge). NICHT selbst nach best_lap
+    # sortieren: die Bestzeiten sind erst vollständig, wenn Packet 11 sie geliefert hat.
     active.sort(key=lambda x: x["position"])
     # Überrundungen: Fortschritt = Runde + Rundenanteil (lap_distance/Streckenlänge).
     # laps_down = ganze Runden, die der Führende voraus ist. Aus dem KONTINUIERLICHEN
@@ -1010,6 +1278,9 @@ def build_live_payload():
             "final_classification": [dict(r) for r in final_classification],
             "quali_results": dict(last_quali),
             "settings": dict(overlay_settings),
+            # Diagnose fuer die Regie: empfangenes UDP-Format vs. erwartetes. Stimmt das nicht,
+            # sind Namen/Reifen/Zeiten verschoben - das war bisher nur in der Konsole sichtbar.
+            "udp": {"got": _rx_format, "want": EXPECTED_FORMAT},
             "regie": dict(regie_state)}
 
 @app.route("/api/live")
@@ -1018,16 +1289,36 @@ def api_live():
         payload = build_live_payload()
     return jsonify(payload)
 
+# Teile des Payloads, die sich fast nie ändern. Mit ?slim=1 werden sie nur noch
+# mitgeschickt, wenn sie sich wirklich geändert haben — das spart bei 12,5 Sendungen
+# pro Sekunde spürbar JSON-Arbeit auf beiden Seiten. Der Client muss den letzten Stand
+# behalten; genau das macht testopti.html. OHNE den Parameter bleibt alles wie bisher,
+# index.html/test.html/regie/parts merken davon nichts.
+SLIM_KEYS = ("settings", "final_classification", "quali_results")
+
 @app.route("/api/stream")
 def api_stream():
     # Server-Sent Events: pusht den Live-Zustand sobald neue UDP-Daten da sind
     # (~8x/s), sonst 1x/s als Heartbeat. Frontend fällt bei Fehlern auf Polling zurück.
+    #
+    # ?hz=N   Sendetakt begrenzen (1-60, Standard 12.5 = alle 80 ms). Sinnvoll fürs
+    #         Desktop-HUD; OBS und Handy holen sich ohne Parameter weiter alles.
+    #         Über 60 bringt nichts — mehr sendet das Spiel selbst nicht.
+    # ?slim=1 die fast statischen Teile nur bei Änderung mitschicken (s. SLIM_KEYS)
+    try:
+        hz = float(request.args.get("hz", 0) or 0)
+    except ValueError:
+        hz = 0.0
+    tick = 1.0 / max(1.0, min(60.0, hz)) if hz > 0 else 0.08
+    slim = request.args.get("slim") == "1"
+
     def gen():
         last_sent = 0.0
+        last_slim = {}      # zuletzt gesendeter Stand der fast statischen Teile
         while True:
-            # 80 ms Takt: Kamerawechsel (Spectator-Index) so schnell wie möglich
-            # durchreichen. Harte Untergrenze bleibt das Spiel selbst (Session-Paket 2x/s).
-            time.sleep(0.08)
+            # Takt: Kamerawechsel (Spectator-Index) so schnell wie möglich durchreichen.
+            # Harte Untergrenze bleibt das Spiel selbst (Session-Paket 2x/s).
+            time.sleep(tick)
             now = time.time()
             with state_lock:
                 fresh = last_packet_time > last_sent
@@ -1035,6 +1326,14 @@ def api_stream():
                     continue
                 payload = build_live_payload()
             last_sent = now
+
+            if slim:
+                for k in SLIM_KEYS:
+                    if payload.get(k) == last_slim.get(k):
+                        payload.pop(k, None)       # unverändert -> weglassen
+                    else:
+                        last_slim[k] = payload[k]
+
             yield "data: " + json.dumps(payload) + "\n\n"
     return Response(gen(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -1103,6 +1402,30 @@ def settings_page():
     # (http://<PC-IP>:5100/settings) -> Änderungen wirken live im Overlay.
     return render_template("settings.html")
 
+@app.route("/api/logos")
+def api_logos():
+    # Auswahlliste für die Settings-Seite (Dateinamen, ohne Pfad).
+    return jsonify({"logos": _list_logos()})
+
+@app.route("/api/champfiles")
+def api_champfiles():
+    """Auswahlliste für den WM-Stand: .json-Dateien neben der .exe.
+
+    `dir` kommt mit, damit die Settings-Seite zeigen kann, WO die Dateien liegen
+    müssen — als EXE ist das der Ordner der .exe, im Dev-Betrieb der von main.py.
+
+    Bewusst KEIN "welche Datei lese ich gerade": die Seite kennt die Auswahl selbst
+    und könnte den Hinweis sonst erst nach dem nächsten Abruf richtig anzeigen.
+    `default_exists` sagt nur, ob championship.json wirklich daneben liegt — das
+    ist das Einzige, was die Seite nicht selbst wissen kann.
+    """
+    return jsonify({
+        "files": _list_champ_files(),
+        "current": overlay_settings.get("champ_file") or "",
+        "dir": BASE_DIR,
+        "default_exists": os.path.isfile(CHAMP_FILE),
+    })
+
 @app.route("/api/settings", methods=["GET", "POST"])
 def api_settings():
     global overlay_settings
@@ -1111,6 +1434,25 @@ def api_settings():
         with state_lock:
             for k, v in data.items():
                 if k not in DEFAULT_SETTINGS:
+                    continue
+                # Logo-Name: nur ein Dateiname aus static/logos/, kein Pfad. Der Wert landet
+                # im Overlay in einer URL — ohne diese Prüfung käme man mit "../" heraus.
+                if k == "tower_logo":
+                    name = os.path.basename(str(v or ""))
+                    overlay_settings[k] = name if (name and name in _list_logos()) else ""
+                    continue
+                if k == "tower_logo_pos":
+                    overlay_settings[k] = "right" if str(v) == "right" else "left"
+                    continue
+                # Trackmap-Platz: nur die angebotenen Ecken/Kantenmitten zulassen.
+                if k == "mapcorner":
+                    overlay_settings[k] = str(v) if str(v) in MAP_CORNERS else DEFAULT_SETTINGS[k]
+                    continue
+                # WM-Stand-Datei: nur ein Dateiname aus BASE_DIR, kein Pfad. Sonst
+                # liesse sich mit "../" jede beliebige Datei vom Rechner auslesen.
+                if k == "champ_file":
+                    name = os.path.basename(str(v or ""))
+                    overlay_settings[k] = name if (name and name in _list_champ_files()) else ""
                     continue
                 dv = DEFAULT_SETTINGS[k]
                 try:
@@ -1125,6 +1467,81 @@ def api_settings():
             _save_settings()
     with state_lock:
         return jsonify(dict(overlay_settings))
+
+# ── Versionen der einzelnen Dateien ───────────────────────────────────────────
+# Reihenfolge = Anzeigereihenfolge in /settings.
+VERSIONED_TEMPLATES = [
+    ("index.html",    "Overlay (Produktion)"),
+    ("test.html",     "Overlay (Spielwiese)"),
+    ("testopti.html", "Overlay (Sparfassung)"),
+    ("regie.html",    "Regie-Panel"),
+    ("settings.html", "Diese Seite"),
+]
+_VER_RE = re.compile(r"KERS-VERSION:\s*([0-9]+\.[0-9]+\.[0-9]+)")
+
+def _mtime_str(path):
+    try:
+        return time.strftime("%d.%m.%Y %H:%M", time.localtime(os.path.getmtime(path)))
+    except Exception:
+        return None
+
+def _template_version(name):
+    """Version + Aenderungsdatum + Inhalts-Hash einer Template-Datei (von der Platte)."""
+    path = os.path.join(BUNDLE_DIR, "templates", name)
+    raw = _read_bytes(path)
+    if raw is None:
+        return {"version": None, "note": "Datei nicht gefunden"}
+    head = raw[:4000].decode("utf-8", "replace")   # Marker steht ganz oben
+    m = _VER_RE.search(head)
+    return {"version": m.group(1) if m else None, "changed": _mtime_str(path), "hash": _sha8(raw),
+            "note": None if m else "kein Versions-Marker in der Datei"}
+
+@app.route("/api/version")
+def api_version():
+    cur = _read_bytes(_MAIN_FILE)
+    cur_hash = _sha8(cur) if cur is not None else None
+    # main.py laeuft aus dem Speicher — geaenderte Datei wirkt erst nach einem Neustart.
+    stale = cur_hash is not None and cur_hash != _MAIN_HASH_AT_START
+    files = [{
+        "file": "main.py", "label": "Server / Backend", "version": __version__,
+        "changed": _mtime_str(_MAIN_FILE),
+        "hash": _MAIN_HASH_AT_START, "hash_disk": cur_hash, "restart_needed": stale,
+        "note": "Datei wurde seit dem Start geändert — Neustart nötig" if stale else None,
+    }]
+    for name, label in VERSIONED_TEMPLATES:
+        info = _template_version(name)
+        info.update({"file": name, "label": label, "restart_needed": False})
+        files.append(info)
+    return jsonify({"app": __version__, "restart_needed": stale, "files": files})
+
+@app.route("/api/presets", methods=["GET", "POST"])
+def api_presets():
+    """Eigene Presets: Schnappschuss ALLER Settings unter einem Namen.
+
+    POST {"name": "Rennen"}                 -> aktuellen Stand unter dem Namen sichern
+                                               (gleicher Name = überschreiben)
+    POST {"name": "Rennen", "delete": true} -> löschen
+    Der Schnappschuss kommt bewusst vom SERVER (nicht aus dem Request-Body): so kann eine
+    Settings-Seite kein Preset mit Werten anlegen, die nie durch die Settings-Prüfung liefen.
+    """
+    global user_presets
+    if request.method == "POST":
+        d = request.get_json(silent=True) or {}
+        name = str(d.get("name") or "").strip()[:PRESET_NAME_MAX]
+        if not name:
+            return jsonify({"error": "name fehlt", "presets": user_presets}), 400
+        with state_lock:
+            if d.get("delete"):
+                user_presets.pop(name, None)
+            else:
+                if name not in user_presets and len(user_presets) >= PRESETS_MAX:
+                    return jsonify({"error": f"maximal {PRESETS_MAX} Presets",
+                                    "presets": user_presets}), 400
+                user_presets[name] = {k: v for k, v in overlay_settings.items() if k != "preset"}
+            _save_user_presets()
+            return jsonify({"presets": dict(user_presets)})
+    with state_lock:
+        return jsonify({"presets": dict(user_presets)})
 
 @app.route("/api/settings/reset", methods=["POST"])
 def api_settings_reset():

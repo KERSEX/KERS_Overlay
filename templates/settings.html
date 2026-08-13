@@ -1,9 +1,16 @@
 <!DOCTYPE html>
+<!-- KERS-VERSION: 0.0.1 — Einstellungen
+     Beim Aendern dieser Datei hochzaehlen. Wird in /settings angezeigt.
+     ⚠ Der Marker wandert beim Kopieren test.html -> index.html mit. -->
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover: nur damit liefert env(safe-area-inset-*) ueberhaupt Werte. Die
+     Navi-Leiste der Android-App rechnet damit ihren Abstand zur Gestenleiste aus. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>KERS Overlay – Einstellungen</title>
+<link rel="icon" href="/static/brand/Icon.ico" type="image/x-icon">
+<link rel="apple-touch-icon" href="/static/brand/Icon.png">
 <style>
 :root{ --bg:#0f0f14; --card:#181820; --line:rgba(255,255,255,.09); --txt:#e9e9f0; --muted:#8e8e9e;
        --red:#e10600; --green:#00e676; --yellow:#ffcc00; }
@@ -32,12 +39,102 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
 .ctl .val{font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;min-width:52px;text-align:right}
 .ctl input[type=number]{width:70px;background:#101016;border:1px solid var(--line);border-radius:6px;color:#fff;padding:5px 8px;font-size:13px;text-align:right}
 .ctl select.sel{background:#101016;border:1px solid var(--line);border-radius:6px;color:#fff;padding:6px 9px;font-size:13px;cursor:pointer}
+.ctl .mini{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:6px;color:var(--muted);
+           padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
+.ctl .mini.on{background:var(--green);border-color:var(--green);color:#053}
+/* K18: Farbwähler mit „Standard"-Zustand (leer = Fallback auf Akzent/Team-Farbe) */
+.colorcombo{gap:8px}
+.colorcombo input[type=color]{width:40px;height:30px;padding:0;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer}
+.colorcombo .cstate{font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);min-width:66px;text-align:right}
+.colorcombo.set .cstate{color:var(--txt);font-weight:700}
+.colorcombo .cclear{width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.05);color:var(--muted);font-size:12px;cursor:pointer}
+/* Logo-Auswahl: Kachel-Galerie statt Dateinamen-Dropdown — man will das Bild sehen, nicht den Namen */
+.logobtn{display:flex;align-items:center;gap:9px;background:#101016;border:1px solid var(--line);border-radius:8px;
+         padding:6px 10px;cursor:pointer;color:var(--txt);font-size:13px;width:210px}
+.logobtn img{height:24px;max-width:80px;object-fit:contain;flex-shrink:0}
+.logobtn .lb-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.logobtn .lb-chev{color:var(--muted);font-size:10px;flex-shrink:0}
+/* Vorschau: Mini-Nachbau der Tower-Kopfzeile, damit Position und Höhe sofort sichtbar sind */
+.logoprev{margin:10px 0 2px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.logoprev .pv-head{display:flex;align-items:center;gap:12px;padding:10px 14px;min-height:52px;
+                   background:linear-gradient(90deg,rgba(22,22,30,1) 0%,rgba(40,40,50,1) 100%);
+                   border-bottom:3px solid var(--red)}
+.logoprev .pv-title{font-size:19px;font-weight:800;letter-spacing:1.5px;white-space:nowrap}
+.logoprev img{object-fit:contain;max-width:160px}
+.logoprev img.pv-left{order:-1}
+.logoprev img.pv-right{order:9;margin-left:auto}
+.logoprev .pv-note{padding:7px 14px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.02)}
+/* Modal mit der Galerie */
+.lmodal{position:fixed;inset:0;background:rgba(0,0,0,.74);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.lmodal.open{display:flex}
+.lmodal .box{background:var(--card);border:1px solid var(--line);border-radius:14px;width:min(780px,100%);
+             max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+.lmodal .lh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+.lmodal .lh h3{font-size:15px;font-weight:800;letter-spacing:1px;flex:1}
+.lmodal .lclose{background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:8px;color:var(--txt);
+                padding:6px 13px;font-size:13px;cursor:pointer}
+.lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;padding:16px;overflow-y:auto}
+.ltile{background:linear-gradient(90deg,rgba(22,22,30,1) 0%,rgba(40,40,50,1) 100%);
+       border:2px solid var(--line);border-radius:10px;padding:10px 8px;cursor:pointer;text-align:center}
+.ltile.sel{border-color:var(--green)}
+.ltile .tw{height:64px;display:flex;align-items:center;justify-content:center}
+.ltile .tw img{max-width:100%;max-height:64px;object-fit:contain}
+.ltile .tw .none{color:var(--muted);font-size:26px}
+.ltile .tn{font-size:11px;color:var(--muted);margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ltile.sel .tn{color:var(--txt);font-weight:700}
+.lempty{padding:24px 18px;color:var(--muted);font-size:13px;line-height:1.7}
+.lempty code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px;color:var(--txt)}
+.colorcombo:not(.set) .cclear{visibility:hidden}
 /* Presets */
 .presets{display:flex;gap:10px;flex-wrap:wrap}
 .pbtn{flex:1;min-width:110px;padding:12px;border-radius:10px;border:2px solid var(--line);background:rgba(255,255,255,.03);
       color:#fff;font-size:14px;font-weight:700;cursor:pointer;transition:border .25s, box-shadow .25s;text-align:center}
 .pbtn small{display:block;font-weight:400;font-size:11px;color:var(--muted);margin-top:3px}
 .pbtn.active{border-color:var(--red);box-shadow:0 0 14px rgba(225,6,0,.35)}
+.pnote{margin-top:10px;font-size:12px;color:var(--yellow);text-align:center;min-height:15px}
+/* ── Eigene Presets ── */
+.psub{margin:18px 0 10px;font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.psub small{display:block;margin-top:4px;font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted);line-height:1.5}
+/* Eigenes Preset: wie .pbtn, aber mit Platz fuer den Loeschen-Knopf rechts oben */
+.upbtn{position:relative;flex:1;min-width:110px;padding:12px 26px 12px 12px;border-radius:10px;border:2px solid var(--line);
+       background:rgba(255,255,255,.03);color:#fff;font:inherit;font-weight:700;font-size:13px;text-align:left;cursor:pointer}
+.upbtn small{display:block;font-weight:400;font-size:11px;color:var(--muted);margin-top:3px}
+.upbtn.active{border-color:var(--red);box-shadow:0 0 14px rgba(225,6,0,.35)}
+.updel{position:absolute;top:4px;right:4px;width:22px;height:22px;line-height:20px;text-align:center;
+       border-radius:6px;border:0;background:rgba(255,255,255,.06);color:var(--muted);font-size:13px;cursor:pointer}
+.updel:hover,.updel.arm{background:rgba(225,6,0,.75);color:#fff}
+.psave{display:flex;gap:8px;margin-top:12px}
+.psave input{flex:1;min-width:0;padding:11px 12px;border-radius:9px;border:1px solid var(--line);
+             background:rgba(0,0,0,.35);color:#fff;font:inherit;font-size:13px}
+.psave button{padding:11px 14px;border-radius:9px;border:1px solid var(--line);background:rgba(80,150,255,.14);
+              color:#cfe0ff;font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.psave button:active{transform:scale(.98)}
+.pempty{font-size:12px;color:var(--muted);padding:4px 2px}
+/* ── Versionen ── */
+.vrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.vrow:last-child{border-bottom:none}
+.vname{flex:1;min-width:0;font-size:13.5px;font-family:ui-monospace,Consolas,monospace}
+.vname small{display:block;font-family:'Segoe UI',system-ui,sans-serif;font-size:11.5px;color:var(--muted);margin-top:1px}
+.vver{font-variant-numeric:tabular-nums;font-size:14px;font-weight:800;letter-spacing:.5px;color:var(--txt);
+      background:rgba(255,255,255,.06);border-radius:6px;padding:3px 9px;flex-shrink:0}
+.vver.miss{color:var(--yellow);font-weight:600;font-size:12px}
+.vmeta{font-size:11px;color:var(--muted);text-align:right;min-width:132px;flex-shrink:0;
+       font-family:ui-monospace,Consolas,monospace}
+.vrow.stale .vver{background:rgba(225,6,0,.22);color:#ff8a80}
+.vnote{margin-top:12px;font-size:12.5px;line-height:1.6;color:var(--yellow);
+       background:rgba(255,204,0,.10);border-radius:8px;padding:9px 12px}
+.vnote:empty{display:none}
+@media (max-width:520px){ .vmeta{display:none} }
+/* K17: Untergruppen der Komponenten-Schalter (auf-/zuklappbar) */
+.sub + .sub{margin-top:10px}
+.subhead{width:100%;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.03);border:1px solid var(--line);
+         border-radius:8px;color:var(--txt);padding:9px 11px;font-size:12px;font-weight:700;letter-spacing:1.5px;
+         text-transform:uppercase;cursor:pointer;text-align:left}
+.subhead .arrow{color:var(--muted);font-size:10px;transition:transform .2s}
+.sub.closed .subhead .arrow{transform:rotate(-90deg)}
+.subhead .cnt{margin-left:auto;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0;text-transform:none}
+.subbody{padding:0 2px}
+.sub.closed .subbody{display:none}
 .reset{margin-top:22px;width:100%;padding:11px;border-radius:10px;border:1px solid rgba(225,6,0,.5);background:rgba(225,6,0,.10);
        color:#ff8a80;font-size:13px;font-weight:700;cursor:pointer}
 .hint{margin-top:14px;font-size:12px;color:var(--muted);text-align:center}
@@ -51,6 +148,17 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
   <div class="grp">
     <h2>Layout-Presets</h2>
     <div class="presets" id="presets"></div>
+    <div class="pnote" id="presetNote"></div>
+
+    <h3 class="psub">Eigene Presets<small>Sichert ALLE Einstellungen unter einem Namen — auch Deckkraft, Skalierung, Farben und Logo. Liegt auf dem Server, ist also auch vom Handy aus da.</small></h3>
+    <div class="presets" id="userPresets"></div>
+    <!-- Bewusst ein Eingabefeld statt prompt(): die Android-WebView bricht prompt()
+         standardmäßig ab (onJsPrompt), der Speichern-Knopf täte auf dem Handy sonst nichts. -->
+    <div class="psave">
+      <input type="text" id="presetName" maxlength="30" placeholder="Name, z.B. „Rennen kompakt“" autocomplete="off">
+      <button type="button" id="presetSave">Aktuellen Stand sichern</button>
+    </div>
+    <div class="pnote" id="presetErr"></div>
   </div>
 
   <div class="grp">
@@ -60,8 +168,13 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
 
   <div class="grp">
     <h2>Leaderboard-Tower</h2>
-    <div class="row"><label>Skalierung<small>0 = automatisch an die Bildhöhe anpassen</small></label>
-      <div class="ctl"><input type="range" min="0" max="2" step="0.05" data-k="scale"><span class="val" data-v="scale"></span></div></div>
+    <div class="row"><label>Skalierung<small>Der Tower wird immer an die Bildhöhe eingepasst. Der Regler dreht relativ dazu: 1.00 = wie „Auto", 1.20 = 20 % größer, 0.80 = 20 % kleiner</small></label>
+      <div class="ctl">
+        <button type="button" class="mini" id="scaleAuto">Auto</button>
+        <input type="range" min="0.5" max="2" step="0.02" data-k="scale"><span class="val" data-v="scale"></span>
+      </div></div>
+    <div class="row"><label>Deckkraft<small>Wie undurchsichtig die Panels sind. 1.00 = wie bisher, kleiner = mehr Gameplay scheint durch, ab 1.25 komplett deckend. Gilt für Tower, Boxen, Onboard usw.</small></label>
+      <div class="ctl"><input type="range" min="0.4" max="1.25" step="0.05" data-k="opacity"><span class="val" data-v="opacity"></span></div></div>
     <div class="row"><label>Zeilen (Top-N)<small>0 = alle Fahrer anzeigen</small></label>
       <div class="ctl"><input type="number" min="0" max="24" step="1" data-k="rows"></div></div>
     <div class="row"><label>Ergebnis halten<small>Sekunden, die das letzte Q/R-Ergebnis nach Session-Ende stehen bleibt</small></label>
@@ -74,15 +187,18 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
 
   <div class="grp">
     <h2>Trackmap</h2>
+    <div class="row"><label>Trackmap anzeigen<small>Master-Schalter für die Minimap</small></label><div class="tgl" data-k="map"></div></div>
     <div class="row"><label>Größe (px)</label>
       <div class="ctl"><input type="range" min="200" max="640" step="10" data-k="mapsize"><span class="val" data-v="mapsize"></span></div></div>
     <div class="row"><label>Drehung (°)</label>
       <div class="ctl"><input type="range" min="0" max="359" step="1" data-k="maprot"><span class="val" data-v="maprot"></span></div></div>
     <div class="row"><label>Horizontal spiegeln</label><div class="tgl" data-k="mapflip"></div></div>
     <div class="row"><label>Position</label>
+      <!-- "oben links" und "links mitte" fehlen bewusst: dort steht der Tower,
+           die Trackmap wuerde ihn verdecken. -->
       <div class="ctl"><select class="sel" data-sel="mapcorner">
-        <option value="tl">oben links</option><option value="tc">oben mitte</option><option value="tr">oben rechts</option>
-        <option value="lc">links mitte</option><option value="rc">rechts mitte</option>
+        <option value="tc">oben mitte</option><option value="tr">oben rechts</option>
+        <option value="rc">rechts mitte</option>
         <option value="bl">unten links</option><option value="bc">unten mitte</option><option value="br">unten rechts</option>
       </select></div></div>
     <div class="row"><label>Punktgröße (Autos)</label>
@@ -103,72 +219,245 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
     <h2>Branding</h2>
     <div class="row"><label>Titel<small>Text-Slot oben im Tower-Header (leer = aus)</small></label>
       <div class="ctl"><input type="text" data-str="brand_title" placeholder="KERS F1 OVERLAY" style="width:190px;padding:6px 8px"></div></div>
+    <div class="row"><label>Logo im Tower<small>Dateien aus <code>static/logos/</code> — dort einfach reinlegen</small></label>
+      <div class="ctl"><button type="button" class="logobtn" id="logoBtn">
+        <img id="logoBtnImg" alt="" style="display:none">
+        <span class="lb-name" id="logoBtnName">— kein Logo —</span><span class="lb-chev">▼</span>
+      </button></div></div>
+    <div class="logoprev" id="logoPrev">
+      <div class="pv-head"><img id="pvLogo" alt="" style="display:none"><span class="pv-title">RUNDE 5 / 18</span></div>
+      <div class="pv-note">Vorschau der Tower-Kopfzeile</div>
+    </div>
+    <div class="row"><label>Logo-Position</label>
+      <div class="ctl"><select class="sel" data-sel="tower_logo_pos">
+        <option value="left">oben links</option><option value="right">oben rechts</option>
+      </select></div></div>
+    <div class="row"><label>Logo-Höhe (px)</label>
+      <div class="ctl"><input type="range" min="16" max="90" step="2" data-k="tower_logo_h"><span class="val" data-v="tower_logo_h"></span></div></div>
     <div class="row"><label>Akzentfarbe<small>färbt die roten Akzente im ganzen Overlay</small></label>
       <div class="ctl"><input type="color" data-str="brand_accent" style="width:48px;height:32px;padding:0;border:none;background:none"></div></div>
-    <div class="row"><label>Header-Streifen<small>Linie unter dem Tower-Header — leer = Akzentfarbe</small></label>
-      <div class="ctl"><input type="text" data-str="header_color" placeholder="#e10600 oder leer" style="width:150px;padding:6px 8px"></div></div>
-    <div class="row"><label>Row-Streifen<small>linker Balken der Zeilen — leer = Team-Farbe</small></label>
-      <div class="ctl"><input type="text" data-str="row_color" placeholder="#hex oder leer" style="width:150px;padding:6px 8px"></div></div>
+    <div class="row"><label>Header-Streifen<small>Linie unter dem Tower-Header — aus = Akzentfarbe</small></label>
+      <div class="ctl colorcombo" data-color="header_color">
+        <span class="cstate">Standard</span><input type="color" class="cpick">
+        <button type="button" class="cclear" title="auf Akzentfarbe zurück">✕</button></div></div>
+    <div class="row"><label>Row-Streifen<small>linker Balken der Zeilen — aus = Team-Farbe</small></label>
+      <div class="ctl colorcombo" data-color="row_color">
+        <span class="cstate">Standard</span><input type="color" class="cpick">
+        <button type="button" class="cclear" title="auf Team-Farbe zurück">✕</button></div></div>
+  </div>
+
+  <div class="grp">
+    <h2>WM-Stand</h2>
+    <div class="row"><label>Datei<small>eine <code>.json</code> aus dem Ordner des Programms</small></label>
+      <div class="ctl"><select class="sel" id="champSel" data-sel="champ_file"></select></div></div>
+    <div class="vnote" id="champNote"></div>
+  </div>
+
+  <div class="grp">
+    <h2>Versionen</h2>
+    <div id="versions"><div class="pempty">wird geladen…</div></div>
+    <div class="vnote" id="versionNote"></div>
   </div>
 
   <button class="reset" id="reset">Alles auf Standard zurücksetzen</button>
   <div class="hint">Gespeichert wird automatisch. URL-Parameter im Overlay (z.&nbsp;B. ?map=0) überschreiben einzelne Werte weiterhin.</div>
 </div>
 
+<!-- Logo-Galerie: Kacheln auf dem gleichen Verlauf wie die echte Tower-Kopfzeile, damit man
+     bei transparenten PNGs sieht, wie das Logo dort wirklich aussieht. -->
+<div class="lmodal" id="logoModal">
+  <div class="box">
+    <div class="lh"><h3>Logo wählen</h3><button type="button" class="lclose" id="logoClose">Schließen</button></div>
+    <div id="logoBody"></div>
+  </div>
+</div>
+
 <script>
-// Schalter-Definitionen (Key -> Label + Beschreibung)
-const TOGGLES = [
-  ["tower",      "Leaderboard-Tower",       "die Haupttabelle links"],
-  ["battles",    "Battle-Boxen",            "Kämpfe unten mittig (+ Hotlap-Boxen in der Quali)"],
-  ["map",        "Trackmap",                "Minimap oben rechts"],
-  ["onboard",    "Onboard-Telemetrie",      "Speed / Gas / Bremse unten links"],
-  ["deltabar",   "Live-Delta im Onboard",   "Delta zur persönlichen Bestrunde"],
-  ["lights",     "Start-Ampel",             "5 Lichter + Lights Out"],
-  ["damage",     "Damage-Icons",            "Flügelschaden im Tower"],
-  ["msgs",       "Rennleitungs-Meldungen",  "Strafen, Track-Limits usw. oben mittig"],
-  ["flbanner",   "Fastest-Lap-Banner",      "großes lila Banner bei schnellster Runde"],
-  ["lowerthird", "Lower-Third",             "Namensleiste beim Kamerawechsel"],
-  ["undercut",   "Undercut-Alarm",          "Meldung bei Undercut-Versuchen"],
-  ["ticker",     "Wetter-Ticker",           "Wetter/Vorhersage im Kopfbereich"],
-  ["pred",       "Kampf-Countdown",         "Vorhersage „Kampf in X Runden“ über der Battle-Box"],
-  ["danger",     "Gefahrenzone (Quali)",    "Countdown für den Fahrer am Elimination-Strich"],
-  ["comeback",   "Comeback-Badge",          "▲/▼ Plätze seit dem Start (im Rennen)"],
-  ["pbflash",    "Bestrunde-Flash",         "Zeile blitzt grün (persönl. Best) / lila (Session-Best)"],
-  ["battlemap",  "Battle-Glühen (Map)",     "vorderster Kampf pulsiert auf der Minimap"],
-  ["fresh",      "Frische-Reifen (Battle)", "„−N Rnd“ am Jäger mit deutlich frischeren Reifen"],
-  ["strat",      "Reifenstrategie im Lower-Third","Stint-Verlauf + Reifenalter beim Kamera-Fahrer"],
-  ["pitproj",    "Pit-Projektion (auto)",   "„nach Boxenstopp P?“ für den Kamera-Fahrer mit alten Reifen"],
+// K17: Schalter thematisch gruppiert — [Gruppen-Id, Überschrift, [[Key, Label, Beschreibung], …]]
+// „map“ steht bewusst NICHT hier, sondern als Master-Schalter oben in der Trackmap-Gruppe.
+const TOGGLE_GROUPS = [
+  ["lb", "Leaderboard", [
+    ["tower",      "Leaderboard-Tower",       "die Haupttabelle links"],
+    ["damage",     "Damage-Icons",            "Flügelschaden im Tower"],
+    ["comeback",   "Comeback-Badge",          "▲/▼ Plätze seit dem Start (im Rennen)"],
+    ["pbflash",    "Bestrunde-Flash",         "Zeile blitzt grün (persönl. Best) / lila (Session-Best)"],
+  ]],
+  ["battle", "Battles & Strategie", [
+    ["battles",    "Battle-Boxen",            "Kämpfe unten mittig (+ Hotlap-Boxen in der Quali)"],
+    ["pred",       "Kampf-Countdown",         "Vorhersage „Kampf in X Runden“ über der Battle-Box"],
+    ["fresh",      "Frische-Reifen (Battle)", "„−N Rnd“ am Jäger mit deutlich frischeren Reifen"],
+    ["undercut",   "Undercut-Alarm",          "Meldung bei Undercut-Versuchen"],
+    ["pitproj",    "Pit-Projektion (auto)",   "„nach Boxenstopp P?“ für den Kamera-Fahrer mit alten Reifen"],
+    ["strat",      "Reifenstrategie im Lower-Third","Stint-Verlauf + Reifenalter beim Kamera-Fahrer"],
+  ]],
+  ["ob", "Onboard", [
+    ["onboard",    "Onboard-Telemetrie",      "Speed / Gas / Bremse unten links"],
+    ["deltabar",   "Live-Delta im Onboard",   "Delta zur persönlichen Bestrunde (Quali, auf der Hotlap)"],
+    ["ampel",      "Sektor-Ampel im Onboard", "3 Segmente lila/grün/gelb je Sektor (Quali, auf der Hotlap)"],
+  ]],
+  ["banner", "Banner & Meldungen", [
+    ["lights",     "Start-Ampel",             "5 Lichter + Lights Out"],
+    ["msgs",       "Rennleitungs-Meldungen",  "Strafen, Track-Limits usw. oben mittig"],
+    ["flbanner",   "Fastest-Lap-Banner",      "großes lila Banner bei schnellster Runde"],
+    ["lowerthird", "Lower-Third",             "Namensleiste beim Kamerawechsel"],
+    ["ticker",     "Wetter-Ticker",           "Wetter/Vorhersage im Kopfbereich"],
+  ]],
+  ["quali", "Quali", [
+    ["danger",     "Gefahrenzone (Quali)",    "Countdown für den Fahrer am Elimination-Strich"],
+  ]],
 ];
 const PRESETS = {
-  voll:    { label:"Voll",    desc:"alles an",                 set:{ tower:true,battles:true,map:true,onboard:true,lights:true,damage:true,msgs:true,flbanner:true,lowerthird:true,undercut:true,ticker:true,deltabar:true,pred:true,danger:true,comeback:true,pbflash:true,battlemap:true,fresh:true,strat:true,pitproj:true,rows:0 } },
-  kompakt: { label:"Kompakt", desc:"Tower + Map + Wichtiges",  set:{ tower:true,battles:true,map:true,onboard:false,lights:true,damage:true,msgs:true,flbanner:true,lowerthird:false,undercut:false,ticker:false,deltabar:false,pred:true,danger:true,comeback:true,pbflash:true,battlemap:true,fresh:true,strat:true,pitproj:true,rows:0 } },
-  minimal: { label:"Minimal", desc:"nur Top 10, sonst nichts", set:{ tower:true,battles:false,map:false,onboard:false,lights:true,damage:false,msgs:false,flbanner:false,lowerthird:false,undercut:false,ticker:false,deltabar:false,pred:false,danger:false,comeback:false,pbflash:false,battlemap:false,fresh:false,strat:false,pitproj:false,rows:10 } },
+  voll:    { label:"Voll",    desc:"alles an",                 set:{ tower:true,battles:true,map:true,onboard:true,lights:true,damage:true,msgs:true,flbanner:true,lowerthird:true,undercut:true,ticker:true,deltabar:true,ampel:true,pred:true,danger:true,comeback:true,pbflash:true,fresh:true,strat:true,pitproj:true,rows:0 } },
+  kompakt: { label:"Kompakt", desc:"Tower + Map + Wichtiges",  set:{ tower:true,battles:true,map:true,onboard:false,lights:true,damage:true,msgs:true,flbanner:true,lowerthird:false,undercut:false,ticker:false,deltabar:false,ampel:false,pred:true,danger:true,comeback:true,pbflash:true,fresh:true,strat:true,pitproj:true,rows:0 } },
+  minimal: { label:"Minimal", desc:"nur Top 10, sonst nichts", set:{ tower:true,battles:false,map:false,onboard:false,lights:true,damage:false,msgs:false,flbanner:false,lowerthird:false,undercut:false,ticker:false,deltabar:false,ampel:false,pred:false,danger:false,comeback:false,pbflash:false,fresh:false,strat:false,pitproj:false,rows:10 } },
 };
 
 let S = {};            // aktueller Stand vom Server
 let saveTimer = null;
+let pending = {};      // gesammelte Änderungen, bis der Debounce feuert
+let closedGrp = {};    // zugeklappte Komponenten-Gruppen (nur lokal)
+try { closedGrp = JSON.parse(localStorage.getItem("kers_setgrp") || "{}"); } catch(e) {}
 
 function flash(){ const el=document.getElementById("status"); el.classList.add("show"); clearTimeout(flash._t); flash._t=setTimeout(()=>el.classList.remove("show"),1200); }
-function save(patch){
+
+let UP = {};   // eigene Presets vom Server: {name: {settings}}
+
+/** K17: Preset-Id, die exakt zum aktuellen Stand passt — sonst "" (= benutzerdefiniert).
+ *  Eigene Presets zuerst: sie speichern ALLE Werte, treffen also genauer als die
+ *  eingebauten (die nur eine Handvoll Schalter setzen und damit schnell "zufällig" passen). */
+function matchedPreset(){
+  for(const [name,set] of Object.entries(UP))
+    if(Object.entries(set).every(([k,v]) => S[k] === v)) return "u:" + name;
+  for(const [id,p] of Object.entries(PRESETS))
+    if(Object.entries(p.set).every(([k,v]) => S[k] === v)) return id;
+  return "";
+}
+
+async function loadPresets(){
+  try{ UP = (await (await fetch("/api/presets")).json()).presets || {}; }catch(e){ UP = {}; }
+}
+
+/* ── Versionen ────────────────────────────────────────────────────────────────
+   Jede Datei trägt ihre Version selbst (main.py: __version__, HTML: KERS-VERSION-Marker).
+   Zusätzlich Änderungsdatum + Inhalts-Hash — damit sieht man auch ohne Versionssprung,
+   ob PC und Handy wirklich dieselbe Datei geladen haben.
+   Bei main.py vergleicht der Server den Hash beim Start mit dem auf der Platte: weichen
+   sie ab, wurde die Datei seither bearbeitet und der Neustart steht noch aus. */
+async function loadVersions(){
+  const box = document.getElementById("versions");
+  const note = document.getElementById("versionNote");
+  if(!box) return;
+  let d;
+  try{ d = await (await fetch("/api/version")).json(); }
+  catch(e){
+    box.innerHTML = `<div class="pempty">Versionen nicht abrufbar — läuft der Server noch mit dieser main.py? (Route /api/version ist neu, braucht einen Neustart.)</div>`;
+    if(note) note.textContent = "";
+    return;
+  }
+  box.innerHTML = (d.files || []).map(f => {
+    const ver = f.version
+      ? `<span class="vver">v${esc(f.version)}</span>`
+      : `<span class="vver miss">${esc(f.note || "keine Version")}</span>`;
+    const meta = [f.changed, f.hash ? "#" + esc(f.hash) : ""].filter(Boolean).join(" · ");
+    return `<div class="vrow${f.restart_needed ? " stale" : ""}">`
+         + `<span class="vname">${esc(f.file)}<small>${esc(f.label || "")}</small></span>`
+         + `<span class="vmeta">${meta}</span>${ver}</div>`;
+  }).join("") || `<div class="pempty">keine Dateien gemeldet</div>`;
+  if(note) note.textContent = d.restart_needed
+    ? "main.py wurde seit dem Start bearbeitet — die laufende Instanz nutzt noch den alten Code. Server neu starten."
+    : "";
+}
+function presetErr(msg){
+  const el = document.getElementById("presetErr");
+  if(el) el.textContent = msg || "";
+}
+async function savePreset(name){
+  presetErr("");
+  name = (name || "").trim();
+  if(!name){ presetErr("Bitte einen Namen eingeben."); return; }
+  try{
+    const r = await fetch("/api/presets",{method:"POST",headers:{"Content-Type":"application/json"},
+                                          body:JSON.stringify({name})});
+    const j = await r.json();
+    UP = j.presets || {};
+    if(j.error){ presetErr(j.error); return; }
+    document.getElementById("presetName").value = "";
+    // Der frisch gesicherte Stand IST der aktuelle -> Markierung sofort setzen.
+    save({preset: "u:" + name}, true);
+    flash();
+  }catch(e){ presetErr("Speichern fehlgeschlagen."); }
+  renderAll();
+}
+async function deletePreset(name){
+  try{
+    const r = await fetch("/api/presets",{method:"POST",headers:{"Content-Type":"application/json"},
+                                          body:JSON.stringify({name, delete:true})});
+    UP = (await r.json()).presets || {};
+    if(S.preset === "u:" + name) save({preset: matchedPreset()}, true);
+    flash();
+  }catch(e){ presetErr("Löschen fehlgeschlagen."); }
+  renderAll();
+}
+function renderUserPresets(){
+  const box = document.getElementById("userPresets");
+  if(!box) return;
+  const cur = matchedPreset();
+  const names = Object.keys(UP);
+  box.innerHTML = names.length ? names.map(n => {
+    const set = UP[n] || {};
+    const on = Object.keys(set).filter(k => typeof set[k] === "boolean" && set[k]).length;
+    return `<button type="button" class="upbtn${cur === "u:" + n ? " active" : ""}" data-up="${esc(n)}">`
+         + `${esc(n)}<small>${on} Komponenten an</small>`
+         + `<span class="updel" data-del="${esc(n)}" title="Preset löschen">✕</span></button>`;
+  }).join("") : `<div class="pempty">Noch keine eigenen Presets — unten einen Namen eingeben und sichern.</div>`;
+}
+
+function save(patch, fromPreset, delayMs){
   Object.assign(S, patch);
+  // K17: Preset-Markierung aus den echten Werten ableiten statt "einmal gesetzt = für immer".
+  if(!fromPreset){
+    const m = matchedPreset();
+    if(S.preset !== m){ S.preset = m; patch = {...patch, preset:m}; }
+  }
+  Object.assign(pending, patch);   // sonst verlöre der Debounce schnell aufeinanderfolgende Änderungen
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
-    await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(patch)});
-    flash();
-  }, 250);
+    const body = pending; pending = {};
+    try {
+      await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      flash();
+    } finally {
+      saveTimer = null;            // sonst blockiert der Cross-Device-Abgleich unten für immer
+    }
+  }, delayMs === undefined ? 250 : delayMs);   // Slider senden schneller -> direktes Feedback
   renderAll();   // UI sofort spiegeln
 }
 
 function renderToggles(){
-  const host=document.getElementById("toggles");
-  host.innerHTML = TOGGLES.map(([k,l,d]) =>
-    `<div class="row"><label>${l}<small>${d}</small></label><div class="tgl ${S[k]?"on":""}" data-k="${k}"></div></div>`).join("");
+  document.getElementById("toggles").innerHTML = TOGGLE_GROUPS.map(([id,name,items])=>{
+    const on = items.filter(([k])=>S[k]).length;
+    return `<div class="sub${closedGrp[id]?" closed":""}" data-g="${id}">`
+      + `<button class="subhead" type="button"><span class="arrow">▾</span>${name}`
+      + `<span class="cnt">${on}/${items.length} an</span></button><div class="subbody">`
+      + items.map(([k,l,d]) =>
+          `<div class="row"><label>${l}<small>${d}</small></label><div class="tgl ${S[k]?"on":""}" data-k="${k}"></div></div>`).join("")
+      + `</div></div>`;
+  }).join("");
 }
 function renderInputs(){
   document.querySelectorAll("input[data-k]").forEach(inp=>{
     const k=inp.dataset.k;
-    if (document.activeElement!==inp) inp.value = S[k];
+    if (document.activeElement===inp) return;
+    // scale: 0 bedeutet "automatisch" — und weil der Regler seit 04.08.2026 RELATIV zum
+    // eingepassten Wert rechnet, ist das identisch mit 1.00. Deshalb im Auto-Modus auf
+    // 1.00 stellen: von dort zieht man in beide Richtungen los, ohne Sprung.
+    // Fallback, falls der Server den Key (noch) nicht kennt — z.B. direkt nach einem Update
+    // oder bei einem Preset aus einer älteren Version. Ohne das stünde "NaN" im Feld.
+    const v = S[k];
+    inp.value = (k === "scale" && !(v > 0)) ? 1 : (v === undefined || v === null ? (inp.dataset.def || 1) : v);
   });
+  const sa = document.getElementById("scaleAuto");
+  if (sa) sa.classList.toggle("on", !(S.scale > 0));
   document.querySelectorAll("input[data-str]").forEach(inp=>{   // A2: Text/Farbe-Felder
     if (document.activeElement!==inp) inp.value = S[inp.dataset.str] || "";
   });
@@ -178,39 +467,206 @@ function renderInputs(){
   document.querySelectorAll(".val[data-v]").forEach(v=>{
     const k=v.dataset.v; let val=S[k];
     if(k==="scale") val = (val>0?val.toFixed(2):"auto");
+    else if(k==="opacity") val = Number(val === undefined || val === null ? 1 : val).toFixed(2);   // Schritt 0.05 -> 2 Nachkommastellen
     else if(typeof val==="number") val = (val%1===0? val : val.toFixed(1));
     v.textContent = val + (k==="maprot"?"°":k==="mapsize"?" px":k==="dmgcrit"?" %":"");
   });
   document.querySelectorAll(".grp .tgl").forEach(t=>{ if(t.dataset.k) t.classList.toggle("on", !!S[t.dataset.k]); });
 }
 function renderPresets(){
-  const host=document.getElementById("presets");
-  host.innerHTML = Object.entries(PRESETS).map(([id,p])=>
-    `<button class="pbtn ${S.preset===id?"active":""}" data-p="${id}">${p.label}<small>${p.desc}</small></button>`).join("");
+  const cur = matchedPreset();   // K17: aus den echten Werten, nicht aus dem gespeicherten Feld
+  document.getElementById("presets").innerHTML = Object.entries(PRESETS).map(([id,p])=>
+    `<button class="pbtn ${cur===id?"active":""}" data-p="${id}">${p.label}<small>${p.desc}</small></button>`).join("");
+  const note = document.getElementById("presetNote");
+  if(note) note.textContent = cur ? "" : "Benutzerdefiniert — weicht von allen Presets ab";
 }
-function renderAll(){ renderToggles(); renderInputs(); renderPresets(); }
+function renderColorCombos(){   // K18: Farbwähler mit leer-Zustand (leer = Fallback)
+  document.querySelectorAll(".colorcombo[data-color]").forEach(cc=>{
+    const k=cc.dataset.color, v=(S[k]||"").trim();
+    const pick=cc.querySelector(".cpick"), state=cc.querySelector(".cstate");
+    const set=/^#[0-9a-fA-F]{6}$/.test(v);
+    cc.classList.toggle("set", set);
+    if(document.activeElement!==pick) pick.value = set ? v : (S.brand_accent || "#e10600");
+    state.textContent = set ? v.toUpperCase() : "Standard";
+  });
+}
+// renderChampUI zuletzt: renderInputs setzt die <select>-Werte, die Einträge des
+// WM-Dropdowns entstehen aber erst hier — sonst stünde beim ersten Durchlauf nichts drin.
+function renderAll(){ renderToggles(); renderInputs(); renderPresets(); renderUserPresets(); renderColorCombos(); renderLogoUI(); renderChampUI(); }
+
+let delArmed = null, delArmTimer = null;   // Löschen: zwei Klicks statt confirm()-Dialog
 
 document.addEventListener("click", e=>{
+  if(e.target.id==="scaleAuto"){ save({scale: 0}); return; }   // 0 = automatisch einpassen
+  if(e.target.id==="presetSave"){ savePreset(document.getElementById("presetName").value); return; }
+  // Eigenes Preset löschen: erster Klick "schärft" (Knopf wird rot), zweiter löscht.
+  // Bewusst kein confirm() — in der Android-WebView sind Dialoge unzuverlässig (vgl. K12/K20).
+  const del = e.target.closest(".updel");
+  if(del){
+    const n = del.dataset.del;
+    if(delArmed === n){ clearTimeout(delArmTimer); delArmed = null; deletePreset(n); }
+    else {
+      delArmed = n;
+      document.querySelectorAll(".updel").forEach(x => x.classList.remove("arm"));
+      del.classList.add("arm"); del.title = "Nochmal tippen zum Löschen";
+      clearTimeout(delArmTimer);
+      delArmTimer = setTimeout(()=>{ delArmed = null; del.classList.remove("arm"); del.title = "Preset löschen"; }, 3000);
+    }
+    return;
+  }
+  const up = e.target.closest(".upbtn");
+  if(up){ const set = UP[up.dataset.up]; if(set) save({...set, preset:"u:"+up.dataset.up}, true); return; }
+  const sh=e.target.closest(".subhead");   // K17: Gruppe auf-/zuklappen (nur lokal gemerkt)
+  if(sh){
+    const g=sh.closest(".sub").dataset.g;
+    closedGrp[g]=!closedGrp[g];
+    try{ localStorage.setItem("kers_setgrp", JSON.stringify(closedGrp)); }catch(err){}
+    renderToggles(); return;
+  }
+  const clr=e.target.closest(".cclear"); if(clr){ const cc=clr.closest(".colorcombo"); if(cc) save({[cc.dataset.color]: ""}); return; }   // K18: auf Standard
   const t=e.target.closest(".tgl"); if(t&&t.dataset.k){ save({[t.dataset.k]: !S[t.dataset.k]}); return; }
-  const p=e.target.closest(".pbtn"); if(p){ const pr=PRESETS[p.dataset.p]; save({...pr.set, preset:p.dataset.p}); return; }
+  const p=e.target.closest(".pbtn"); if(p){ const pr=PRESETS[p.dataset.p]; save({...pr.set, preset:p.dataset.p}, true); return; }
 });
 document.addEventListener("input", e=>{
+  const cc=e.target.closest && e.target.closest(".colorcombo[data-color]");   // K18: eigener Farbwähler
+  if(cc && e.target.classList.contains("cpick")){ save({[cc.dataset.color]: e.target.value}); return; }
   const sk=e.target.dataset && e.target.dataset.str; if(sk){ save({[sk]: e.target.value}); return; }   // A2: Text/Farbe
   const k=e.target.dataset && e.target.dataset.k; if(!k) return;
-  save({[k]: parseFloat(e.target.value)});
+  // Schieberegler: kurzer Debounce -> der Tower zieht beim Ziehen praktisch sofort mit.
+  save({[k]: parseFloat(e.target.value)}, false, e.target.type === "range" ? 60 : 250);
 });
 document.addEventListener("change", e=>{   // String-Dropdowns (z.B. Trackmap-Position)
   const k=e.target.dataset && e.target.dataset.sel; if(!k) return;
   save({[k]: e.target.value});
+  // save() hat S schon aktualisiert -> der Hinweis unter dem Feld stimmt sofort,
+  // ohne auf den nächsten Abgleich mit dem Server zu warten.
+  if(k === "champ_file") renderChampUI();
 });
 document.getElementById("reset").addEventListener("click", async ()=>{
   const r = await fetch("/api/settings/reset",{method:"POST"});
   S = await r.json(); renderAll(); flash();
 });
 
-(async ()=>{ S = await (await fetch("/api/settings")).json(); renderAll(); })();
+// ── WM-Stand: welche Datei ───────────────────────────────────────────────────
+// Anders als die Logos liegen die WM-Dateien NICHT im Bündel, sondern neben dem
+// Programm — bei der EXE also neben KERS_Subsystems.exe, sonst neben main.py. So
+// lässt sich pro Saison/Liga eine eigene Datei pflegen, ohne neu zu bauen.
+// Das <select> trägt data-sel="champ_file", damit greift der normale change-Handler;
+// hier werden nur die Einträge gefüllt.
+let CHAMPS = { files: [], dir: "", default_exists: false };
+
+async function loadChampFiles(){
+  try{ CHAMPS = await (await fetch("/api/champfiles")).json(); }
+  catch(e){ CHAMPS = { files: [], dir: "", default_exists: false }; }
+}
+function renderChampUI(){
+  const sel = document.getElementById("champSel");
+  if(!sel) return;
+  const cur = S.champ_file || "";
+  const files = CHAMPS.files || [];
+  const opts = ['<option value="">championship.json (Standard)</option>'].concat(
+    files.filter(f => f !== "championship.json")
+         .map(f => `<option value="${esc(f)}">${esc(f)}</option>`));
+  // Eine gewählte Datei, die inzwischen fehlt, trotzdem anzeigen: sonst springt die
+  // Auswahl stillschweigend auf Standard und man sucht den Fehler an der falschen Stelle.
+  if(cur && !files.includes(cur)) opts.push(`<option value="${esc(cur)}">${esc(cur)} — fehlt</option>`);
+  const html = opts.join("");
+  if(sel.innerHTML !== html) sel.innerHTML = html;      // nur neu bauen, wenn nötig
+  if(document.activeElement !== sel) sel.value = cur;
+
+  const note = document.getElementById("champNote");
+  if(!note) return;
+  // Aus der eigenen Auswahl abgeleitet, nicht vom Server erfragt — sonst stünde hier
+  // nach dem Umschalten bis zum nächsten Abruf noch die vorherige Datei.
+  const used = cur || "championship.json";
+  const da = cur ? files.includes(cur) : CHAMPS.default_exists;
+  note.textContent = da
+    ? `Gelesen wird ${used} aus ${CHAMPS.dir}. Weitere .json einfach dort ablegen — die Liste zieht spätestens nach 15 Sekunden nach.`
+    : `${used} liegt nicht in ${CHAMPS.dir} — der WM-Stand bleibt leer.`;
+}
+
+// ── Logo-Auswahl ─────────────────────────────────────────────────────────────
+// Galerie statt Dropdown: bei Logos sagt der Dateiname wenig, das Bild alles. Die Kacheln
+// und die Vorschau laufen auf demselben Verlauf wie die echte Kopfzeile — sonst sieht ein
+// transparentes PNG hier ganz anders aus als später im Overlay.
+let LOGOS = [];
+const logoUrl = f => "/static/logos/" + encodeURIComponent(f);
+
+async function loadLogos(){
+  try{ LOGOS = (await (await fetch("/api/logos")).json()).logos || []; }catch(e){ LOGOS = []; }
+}
+function renderLogoUI(){
+  const cur = S.tower_logo || "";
+  const img = document.getElementById("logoBtnImg"), name = document.getElementById("logoBtnName");
+  if(img && name){
+    if(cur){ img.src = logoUrl(cur); img.style.display = ""; name.textContent = cur; }
+    else   { img.removeAttribute("src"); img.style.display = "none"; name.textContent = "— kein Logo —"; }
+  }
+  // Vorschau: Position und Höhe genau wie im Overlay anwenden
+  const pv = document.getElementById("pvLogo");
+  if(pv){
+    if(cur){
+      pv.src = logoUrl(cur); pv.style.display = "";
+      pv.style.height = (S.tower_logo_h > 0 ? S.tower_logo_h : 34) + "px";
+      pv.className = S.tower_logo_pos === "right" ? "pv-right" : "pv-left";
+    } else { pv.removeAttribute("src"); pv.style.display = "none"; }
+  }
+  const note = document.querySelector("#logoPrev .pv-note");
+  if(note) note.textContent = cur
+    ? `Vorschau — ${cur} · ${S.tower_logo_pos === "right" ? "oben rechts" : "oben links"} · ${S.tower_logo_h||34} px`
+    : "Vorschau der Tower-Kopfzeile — noch kein Logo gewählt";
+}
+function renderLogoGrid(){
+  const body = document.getElementById("logoBody");
+  if(!body) return;
+  if(!LOGOS.length){
+    body.innerHTML = `<div class="lempty">Noch keine Bilder gefunden.<br>`
+      + `Leg deine Logos einfach in <code>static/logos/</code> — erlaubt sind `
+      + `<code>.png .jpg .jpeg .webp .gif .svg</code>.<br>`
+      + `Die Liste aktualisiert sich von selbst, spätestens nach 15 Sekunden.</div>`;
+    return;
+  }
+  const cur = S.tower_logo || "";
+  body.innerHTML = `<div class="lgrid">`
+    + `<div class="ltile${cur ? "" : " sel"}" data-logo=""><div class="tw"><span class="none">✕</span></div>`
+    + `<div class="tn">kein Logo</div></div>`
+    + LOGOS.map(f => `<div class="ltile${f === cur ? " sel" : ""}" data-logo="${esc(f)}">`
+        + `<div class="tw"><img src="${logoUrl(f)}" alt="" loading="lazy"></div>`
+        + `<div class="tn" title="${esc(f)}">${esc(f)}</div></div>`).join("")
+    + `</div>`;
+}
+const esc = s => String(s).split("&").join("&amp;").split("<").join("&lt;").split('"').join("&quot;");
+function openLogoPicker(){ renderLogoGrid(); document.getElementById("logoModal").classList.add("open"); }
+function closeLogoPicker(){ document.getElementById("logoModal").classList.remove("open"); }
+
+document.addEventListener("click", e=>{
+  if(e.target.closest("#logoBtn")){ openLogoPicker(); return; }
+  if(e.target.id==="logoClose" || e.target.id==="logoModal"){ closeLogoPicker(); return; }
+  const tile = e.target.closest(".ltile");
+  if(tile){ save({tower_logo: tile.dataset.logo}); renderLogoUI(); closeLogoPicker(); }
+});
+document.addEventListener("keydown", e=>{
+  if(e.key==="Escape") closeLogoPicker();
+  // Enter im Namensfeld speichert — sonst muss man auf dem Handy erst die Tastatur wegklappen.
+  if(e.key==="Enter" && e.target.id==="presetName"){ e.preventDefault(); savePreset(e.target.value); }
+});
+
+(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); S = await (await fetch("/api/settings")).json(); renderAll(); loadVersions(); })();
+// Versionen nachziehen: erkennt, wenn eine Datei zwischendurch bearbeitet wurde (Hash/Datum)
+// oder wenn main.py neu gestartet und der "Neustart nötig"-Hinweis damit hinfällig ist.
+setInterval(loadVersions, 20000);
 // Falls jemand parallel (anderes Gerät) ändert: alle 3s abgleichen
 setInterval(async ()=>{ if(saveTimer) return; const r=await fetch("/api/settings"); S=await r.json(); renderAll(); }, 3000);
+// Eigene Presets seltener nachziehen — sie ändern sich nur beim Speichern/Löschen.
+// Nötig, damit ein am PC gesichertes Preset auch auf dem Handy auftaucht (und umgekehrt).
+setInterval(async ()=>{ if(saveTimer) return; await loadPresets(); renderUserPresets(); }, 10000);
+// Neu abgelegte Logos auftauchen lassen, ohne die Seite neu zu laden (langsamer Takt reicht).
+setInterval(async ()=>{
+  await loadLogos();
+  if(document.getElementById("logoModal").classList.contains("open")) renderLogoGrid();   // offene Galerie mitziehen
+  // Dasselbe für den WM-Stand: eine neu daneben gelegte .json taucht ohne Neuladen auf.
+  await loadChampFiles(); renderChampUI();
+}, 15000);
 </script>
 </body>
 </html>

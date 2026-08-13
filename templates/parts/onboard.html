@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>KERS · Onboard</title>
+<!-- ⚠ Pflicht: die Seite liegt unter /part/onboard, ohne <base> wuerden relative
+     Pfade wie static/teams/McLaren.png zu /part/static/... aufloesen (404). -->
+<base href="/">
+<link rel="icon" href="/static/brand/Icon.ico" type="image/x-icon">
+<link rel="stylesheet" href="/static/css/core.css">
+<link rel="stylesheet" href="/static/parts/onboard.css">
+</head>
+<body class="part">
+
+<!-- Onboard-Telemetrie. Das Padding sitzt bewusst auf dem WRAPPER, nicht auf #onboard
+     selbst — sonst waere es Innenabstand des Panels und wuerde das Layout verziehen. -->
+<div class="part-pad">
+<div id="onboard" class="part-root">
+  <div class="ob-head">
+    <img class="ob-logo" alt="">
+    <span class="ob-name"></span>
+    <span class="ob-pos"></span>
+  </div>
+  <div class="ob-body">
+    <div class="ob-speedrow">
+      <span class="ob-speed">0</span><span class="ob-unit">km/h</span>
+      <span class="ob-gear">N</span>
+    </div>
+    <div class="ob-bars">
+      <div class="ob-bar thr"><span class="lbl">GAS</span><div class="fill"></div></div>
+      <div class="ob-bar brk"><span class="lbl">BREMSE</span><div class="fill"></div></div>
+    </div>
+    <div class="ob-amp"><span class="ob-amp-seg">S1</span><span class="ob-amp-seg">S2</span><span class="ob-amp-seg">S3</span></div>
+    <div class="ob-delta"><span class="lbl">Δ PB</span><div class="ob-dbar"><div class="fill"></div><div class="mid"></div></div><span class="ob-dval">—</span></div>
+  </div>
+</div>
+</div>
+
+<script src="/static/js/core.js"></script>
+<script src="/static/parts/onboard.js"></script>
+</body>
+</html>

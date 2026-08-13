@@ -1,0 +1,97 @@
+{
+  "_comment": "McLaren, Red Bull, Mercedes, Ferrari, Williams, RB, Haas, Alpine, Aston Martin, Cadillac und Audi sind die aktuellen Teams",
+  "title": "SCRL Fahrerwertung",
+  "description": "Jeder Eintrag in 'drivers' repräsentiert genau einen Fahrer. 'base_points' muss eine ganze Zahl sein. 'team' ist der aktuelle Rennstall. 'in_game_name' muss exakt dem Ingame-Namen entsprechen.",
+  "drivers": [
+    {
+      "name": "DLS_Enrajb",
+      "team": "Williams",
+      "base_points": 65,
+      "in_game_name": "DLS_Enrajb"
+    },
+    {
+      "name": "Shadowflex",
+      "team": "Alpine",
+      "base_points": 32,
+      "in_game_name": "Shadowflex"
+    },
+    {
+      "name": "Onkel-Steff",
+      "team": "Audi",
+      "base_points": 30,
+      "in_game_name": "Onkel-Steff"
+    },
+    {
+      "name": "Trapped",
+      "team": "RB",
+      "base_points": 26,
+      "in_game_name": "[NXT] Trapped"
+    },
+    {
+      "name": "Felix Verstappen",
+      "team": "McLaren",
+      "base_points": 25,
+      "in_game_name": "[DLS] Felix Verstappen"
+    },
+    {
+      "name": "Loyal_443",
+      "team": "RB",
+      "base_points": 22,
+      "in_game_name": "[NXT] Loyal_443"
+    },
+    {
+      "name": "ZerraDabeast",
+      "team": "Cadillac",
+      "base_points": 18,
+      "in_game_name": "ZerraDabeast"
+    },
+    {
+      "name": "Leon123",
+      "team": "Cadillac",
+      "base_points": 18,
+      "in_game_name": "Leon123 | F_F_F_Bro"
+    },
+    {
+      "name": "Typisch_aybee",
+      "team": "Mercedes",
+      "base_points": 14,
+      "in_game_name": "Typisch_aybee"
+    },
+    {
+      "name": "JazzyJazz789",
+      "team": "Aston Martin",
+      "base_points": 14,
+      "in_game_name": "JazzyJazz789"
+    },
+    {
+      "name": "NioxQ",
+      "team": "Cadillac",
+      "base_points": 12,
+      "in_game_name": "[NXT] NioxQ"
+    },
+    {
+      "name": "Dissi 1979",
+      "team": "Alpine",
+      "base_points": 12,
+      "in_game_name": "Dissi 1979"
+    },
+    {
+      "name": "Gusthaggelt",
+      "team": "Aston Martin",
+      "base_points": 6,
+      "in_game_name": "Gusthaggelt"
+    },
+    {
+      "name": "Knirschko",
+      "team": "Mercedes",
+      "base_points": 4,
+      "in_game_name": "Knirschko"
+    },
+    {
+      "name": "Andy",
+      "team": "McLaren",
+      "base_points": 2,
+      "in_game_name": "Andy"
+    }
+  ]
+}

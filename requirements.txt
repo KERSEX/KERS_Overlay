@@ -1,2 +1,6 @@
 flask>=3.0.0
 requests>=2.31.0
+
+# Nur fuer das Desktop-HUD (hud\kers_hud.py) - der Server selbst braucht es nicht.
+# Bringt QtWebEngine mit, daher der groessere Download beim ersten run.bat (~80 MB).
+PySide6>=6.6

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>KERS · Tower</title>
+<!-- ⚠ Pflicht: die Seite liegt unter /part/tower, ohne <base> wuerden relative
+     Pfade wie static/teams/McLaren.png zu /part/static/... aufloesen (404). -->
+<base href="/">
+<link rel="icon" href="/static/brand/Icon.ico" type="image/x-icon">
+<link rel="stylesheet" href="/static/css/core.css">
+<link rel="stylesheet" href="/static/parts/tower.css">
+</head>
+<body class="part">
+
+<!-- Der Wrapper traegt links extra Platz: die Strafen-Pillen (.pen-stack) haengen
+     mit `right: 100%` aus der Zeile heraus und wuerden sonst abgeschnitten. -->
+<div class="part-pad">
+<div class="leaderboard-container disconnected part-root">
+
+  <div id="waiting-overlay">
+    <div class="wo-pulse"></div>
+    <div class="wo-title">WARTE AUF TELEMETRIE…</div>
+    <div class="wo-sub">F1 starten · UDP-Format „2026" · Port 20777</div>
+  </div>
+
+  <div class="leaderboard-header">
+    <div class="brand-slot" id="brandTitle"></div>
+    <h1 class="championship-title">
+      <span id="sessionTitle">—</span><span id="sessionSub" style="font-size:0.72em;font-weight:700;color:rgba(255,255,255,0.9);margin-left:14px;letter-spacing:1px;"></span><span id="sessionFlag" class="session-flag"></span>
+    </h1>
+    <!-- steht bewusst hinter dem Titel: bei gleicher flex-order entscheidet die
+         Dokumentreihenfolge, so landet das Logo rechts NEBEN dem Titel statt davor -->
+    <img class="brand-logo" id="brandLogo" alt="">
+    <div class="ticker-wrap">
+      <span class="ticker-item active" id="ticker-text">—</span>
+    </div>
+    <div class="live-indicator waiting" id="liveIndicator">
+      <span class="pulse-dot"></span>
+    </div>
+  </div>
+
+  <div class="leaderboard-row header-row">
+    <div>POS</div>
+    <div></div>
+    <div>DRIVER</div>
+    <div style="text-align:right" id="hdr-leader">LEADER</div>
+    <div style="text-align:right" id="hdr-interval">INTERVAL</div>
+    <div>TYRE</div>
+    <div class="col-sectors">SECTORS</div>
+    <div class="col-drs" id="drs-header" style="text-align:center">DRS</div>
+  </div>
+
+  <div id="standings-body" class="standings-body"><div id="elim-line"></div></div>
+
+</div>
+</div>
+
+<template id="row-tpl">
+  <div class="leaderboard-row driver-row">
+    <div class="pen-stack">
+      <span class="pen-badge"></span>
+      <span class="tl-badge"></span>
+    </div>
+    <div class="col-pos">
+      <span class="rank"></span>
+      <span class="change-indicator change-none">-</span>
+    </div>
+    <div class="id-cell">
+      <span class="logo-wrap"><img class="team-logo" alt=""></span>
+      <div class="team-color-strip"></div>
+    </div>
+    <div class="col-driver">
+      <span class="driver-name"></span>
+      <span class="driver-sub-row">
+        <span class="driver-team-sub"></span>
+        <span class="comeback-badge"></span>
+        <span class="dmg-icons"></span>
+      </span>
+    </div>
+    <div class="col-gap"></div>
+    <div class="col-lap no-data">—</div>
+    <div class="col-tyre">
+      <img class="tyre-icon" alt="">
+      <div class="tyre-age"></div>
+    </div>
+    <div class="col-sectors">
+      <div>S1: <span class="s1">—</span></div>
+      <div>S2: <span class="s2">—</span></div>
+      <div>S3: <span class="s3">—</span></div>
+    </div>
+    <div class="col-drs">DRS</div>
+    <span class="finish-flag" title="beendet"></span>
+  </div>
+</template>
+
+<script src="/static/js/core.js"></script>
+<script src="/static/parts/tower.js"></script>
+</body>
+</html>

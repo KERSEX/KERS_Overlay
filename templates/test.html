@@ -1,7 +1,31 @@
 <!DOCTYPE html>
-<!-- KERS-VERSION: 0.0.1 — Overlay (Produktion) — Kopie von test.html
+<!-- KERS-VERSION: 0.0.2 — Overlay (Spielwiese) — hier wird gebaut
      Beim Aendern dieser Datei hochzaehlen. Wird in /settings angezeigt.
-     ⚠ Der Marker wandert beim Kopieren test.html -> index.html mit. -->
+     ⚠ Der Marker wandert beim Kopieren test.html -> index.html mit.
+
+     0.0.2 (07.08.2026) — Renderdrossel + Aufraeumarbeiten:
+       * die zwei rAF-Dauerschleifen (Pit-/Hotlap-Zeiten) liefen unbedingt und
+         fuer immer mit voller Monitor-Rate (bei 165 Hz ~330 DOM-Abfragen/s),
+         auch wenn gar nichts zu zaehlen war. Jetzt ein Ticker, der nur laeuft
+         wenn es etwas zu zaehlen gibt.
+       * Renderrate einstellbar: ?hz=N bzw. KERS.setHz(n), Standard 30.
+       * kein will-change mehr auf den Zeilen.
+       * SSE mit ?slim=1 — settings/final_classification/quali_results kommen
+         nur noch bei Aenderung.
+       * Trackmap-Polling wird nach dem Lernen langsam (2 s -> 15 s).
+       * WICHTIG: Rendern haengt NICHT an requestAnimationFrame. rAF wird nicht
+         aufgerufen, solange das Fenster verdeckt ist - beim Spielen also fast
+         immer. Haengt das Rendern daran, steht das Overlay still. Siehe
+         flushRender().
+
+     ⚠ OFFEN: das ist NICHT die Ursache des Speicherwachstums. Gemessen 07.08.2026:
+       der QtWebEngine-Renderer waechst um ~450 MB/min (echter Commit, kein
+       WorkingSet-Effekt), unabhaengig von Fenstergroesse, GPU-Compositing und
+       davon, ob /test oder /opti laeuft. Nicht im JS-Heap (3,4 MB, stabil) und
+       nicht in der DOM-Knotenzahl. Ein Neuladen der Seite gibt den Speicher NICHT
+       zurueck -> es sitzt im Renderer-Prozess, nicht im Dokument. Eine statische
+       Seite ohne JS/SSE waechst gar nicht. Anteile: CSS-Animationen ~36 %,
+       SSE statt Polling ~29 %. Ursache noch nicht gefunden. -->
 <html lang="de">
 <head>
 <meta charset="UTF-8">
@@ -13,16 +37,35 @@
 @font-face { font-family: 'Inter'; src: url('static/fonts/Inter.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Teko';  src: url('static/fonts/Teko.woff2')  format('woff2'); font-weight: 300 700; font-style: normal; font-display: swap; }
 :root {
-    --bg-color: rgba(14, 14, 19, 0.94);       /* dichter -> Text bleibt über unruhigem Gameplay klar */
-    --row-bg: rgba(26, 26, 36, 0.80);        /* Tower etwas transparenter */
-    --row-bg-alt: rgba(16, 16, 24, 0.80);
+    /* Deckkraft-Faktor aus den Settings (`opacity`). 1 = exakt wie bisher, kleiner =
+       durchsichtiger, größer = deckender. Wird von applyBrand() gesetzt.
+       Die Alpha-Werte unten sind die ORIGINALWERTE mal diesem Faktor — Browser klemmen
+       Alpha automatisch bei 1, ab Faktor ~1.25 ist also alles komplett deckend. */
+    --ui-alpha: 1;
+
+    --bg-color: rgba(14, 14, 19, calc(0.94 * var(--ui-alpha)));       /* dichter -> Text bleibt über unruhigem Gameplay klar */
+    /* ⚠ Diese Werte sehen anders aus als früher (0.80 auf rgba(26,26,36)) und sind trotzdem
+       DASSELBE Bild: bis 04.08.2026 lag unter jeder Zeile noch der Container-Hintergrund
+       (0.94), beide Schichten zusammen ergaben effektiv rgba(24,24,33,0.988). Genau das
+       steht jetzt hier — der Container ist dafür durchsichtig (siehe .leaderboard-container).
+       Vorteil: nur noch EINE Schicht, der Deckkraft-Regler wirkt also voll durch. Vorher
+       kam bei Faktor 0.8 trotz Reglerbewegung noch 0.91 heraus statt 0.79. */
+    --row-bg: rgba(24, 24, 33, calc(0.988 * var(--ui-alpha)));
+    --row-bg-alt: rgba(16, 16, 23, calc(0.988 * var(--ui-alpha)));
     --text-main: #ffffff;
     --text-muted: #a6a6b4;   /* war #8e8e9e - auf dunklem Panel + über Video zu schwach */
     --accent-red: #e10600;
     --accent-glow: rgba(225, 6, 0, 0.5);
 
     /* ── Vereinheitlichte Panel-/Text-Tokens (zentral steuerbar) ── */
-    --panel-bg: rgba(14, 14, 19, 0.94);          /* einheitlicher Panel-Ton */
+    --panel-bg: rgba(14, 14, 19, calc(0.94 * var(--ui-alpha)));          /* einheitlicher Panel-Ton */
+    /* Kopfzeilen der Panels waren fest UNDURCHSICHTIG. Ohne diese Variablen bliebe der
+       Kopf deckend stehen, während der Körper durchsichtig wird -> sieht kaputt aus.
+       --head-*: Battle-/Hotlap-/Onboard-/Pit-Kopf. --towerhead-*: Tower-Kopfzeile. */
+    --head-bg-1: rgba(27, 27, 34, var(--ui-alpha));
+    --head-bg-2: rgba(17, 17, 22, var(--ui-alpha));
+    --towerhead-1: rgba(22, 22, 30, var(--ui-alpha));
+    --towerhead-2: rgba(40, 40, 50, var(--ui-alpha));
     --panel-radius: 10px;                        /* einheitlicher Eck-Radius */
     --panel-border: 1px solid rgba(255, 255, 255, 0.09);
     --panel-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);   /* weicher Tiefenschatten */
@@ -63,7 +106,15 @@ body {
 .leaderboard-container {
     position: relative;
     width: 628px;
-    background: var(--panel-bg);
+    /* ⚠ BEWUSST ohne eigenen Hintergrund. Jede sichtbare Fläche im Tower bringt ihren
+       eigenen mit: .leaderboard-header (Verlauf), .header-row und die .driver-row's.
+       Läge hier zusätzlich --panel-bg, stapelten sich zwei halbtransparente Schichten
+       und der Deckkraft-Regler hätte fast keine Wirkung mehr: bei Faktor 0.8 wären die
+       Zeilen statt 0.64 immer noch 0.91 deckend (0.94er Container UNTER 0.80er Zeile).
+       Der backdrop-filter unten bleibt — er sorgt weiter für den Milchglas-Effekt.
+       Optisch ändert sich sonst nichts: die Zeilen decken den Container ohnehin
+       vollständig ab (Body-Höhe = Fahrerzahl × Zeilenhöhe). */
+    background: transparent;
     border-radius: var(--panel-radius);
     border: var(--panel-border);
     box-shadow: var(--panel-shadow);
@@ -83,7 +134,7 @@ body {
     align-items: center;
     column-gap: 14px;
     padding: 18px 24px;
-    background: linear-gradient(90deg, rgba(22,22,30,1) 0%, rgba(40,40,50,1) 100%);
+    background: linear-gradient(90deg, var(--towerhead-1) 0%, var(--towerhead-2) 100%);
     border-bottom: var(--accent) solid var(--header-accent, var(--accent-red));   /* #7: eigene Header-Streifenfarbe */
     border-radius: var(--panel-radius) var(--panel-radius) 0 0;   /* obere Ecken runden, da Container jetzt overflow:visible */
 }
@@ -163,7 +214,9 @@ body {
     letter-spacing: 1px;
     text-transform: uppercase;
     border-bottom: 1px solid rgba(255,255,255,0.1);
-    background: rgba(10,10,15,0.9);
+    /* 0.994 statt 0.90: der Container-Hintergrund darunter ist weg, der Wert enthält ihn
+       jetzt mit — sieht identisch aus wie vorher, reagiert aber voll auf den Regler. */
+    background: rgba(10, 10, 15, calc(0.994 * var(--ui-alpha)));
 }
 
 .standings-body { position: relative; }
@@ -178,7 +231,11 @@ body {
                 background-color 0.5s ease,
                 box-shadow 0.1s ease,       /* Fokus-Rand snappier wechseln */
                 opacity 0.45s ease;
-    will-change: transform, opacity;
+    /* ⚠ Hier stand will-change: transform, opacity. Das haelt fuer JEDE der 24 Zeilen
+       dauerhaft eine eigene GPU-Ebene vor - nicht nur waehrend der Animation. Auf einer
+       bildschirmfuellenden, durchsichtigen Overlay-Flaeche wuchs der Chromium-Renderer
+       dadurch unbegrenzt (gemessen ~475 MB/min). Chromium legt die Ebene bei der
+       transform-Transition ohnehin selbst an und gibt sie danach wieder frei. */
     opacity: 1;
 }
 .driver-row.entering,
@@ -186,6 +243,17 @@ body {
 /* alternating set via data-even attr in JS (position-based, not DOM order) */
 .driver-row[data-even="1"] { background: var(--row-bg); }
 .driver-row[data-even="0"] { background: var(--row-bg-alt); }
+/* Unterste Zeile schließt das Panel ab — Gegenstück zu .leaderboard-header oben.
+   Ohne das deckt die eckige Zeile die Rundung des Containers ab und der Safety-Car-/
+   VSC-Leuchtrand bekommt unten spitze Ecken. Die Klasse setzt render() (idx === letzter),
+   nicht :last-child: die Zeilen sind absolut positioniert und stehen im DOM in
+   Eintritts-, nicht in Platzierungsreihenfolge.
+   Kein overflow:hidden — die Strafen-Pillen müssen links weiter herausragen dürfen. */
+.driver-row.last-row {
+    border-bottom-left-radius: var(--panel-radius);
+    border-bottom-right-radius: var(--panel-radius);
+    border-bottom: 0;   /* die 1px-Trennlinie der letzten Zeile würde die Rundung durchschneiden */
+}
 /* Aktuell betrachtetes Auto ("auf wen bin ich drauf") -> weiße Umrandung + leichter Schein */
 .driver-row.focused {
     box-shadow: inset 0 0 0 2px rgba(255,255,255,0.92), 0 0 14px rgba(255,255,255,0.20);
@@ -633,7 +701,7 @@ body {
     letter-spacing: 4px;
     text-transform: uppercase;
     color: #fff;
-    background: linear-gradient(180deg, #1b1b22, #111116);
+    background: linear-gradient(180deg, var(--head-bg-1), var(--head-bg-2));
     padding: 7px 0 6px;
 }
 .battle-header::after {
@@ -672,7 +740,7 @@ body {
     border-left: var(--accent) solid var(--row-override, var(--row-team, #fff));   /* #7: eigene Row-Streifenfarbe (leer = Team-Farbe) */
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
     transition: transform 0.55s cubic-bezier(0.22,0.61,0.36,1), opacity 0.4s ease;
-    will-change: transform;
+    /* kein will-change - siehe .driver-row weiter oben */
 }
 .battle-row.entering { opacity: 0; }
 .battle-row::before {
@@ -733,7 +801,7 @@ body {
     overflow: hidden; animation: box-in 0.45s cubic-bezier(0.2,0.9,0.3,1); }
 .pit-card.leaving { animation: box-out 0.4s ease-in forwards; }
 .pp-head { text-align: center; font-family: 'Teko', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 3px;
-    background: linear-gradient(180deg,#1b1b22,#111116); padding: 5px 0 4px; position: relative; }
+    background: linear-gradient(180deg, var(--head-bg-1), var(--head-bg-2)); padding: 5px 0 4px; position: relative; }
 .pp-head::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:linear-gradient(90deg,transparent,#e10600,transparent); }
 .pp-body { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-left: var(--accent) solid var(--pt,#fff); position: relative; }
 .pp-body::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg,var(--pt,#fff),transparent 45%); opacity:.10; }
@@ -845,7 +913,7 @@ body {
 .hl-head {
     display: flex; align-items: center; gap: 8px;
     padding: 6px 12px;
-    background: linear-gradient(180deg, #1b1b22, #111116);
+    background: linear-gradient(180deg, var(--head-bg-1), var(--head-bg-2));
     border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .hl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
@@ -978,7 +1046,7 @@ body {
     overflow: hidden; display: none; text-shadow: var(--tsh);
 }
 #onboard.show { display: block; }
-.ob-head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: linear-gradient(180deg, #1b1b22, #111116); }
+.ob-head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: linear-gradient(180deg, var(--head-bg-1), var(--head-bg-2)); }
 .ob-logo { width: 22px; height: 22px; object-fit: contain; }
 .ob-name { flex: 1; font-weight: 600; font-size: 14px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ob-pos { font-family: 'Teko', sans-serif; font-size: 17px; font-weight: 600; color: #cfd0d8; }
@@ -1005,7 +1073,7 @@ body {
     border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; box-shadow: 0 24px 70px rgba(0,0,0,0.7);
     display: flex; flex-direction: column; overflow: hidden; }
 .pc-head { display: flex; align-items: center; padding: 14px 24px; border-bottom: var(--accent) solid var(--accent-red);
-    background: linear-gradient(90deg, rgba(22,22,30,1), rgba(40,40,50,1)); }
+    background: linear-gradient(90deg, var(--towerhead-1), var(--towerhead-2)); }
 .pc-title { font-family: 'Teko', sans-serif; font-size: 30px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; }
 .pc-hint { margin-left: auto; font-size: 12px; color: var(--text-muted); }
 .pc-body { flex: 1; padding: 16px 20px; overflow: hidden; }
@@ -1379,6 +1447,7 @@ const DEFAULT_CFG = {
   tower_logo: "", tower_logo_pos: "left", tower_logo_h: 34,
   scale: 0, rows: 0, mapsize: 400, maprot: 110, mapflip: true, dotsize: 1.0,
   holds: 300, ltdur: 4.0, flbdur: 4.5, dmgcrit: 60, battlethresh: 1.5, preset: "voll",
+  opacity: 1.0,   // Deckkraft der Panels: 1 = wie bisher, kleiner = durchsichtiger
 };
 const QP = new URLSearchParams(location.search);
 const urlOverride = {};
@@ -1493,15 +1562,39 @@ function setTowerScale(el, f) {
   }
 }
 
+/**
+ * Etwas im naechsten gezeichneten Bild erledigen — mit Notbremse.
+ *
+ * ⚠ requestAnimationFrame allein reicht NICHT: der Browser ruft es nicht auf,
+ *   solange das Fenster verdeckt oder im Hintergrund ist. Genau das ist beim
+ *   Spielen der Normalfall. Zeilen bekommen beim Erscheinen die Klasse "entering"
+ *   (opacity: 0) und verlieren sie im naechsten Bild wieder — bleibt rAF aus,
+ *   blieben sie fuer immer unsichtbar. Der Timer sorgt dafuer, dass es trotzdem
+ *   passiert; ist das Fenster sichtbar, gewinnt wie gehabt rAF und das Einblenden
+ *   bleibt weich.
+ */
+function naechsterFrame(fn) {
+  let erledigt = false;
+  const einmal = () => { if (!erledigt) { erledigt = true; fn(); } };
+  requestAnimationFrame(() => requestAnimationFrame(einmal));
+  setTimeout(einmal, 100);
+}
+
 /** Rohhöhe des Panels (ohne jede Skalierung), gecacht. */
 let _rawH = 0, _rawKey = "", _rawAt = 0;
 function towerRawHeight(el, key) {
   const now = performance.now();
   if (key !== _rawKey || now - _rawAt > 1000) {      // nur bei Änderung / 1x pro Sekunde
-    const prevZoom = el.style.zoom, prevTf = el.style.transform;
-    el.style.zoom = ""; el.style.transform = "";     // unskaliert messen
+    // ⚠ Hier wurde bis 07.08.2026 zum Messen kurz die Skalierung entfernt und danach
+    //   wieder gesetzt. Das war ueberfluessig UND schaedlich:
+    //     * ueberfluessig, weil offsetHeight von zoom und transform gar nicht
+    //       betroffen ist (geprueft: 400px bleiben 400px bei zoom 0.5 und scale(0.5)) —
+    //       es liefert immer schon die Rohhoehe.
+    //     * schaedlich, weil das Setzen von style.zoom ein komplettes Neu-Rastern des
+    //       Towers erzwingt. QtWebEngine hat dabei regelmaessig ein Bild mittendrin
+    //       angezeigt: einmal pro Sekunde war der Tower fuer ein Bild weg bzw. nur
+    //       als schmaler Streifen da. Genau das war das Flackern im HUD.
     _rawH = el.offsetHeight;
-    el.style.zoom = prevZoom; el.style.transform = prevTf;
     _rawKey = key; _rawAt = now;
   }
   return _rawH;
@@ -1699,16 +1792,22 @@ function finishPitStop(card, d, oldC, newC, entryFw) {
   card.querySelector(".pp-time").textContent = d.pit_time > 0 ? d.pit_time.toFixed(1) + "s" : "—";
   setTimeout(() => { card.classList.add("leaving"); setTimeout(() => card.remove(), 400); }, 5000);
 }
-// Große Zeit der laufenden Pit-Cards flüssig hochzählen (wie tickHotlapTimes).
-function tickPitCards() {
+// Große Zeit der laufenden Pit-Cards flüssig hochzählen -> siehe tickerStep() unten.
+// ⚠ Das lief bis 07.08.2026 als eigene rAF-DAUERSCHLEIFE, unbedingt und für immer,
+//   mit der vollen Bildwiederholrate des Monitors — auch wenn gar keine Pit-Karte da
+//   war (also fast immer). Das war die Ursache dafür, dass der Speicher unbegrenzt
+//   wuchs: eine Seite mit laufender rAF-Schleife ist nie untätig, und Chromium räumt
+//   seinen Müll nur in Leerlaufphasen auf. Gemessen: +86 MB/min, ~5 GB/Stunde.
+function tickPitCardsOnce() {
+  let alive = false;
   document.querySelectorAll("#pit-stack .pit-card.live").forEach(card => {
     const t0 = parseFloat(card.dataset.t0 || "0");
     const el = card.querySelector(".pp-time");
     if (el) el.textContent = ((performance.now() - t0) / 1000).toFixed(1) + "s";
+    alive = true;
   });
-  requestAnimationFrame(tickPitCards);
+  return alive;
 }
-requestAnimationFrame(tickPitCards);
 
 // Rennleitung: ein Meldungs-Feed oben, der Events nacheinander durchwechselt.
 function raceMsg(icon, html, accent) {
@@ -1783,7 +1882,7 @@ async function fetchAndRender() {
   try {
     const res = await fetch("/api/live");
     const data = await res.json();
-    render(data);
+    queueRender(data);            // über die Drossel, nicht direkt rendern
   } catch(e) { console.error("[] fetch error:", e); }
 }
 
@@ -2011,7 +2110,7 @@ function render(data) {
       void row.offsetWidth;                                        // Reflow -> Position "festnageln"
       row.style.transition = "";                                   // CSS-Transition wieder aktiv
       // Im nächsten Frame einblenden -> sanftes Fade-In statt Aufploppen.
-      requestAnimationFrame(() => requestAnimationFrame(() => row.classList.remove("entering")));
+      naechsterFrame(() => row.classList.remove("entering"));
     }
     row.dataset.frame = frameTag;   // in diesem Frame angefasst (Waisen-Aufräumen unten)
     // Name kann sich ändern (Participants-Paket kommt nach Lap-Daten) -> immer setzen
@@ -2064,6 +2163,13 @@ function render(data) {
     row.classList.toggle("fl-lap", isFl);
     row.classList.toggle("elim-zone", elimCut > 0 && d.position > elimCut);   // Quali: Aus-Zone
     row.classList.toggle("is-finished", !!d.finished);   // #4: Zielflagge (beendet, Rennen & Quali)
+    // Unterste Zeile rundet die unteren Panel-Ecken ab. Der Kopf macht das oben über
+    // .leaderboard-header (border-radius … 0 0); unten gab es kein Gegenstück, deshalb
+    // deckte die eckige letzte Zeile die Rundung des Containers ab — am deutlichsten am
+    // leuchtenden Safety-Car-/VSC-Rand, der unten spitze Ecken bekam.
+    // :last-child geht NICHT: die Zeilen sind absolut positioniert, die DOM-Reihenfolge
+    // entspricht der Eintrittsreihenfolge der Fahrer, nicht der Platzierung.
+    row.classList.toggle("last-row", idx === drivers.length - 1);
     row.dataset.even = idx % 2 === 0 ? "1" : "0";
     row.classList.toggle("focused", data.focus_index != null && data.focus_index >= 0 && d.index === data.focus_index);
 
@@ -2535,7 +2641,7 @@ function syncBattleRows(rowsEl, g) {
       row.style.transform = `translateY(${i * BATTLE_ROW_H}px)`;
       void row.offsetWidth;
       row.style.transition = "";
-      requestAnimationFrame(() => requestAnimationFrame(() => row.classList.remove("entering")));
+      naechsterFrame(() => row.classList.remove("entering"));
     });
   } else {
     // Gleiche Fahrer -> Position smooth verschieben (CSS-Transition) + Werte aktualisieren.
@@ -2662,18 +2768,20 @@ function updateHotlapBoxes(drivers, active) {
   });
 }
 
-// Hotlap-Großzeit flüssig hochzählen (rAF interpoliert zwischen den 200-ms-Datenupdates)
-function tickHotlapTimes() {
+// Hotlap-Großzeit flüssig hochzählen -> siehe tickerStep() unten.
+// ⚠ Lief ebenfalls als rAF-Dauerschleife (siehe tickPitCardsOnce oben).
+function tickHotlapTimesOnce() {
+  let alive = false;
   document.querySelectorAll("#hotlap-area .hotlap-box").forEach(box => {
     if (box.style.display === "none" || box.dataset.tick !== "1") return;
     const base = parseFloat(box.dataset.tBase || "0");
     const at   = parseFloat(box.dataset.tAt || "0");
     const el = box.querySelector(".hl-time");
     if (el) el.textContent = fmtTime(base + (performance.now() - at) / 1000) || "—";
+    alive = true;
   });
-  requestAnimationFrame(tickHotlapTimes);
+  return alive;
 }
-requestAnimationFrame(tickHotlapTimes);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ═══ NEUE FEATURES – Rendering ═══════════════════════════════════════════════
@@ -2906,11 +3014,15 @@ function regiePost(patch) { fetch("/api/regie", { method: "POST", headers: { "Co
 let _brandSig = "";
 function applyBrand() {
   const sig = [CFG.brand_accent, CFG.brand_title, CFG.header_color, CFG.row_color,
-               CFG.tower_logo, CFG.tower_logo_pos, CFG.tower_logo_h].join("|");
+               CFG.tower_logo, CFG.tower_logo_pos, CFG.tower_logo_h, CFG.opacity].join("|");
   if (sig === _brandSig) return;
   _brandSig = sig;
   const hexOk = v => v && /^#[0-9a-fA-F]{3,8}$/.test(v), root = document.documentElement.style;
   if (hexOk(CFG.brand_accent)) root.setProperty("--accent-red", CFG.brand_accent);
+  // Deckkraft: ein Faktor auf die Alpha-Werte aller Panel-Flächen (siehe --ui-alpha im CSS).
+  // 0 wäre komplett unsichtbar -> untere Grenze, damit man sich das Overlay nicht wegdreht.
+  const op = (CFG.opacity > 0 ? CFG.opacity : 1);
+  root.setProperty("--ui-alpha", String(Math.max(0.2, Math.min(1.25, op))));
   if (hexOk(CFG.header_color)) root.setProperty("--header-accent", CFG.header_color); else root.removeProperty("--header-accent");   // #7 Header-Streifen
   if (hexOk(CFG.row_color)) root.setProperty("--row-override", CFG.row_color); else root.removeProperty("--row-override");           // #7 Row-Streifen (leer = Team)
   const bt = document.getElementById("brandTitle");
@@ -3389,28 +3501,153 @@ document.addEventListener("keydown", e => {
     trackDone = false; trackVer = -1; tmEl.classList.remove("show"); }
 });
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Renderdrossel, Hz-Steuerung, bedarfsgesteuerter Ticker      (seit 07.08.2026)
+   ═══════════════════════════════════════════════════════════════════════════
+   Chromium hat keinen brauchbaren "max fps"-Schalter: der Compositor zeichnet,
+   wenn sich etwas ändert. Ein Limit muss also an den AUSLÖSERN ansetzen:
+
+     1. wie oft der Server pusht          -> /api/stream?hz=N
+     2. wie oft die Seite neu rendert     -> queueRender()
+     3. wie schnell die Zeiten hochzählen -> tickerStep()
+
+   Punkt 3 war zugleich das Speicherleck (siehe tickPitCardsOnce weiter oben).
+
+   Obergrenze der Datenrate ist das Spiel: F1 sendet höchstens 60 Pakete/s.
+   Darüber wirkt die Rate nur noch auf die weich hochzählenden Zeiten.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const HZ_MIN = 1, HZ_MAX = 240;
+const clampHz = n => Math.max(HZ_MIN, Math.min(HZ_MAX, parseInt(n, 10) || 30));
+
+let renderHz = clampHz(QP.get("hz") || 30);
+let minGap = 1000 / renderHz;          // Mindestabstand zwischen zwei Renders (ms)
+let renderCount = 0;                   // Gegenprobe: KERS.renders() in der Konsole
+
+// Teile, die der Server mit ?slim=1 nur bei Änderung schickt. Fehlt einer im
+// Payload, heißt das "unverändert" — also aus dem Zwischenspeicher ergänzen.
+const SLIM_KEYS = ["settings", "final_classification", "quali_results"];
+const slimCache = {};
+function mergeSlim(data) {
+  for (const k of SLIM_KEYS) {
+    if (data[k] === undefined) { if (k in slimCache) data[k] = slimCache[k]; }
+    else slimCache[k] = data[k];
+  }
+  return data;
+}
+
+// ── Renderdrossel ───────────────────────────────────────────────────────────
+// Kommen Daten schneller als die eingestellte Rate, wird nur der NEUESTE Payload
+// behalten und der Rest verworfen. Rendern kostet, Wegwerfen nicht.
+let pendingPayload = null, renderQueued = false, lastRenderAt = 0;
+
+function queueRender(data) {
+  pendingPayload = mergeSlim(data);
+  if (renderQueued) return;                  // schon eingeplant -> nur Daten ersetzen
+  renderQueued = true;
+  const wait = Math.max(0, minGap - (performance.now() - lastRenderAt));
+  setTimeout(flushRender, wait);
+}
+
+// ⚠ BEWUSST ohne requestAnimationFrame. rAF ruft der Browser NICHT auf, solange das
+//   Fenster verdeckt oder im Hintergrund ist - beim Spielen also fast immer. Hing das
+//   Rendern daran, blieb renderQueued fuer immer true, die Seite stand still und der
+//   Speicher lief voll. setTimeout laeuft dagegen auch im Hintergrund weiter.
+function flushRender() {
+  renderQueued = false;
+  lastRenderAt = performance.now();
+  const d = pendingPayload; pendingPayload = null;
+  if (!d) return;
+  renderCount++;
+  try { render(d); } catch (e) { console.error("[KERS] render:", e); }
+  pumpTicker();                              // laufen jetzt Zeiten, die gezaehlt werden wollen?
+}
+
+// ── Gemeinsamer Ticker für Pit- und Hotlap-Zeiten ───────────────────────────
+// Läuft NUR, solange es etwas zu zählen gibt, und höchstens mit renderHz.
+// setTimeout statt durchgehendem rAF: so darf der Browser dazwischen wirklich
+// untätig sein — genau das braucht Chromium, um aufzuräumen.
+let tickerOn = false;
+
+function tickerStep() {
+  const alive = tickPitCardsOnce() | tickHotlapTimesOnce();   // beide ausführen, nicht kurzschließen
+  if (!alive) { tickerOn = false; return; }                   // nichts mehr da -> Schleife endet
+  setTimeout(tickerStep, minGap);                             // kein rAF, siehe flushRender()
+}
+
+function pumpTicker() {
+  if (tickerOn) return;
+  const needed = document.querySelector("#pit-stack .pit-card.live")
+              || document.querySelector('#hotlap-area .hotlap-box[data-tick="1"]');
+  if (needed) { tickerOn = true; tickerStep(); }
+}
+
 // ── Datenanbindung: SSE (Push) mit Polling-Fallback ─────────────────────────
-let usingSSE = false, pollTimer = null;
+let usingSSE = false, pollTimer = null, es = null;
+
+function streamUrl() {
+  // hz auf 60 begrenzen: schneller sendet das Spiel selbst nicht.
+  return `/api/stream?slim=1&hz=${Math.min(60, renderHz)}`;
+}
 function startPolling() {
   if (pollTimer) return;
   fetchAndRender();
-  pollTimer = setInterval(fetchAndRender, 200);
+  pollTimer = setInterval(fetchAndRender, Math.max(200, minGap));
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 function startSSE() {
   try {
-    const es = new EventSource("/api/stream");
-    es.onmessage = ev => { try { render(JSON.parse(ev.data)); usingSSE = true; } catch (e) {} };
+    es = new EventSource(streamUrl());
+    es.onmessage = ev => { try { queueRender(JSON.parse(ev.data)); usingSSE = true; } catch (e) {} };
     es.onerror = () => {
       // Verbindung weg -> auf Polling zurückfallen (EventSource versucht selbst reconnect,
       // aber wir wollen sicher Daten sehen)
-      if (!usingSSE) { es.close(); startPolling(); }
+      if (!usingSSE) { es.close(); es = null; startPolling(); }
     };
   } catch (e) { startPolling(); }
 }
+
+// ── Rate umstellen (das HUD ruft das per JavaScript auf) ────────────────────
+function setHz(n) {
+  n = clampHz(n);
+  if (n === renderHz) return renderHz;
+  renderHz = n;
+  minGap = 1000 / renderHz;
+  // Server-Takt mitziehen, sonst wird weiter voll gesendet und nur weggeworfen.
+  if (es) { es.close(); es = null; usingSSE = false; startSSE(); }
+  if (pollTimer) { stopPolling(); startPolling(); }
+  console.log("[KERS] Overlay-Hz:", renderHz);
+  return renderHz;
+}
+
+// Einstiegspunkt fürs HUD (hud/overlay_window.py -> apply_hz) und für die Konsole.
+window.KERS = Object.assign(window.KERS || {}, {
+  setHz,
+  getHz: () => renderHz,
+  renders: () => renderCount,          // Gegenprobe: zweimal abfragen, Differenz / Zeit
+});
+
 startSSE();
 setTimeout(() => { if (!usingSSE) startPolling(); }, 1500);   // SSE kam nicht -> Polling
+
+// ── Trackmap-Kontur ─────────────────────────────────────────────────────────
+// refreshTrack() tut nach dem Lernen nur noch bei einem Versionswechsel etwas.
+// Also: schnell pollen solange gelernt wird, danach langsam — ein Streckenwechsel
+// wird trotzdem erkannt, nur ein paar Sekunden später.
+const TRACK_MS_LEARNING = 2000, TRACK_MS_DONE = 15000;
+let trackTimer = null, trackMs = 0;
+function setTrackPolling(ms) {
+  if (trackMs === ms && trackTimer) return;
+  if (trackTimer) clearInterval(trackTimer);
+  trackMs = ms;
+  trackTimer = setInterval(refreshTrack, ms);
+}
 refreshTrack();
-setInterval(refreshTrack, 2000);        // Trackmap-Kontur aktuell halten (bis gelernt)
+setTrackPolling(TRACK_MS_LEARNING);
+setInterval(() => setTrackPolling(trackDone ? TRACK_MS_DONE : TRACK_MS_LEARNING), 5000);
+
 setInterval(() => { if (pcOpen) drawPosChart(); }, 3000);   // Chart offen -> nachziehen
 </script>
 </body>

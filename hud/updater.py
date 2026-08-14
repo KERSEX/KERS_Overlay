@@ -31,7 +31,14 @@ from common import APP_VERSION
 
 REPO = "KERSEX/KERS_Overlay"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
+ALLE_URL = f"https://api.github.com/repos/{REPO}/releases?per_page=100"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
+
+# Ab hier laufen die Datenordner-Umzuege (data/). Aeltere Fassungen kennen den
+# Ordner nicht, suchen neben der EXE und legen frische Vorgaben an - der WM-Stand
+# und die Einstellungen wirken dann verschwunden. Zerstoert wird nichts
+# (migrate_data ueberspringt, was in data/ schon liegt), aber es verwirrt.
+ERSTE_MIT_DATENORDNER = (0, 1, 1)
 
 # Nur dieses Asset wird angefasst - nicht blind das erste im Release.
 ASSET_NAME = "KERS_Subsystems.exe"
@@ -39,7 +46,11 @@ ASSET_NAME = "KERS_Subsystems.exe"
 # Objektspeicher um; alles andere waere ein fremder Server.
 ERLAUBTE_HOSTS = ("github.com", "objects.githubusercontent.com",
                   "release-assets.githubusercontent.com")
-TAG_RE = re.compile(r"KERS_SubsystemsV(\d+\.\d+\.\d+)")
+# ⚠ Der Punkt hinter dem V ist Absicht: das Release 0.1.0 heisst auf GitHub
+# "KERS_SubsystemsV.0.1.0" - beim Anlegen ist ein Punkt zu viel gerutscht. Ohne
+# das optionale \.? faellt genau dieses Release still aus jeder Liste, und
+# niemand sieht warum. Der Tag sollte trotzdem irgendwann geradegezogen werden.
+TAG_RE = re.compile(r"KERS_SubsystemsV\.?(\d+\.\d+\.\d+)")
 
 
 def als_zahlen(version: str) -> tuple:
@@ -53,6 +64,42 @@ def als_zahlen(version: str) -> tuple:
 def version_aus_tag(tag: str) -> str | None:
     m = TAG_RE.search(tag or "")
     return m.group(1) if m else None
+
+
+def releases_aus_json(rohtext: bytes) -> list:
+    """Antwort von /releases in eine Liste umwandeln, neueste zuerst.
+
+    Bewusst eine freie Funktion ohne Qt und ohne Netz: so laesst sich die
+    Auswertung mit einer gespeicherten Antwort pruefen, ohne GitHub zu fragen.
+
+    Uebersprungen wird, was man ohnehin nicht laden koennte: Entwuerfe, Releases
+    ohne lesbare Version im Tag und solche ohne unser Asset.
+
+    Rueckgabe je Eintrag: version, zahlen, size, digest, url, published.
+    """
+    daten = json.loads(rohtext.decode("utf-8"))
+    liste = []
+    for rel in daten:
+        if rel.get("draft"):
+            continue
+        version = version_aus_tag(rel.get("tag_name", ""))
+        if version is None:
+            continue
+        asset = next((a for a in rel.get("assets", [])
+                      if a.get("name") == ASSET_NAME), None)
+        if asset is None:
+            continue
+        liste.append({
+            "version": version,
+            "zahlen": als_zahlen(version),
+            "size": int(asset.get("size") or 0),
+            "digest": asset.get("digest") or "",
+            "url": asset.get("browser_download_url", ""),
+            "published": (rel.get("published_at") or "")[:10],
+            "vorab": bool(rel.get("prerelease")),
+        })
+    liste.sort(key=lambda r: r["zahlen"], reverse=True)
+    return liste
 
 
 def altlasten_aufraeumen() -> list:
@@ -95,6 +142,7 @@ class Updater(QObject):
     progress = Signal(int, int)          # geladen, gesamt
     ready = Signal(str)                  # Pfad der fertigen .new
     failed = Signal(str)
+    releasesGeladen = Signal(list)       # alle Fassungen, neueste zuerst
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -102,6 +150,7 @@ class Updater(QObject):
         self._reply = None
         self._file = None
         self._info = {}                  # letztes Ergebnis von check()
+        self._releases = []              # letztes Ergebnis von releases_laden()
 
     # ── Pfade ────────────────────────────────────────────────────────────────
     @property
@@ -169,6 +218,58 @@ class Updater(QObject):
                                       self._info["published"])
         else:
             self.upToDate.emit()
+
+    # ── Alle Fassungen ───────────────────────────────────────────────────────
+    def releases_laden(self) -> None:
+        """Die Liste aller Releases holen - fuer die Auswahl im Schaltbrett."""
+        req = QNetworkRequest(QUrl(ALLE_URL))
+        req.setRawHeader(b"User-Agent", f"KERS-Subsystems/{APP_VERSION}".encode())
+        req.setRawHeader(b"Accept", b"application/vnd.github+json")
+        reply = self._nam.get(req)
+        reply.finished.connect(lambda: self._releases_fertig(reply))
+
+    def _releases_fertig(self, reply) -> None:
+        try:
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                code = reply.attribute(
+                    QNetworkRequest.Attribute.HttpStatusCodeAttribute)
+                if code == 403:
+                    self.failed.emit(
+                        "GitHub blockt gerade (zu viele Anfragen). Spaeter nochmal.")
+                else:
+                    self.failed.emit(f"Liste nicht abrufbar: {reply.errorString()}")
+                return
+            self._releases = releases_aus_json(bytes(reply.readAll().data()))
+        except (ValueError, UnicodeDecodeError, KeyError) as exc:
+            self.failed.emit(f"Liste von GitHub unlesbar: {exc}")
+            return
+        finally:
+            reply.deleteLater()
+        self.releasesGeladen.emit(list(self._releases))
+
+    @property
+    def releases(self) -> list:
+        return list(self._releases)
+
+    def waehlen(self, version: str) -> str:
+        """Eine Fassung aus der Liste scharfstellen; danach laedt download() sie.
+
+        Damit laeuft der Wechsel auf eine ALTE Fassung durch dieselbe gepruefte
+        Kette wie ein Update - Groessen- und SHA256-Pruefung, Host-Allowlist,
+        Austausch mit .bak. Nur die Quelle ist eine andere.
+
+        Rueckgabe: leerer String = in Ordnung, sonst der Fehlertext.
+        """
+        gesucht = (version or "").strip().lstrip("v").strip()
+        treffer = next((r for r in self._releases if r["version"] == gesucht), None)
+        if treffer is None:
+            return (f"Version {gesucht!r} gibt es nicht. "
+                    "Verfuegbar: " + ", ".join(r["version"] for r in self._releases))
+        if treffer["version"] == APP_VERSION:
+            return f"Version {gesucht} laeuft bereits."
+        self._info = {k: treffer[k] for k in ("version", "url", "size", "digest",
+                                              "published")}
+        return ""
 
     # ── Laden ────────────────────────────────────────────────────────────────
     def download(self) -> None:

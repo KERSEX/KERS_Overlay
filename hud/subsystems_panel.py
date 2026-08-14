@@ -28,15 +28,15 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame,
-                               QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                               QMessageBox, QPushButton, QSpinBox, QVBoxLayout,
-                               QWidget)
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QCompleter,
+                               QFrame, QGridLayout, QGroupBox, QHBoxLayout,
+                               QLabel, QMessageBox, QPushButton, QSpinBox,
+                               QVBoxLayout, QWidget)
 
 from api_client import ApiClient
 from common import (APP_VERSION, DATA_DIR, HZ_CHOICES, PAGES, RENDERERS,
                     make_icon)
-from updater import Updater
+from updater import ERSTE_MIT_DATENORDNER, Updater, als_zahlen
 
 # ⚠ overlay_window (WebEngine) wird hier BEWUSST nicht importiert. Der Import zog
 # frueher nur fuer eine Typangabe das komplette QtWebEngine mit hoch - auch dann,
@@ -313,8 +313,13 @@ class SubsystemsPanel(QWidget):
         self._updater.failed.connect(self._update_fehler)
         self._updater.progress.connect(self._update_fortschritt)
         self._updater.ready.connect(self._update_bereit)
+        self._updater.releasesGeladen.connect(self._releases_da)
         # Einmal beim Start still nachsehen - nur melden, nie von selbst laden.
         QTimer.singleShot(3000, self._updater.check)
+        # Kurz danach die Liste aller Fassungen fuer die Auswahl unten. Bewusst
+        # versetzt: zwei Anfragen auf einmal waeren beim Start unnoetig, und
+        # GitHub zaehlt ohne Anmeldung nur 60 pro Stunde.
+        QTimer.singleShot(4500, self._updater.releases_laden)
 
     # ── Kopf: Status + Server starten ───────────────────────────────────────
     def _build_header(self) -> QVBoxLayout:
@@ -447,11 +452,24 @@ class SubsystemsPanel(QWidget):
     def _update_suchen(self) -> None:
         """Suche von Hand - anders als beim Start darf sie sich hier melden."""
         self._update_manuell = True
+        # Wer von Hand sucht, will es wissen - die Stummschaltung aus einem
+        # frueheren Fassungswechsel ist damit aufgehoben.
+        self.state["update_stumm"] = False
         self.lbl_version.setToolTip("Suche laeuft …")
         self._updater.check()
+        self._updater.releases_laden()
 
     def _update_gefunden(self, version: str, groesse: int, datum: str) -> None:
         mb = groesse / (1024 * 1024)
+        # Nach einem bewussten Wechsel auf eine bestimmte Fassung nicht bei jedem
+        # Start dieselbe neuere anbieten. Im Tooltip steht sie trotzdem, und die
+        # Suche von Hand zeigt sie wieder - die ist ja ausdruecklich gewollt.
+        if self.state.get("update_stumm") and not self._update_manuell:
+            self.lbl_version.setToolTip(
+                f"Neuere Fassung {version} vom {datum} liegt bereit ({mb:.0f} MB).\n"
+                "Ausgeblendet, weil du diese Fassung bewusst gewaehlt hast - "
+                "'Nach Update suchen' zeigt sie wieder.")
+            return
         self.lbl_version.setText(f"v{APP_VERSION} → {version}")
         self.lbl_version.setStyleSheet("color:#e10600;font-weight:bold")
         self.lbl_version.setToolTip(
@@ -471,6 +489,11 @@ class SubsystemsPanel(QWidget):
         # Beim stillen Start-Check nicht mit einem Dialog dazwischenfahren; die
         # Meldung steht im Tooltip und wird beim Klick auf "Suchen" gezeigt.
         self.lbl_version.setToolTip(f"Update-Suche: {text}")
+        # Ein abgebrochener Download darf die Auswahl unten nicht dauerhaft
+        # sperren - sonst kommt man ohne Neustart nicht mehr an eine Fassung.
+        if hasattr(self, "btn_fassung"):
+            self.btn_fassung.setEnabled(bool(self._updater.releases))
+            self.btn_update.hide()
         if self._update_manuell:
             self._update_manuell = False
             QMessageBox.information(self, "Nach Update suchen", text)
@@ -494,6 +517,68 @@ class SubsystemsPanel(QWidget):
         except (RuntimeError, TypeError):
             pass
         self.btn_update.clicked.connect(self._update_anwenden)
+
+    # ── Andere Fassung waehlen ──────────────────────────────────────────────
+    def _releases_da(self, liste: list) -> None:
+        """Die Liste von GitHub ist da - Auswahlfeld fuellen."""
+        self.cmb_fassung.clear()
+        if not liste:
+            self.cmb_fassung.lineEdit().setPlaceholderText("keine Fassungen gefunden")
+            return
+        for r in liste:
+            hier = "  (laeuft)" if r["version"] == APP_VERSION else ""
+            self.cmb_fassung.addItem(
+                f"{r['version']}   {r['published']}   "
+                f"{r['size'] / (1024 * 1024):.0f} MB{hier}", r["version"])
+        self.cmb_fassung.setCurrentIndex(-1)
+        self.cmb_fassung.lineEdit().setPlaceholderText("Version waehlen oder tippen")
+        self.btn_fassung.setEnabled(True)
+
+    def _gewaehlte_fassung(self) -> str:
+        """Version aus dem Feld holen - egal ob ausgewaehlt oder getippt.
+
+        Bei Auswahl steht im Feld die ganze Zeile ("0.1.1   2026-08-13   232 MB"),
+        die nackte Nummer liegt als Nutzdatum daneben. Getippt wird dagegen nur
+        die Nummer. Deshalb erst das Nutzdatum versuchen, dann den Text.
+        """
+        i = self.cmb_fassung.currentIndex()
+        if i >= 0 and self.cmb_fassung.itemText(i) == self.cmb_fassung.currentText():
+            return str(self.cmb_fassung.itemData(i) or "")
+        return self.cmb_fassung.currentText().strip().split()[0] \
+            if self.cmb_fassung.currentText().strip() else ""
+
+    def _fassung_wechseln(self) -> None:
+        version = self._gewaehlte_fassung()
+        if not version:
+            QMessageBox.information(self, "Andere Fassung",
+                                    "Bitte eine Version waehlen oder eintippen.")
+            return
+        fehler = self._updater.waehlen(version)
+        if fehler:
+            QMessageBox.information(self, "Andere Fassung", fehler)
+            return
+
+        if als_zahlen(version) < ERSTE_MIT_DATENORDNER:
+            antwort = QMessageBox.question(
+                self, "Aeltere Fassung",
+                f"Version {version} ist aelter als 0.1.1 und kennt den Ordner "
+                f"'{DATA_DIR.name}' noch nicht.\n\n"
+                "Sie sucht ihre Dateien neben der EXE, findet dort nichts und legt "
+                "frische Vorgaben an - WM-Stand und Einstellungen wirken dann "
+                "verschwunden.\n\n"
+                "Verloren geht nichts: beim Zurueckwechseln auf eine neuere Fassung "
+                "sind die echten Daten wieder da.\n\nTrotzdem laden?")
+            if antwort != QMessageBox.StandardButton.Yes:
+                return
+
+        # Bewusste Wahl: die stille Suche beim Start soll jetzt nicht bei jedem
+        # Mal die neueste Fassung anbieten. "Nach Update suchen" hebt das auf.
+        self.state["update_stumm"] = True
+        self.btn_fassung.setEnabled(False)
+        self.btn_update.setText(f"Version {version} wird geladen …")
+        self.btn_update.setEnabled(False)
+        self.btn_update.show()
+        self._updater.download()
 
     def _update_anwenden(self) -> None:
         fehler = self._updater.tausch_starten()
@@ -943,6 +1028,35 @@ class SubsystemsPanel(QWidget):
         row.addWidget(btn_settings)
         row.addWidget(btn_upd)
         box.addLayout(row)
+
+        # ── Andere Fassung ──────────────────────────────────────────────────
+        # Auswaehlen ODER tippen: das Feld ist editierbar und sucht mit. Der
+        # Wechsel laeuft danach durch dieselbe geprueste Kette wie ein Update
+        # (Groesse, SHA256, Austausch mit .bak) - nur die Quelle ist eine andere.
+        ver = QHBoxLayout()
+        ver.setSpacing(6)
+        lbl_ver = QLabel("Fassung:")
+        self.cmb_fassung = QComboBox()
+        self.cmb_fassung.setEditable(True)
+        self.cmb_fassung.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.cmb_fassung.lineEdit().setPlaceholderText("wird geladen …")
+        self.cmb_fassung.setToolTip(
+            "Andere Fassung laden - auch eine aeltere.\n"
+            "Version aus der Liste waehlen oder eintippen (z.B. 0.1.1).")
+        # Tippen soll finden, nicht nur vervollstaendigen: Teiltreffer an jeder
+        # Stelle, Gross-/Kleinschreibung egal.
+        vervollstaendigen = QCompleter(self)
+        vervollstaendigen.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        vervollstaendigen.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.cmb_fassung.setCompleter(vervollstaendigen)
+        self.btn_fassung = QPushButton("Wechseln")
+        self.btn_fassung.setEnabled(False)
+        self.btn_fassung.clicked.connect(self._fassung_wechseln)
+        self.cmb_fassung.lineEdit().returnPressed.connect(self._fassung_wechseln)
+        ver.addWidget(lbl_ver)
+        ver.addWidget(self.cmb_fassung, 1)
+        ver.addWidget(self.btn_fassung)
+        box.addLayout(ver)
 
         self.btn_quit_all = QPushButton("ALLES BEENDEN")
         self.btn_quit_all.setStyleSheet(DANGER)

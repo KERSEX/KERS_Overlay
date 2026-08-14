@@ -95,6 +95,10 @@ DEFAULT_STATE = {
     "panel_y": 60,
     "panel_visible": True,
     "panel_on_top": False,
+    # Nach einem bewussten Wechsel auf eine bestimmte Fassung: die stille Suche
+    # beim Start bietet nicht mehr bei jedem Mal die neueste an. "Nach Update
+    # suchen" von Hand hebt es wieder auf.
+    "update_stumm": False,
 }
 
 # Die beiden Renderer. "web" bleibt vorerst, damit ein fertig portierter Baustein

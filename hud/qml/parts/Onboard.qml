@@ -93,8 +93,15 @@ Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 6
 
+            // ⚠ Die Grundlinie gibt die GROESSTE Schrift vor, nicht die kleinste.
+            // Vorher hingen Tempo (46 px) und Gang (34 px) an der Grundlinie von
+            // "km/h" (14 px). Der Row setzt "km/h" oben an, seine Grundlinie liegt
+            // also rund 13 px unter der Oberkante - die 46-px-Zahl wurde daran
+            // hochgezogen und stand mit ihrer Oberkante weit ueber der Zeile.
+            // Jetzt bestimmt das Tempo die Zeilenhoehe, und die beiden kleineren
+            // Texte haengen sich an dessen Grundlinie.
             Text {
-                anchors.baseline: unit.baseline
+                id: tempo
                 text: ob.src.speed
                 color: Theme.textMain
                 font { family: Theme.display; pixelSize: 46; weight: Font.Bold
@@ -102,12 +109,13 @@ Rectangle {
             }
             Text {
                 id: unit
+                anchors.baseline: tempo.baseline
                 text: "km/h"
                 color: Theme.textMuted
                 font { family: Theme.sans; pixelSize: 14; weight: Font.DemiBold }
             }
             Text {
-                anchors.baseline: unit.baseline
+                anchors.baseline: tempo.baseline
                 leftPadding: 12
                 text: ob.src.gear
                 color: "#2fd9ff"

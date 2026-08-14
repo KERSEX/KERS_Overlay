@@ -110,8 +110,17 @@ Row {
                             NumberAnimation { to: 1.0; duration: 650 }
                         }
                     }
+                    // ⚠ Der Versatz ist gemessen, nicht geschaetzt. verticalCenter
+                    // zentriert den TEXTKASTEN, und der haelt bei Teko unten Platz
+                    // fuer Unterlaengen frei: bei 16 px sind es 15 px Oberlaenge,
+                    // 8 px Unterlaenge, aber nur 10,3 px Versalhoehe. Weil hier nur
+                    // Grossbuchstaben stehen, sitzt die Schrift dadurch sichtbar zu
+                    // hoch - die Grundlinie muss 1,6 px tiefer (bei der P-Nummer
+                    // 1,5 px). Gerundet auf 2 px, gleich fuer beide, damit sie
+                    // untereinander bündig bleiben.
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenterOffset: 2
                         text: "Hot Lap"
                         color: Theme.textMain
                         font { family: Theme.display; pixelSize: 16; weight: Font.Bold
@@ -119,6 +128,7 @@ Row {
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenterOffset: 2
                         text: "P" + card.position
                         color: "#cfd0d8"
                         font { family: Theme.display; pixelSize: 17; weight: Font.DemiBold }

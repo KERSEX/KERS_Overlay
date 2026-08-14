@@ -22,11 +22,11 @@ Rectangle {
 
     visible: src.isVisible
 
-    // border-top in Teamfarbe
-    Rectangle {
+    // border-top in Teamfarbe - rundet oben mit, siehe AccentTop.qml
+    AccentTop {
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: Theme.accentWidth
         color: ob.src.teamColor
+        radius: ob.radius
         z: 2
     }
 
@@ -35,6 +35,12 @@ Rectangle {
         id: head
         width: parent.width
         height: 32
+        // ⚠ Ecken hier noch einmal setzen: `clip: true` auf der Karte beschneidet
+        // in Qt Quick nur auf das Rechteck und ignoriert die Rundung - sonst
+        // deckt dieser Verlauf die oberen Ecken zu. Gleiche Stelle wie in
+        // Battles.qml und PitCards.qml.
+        topLeftRadius: ob.radius
+        topRightRadius: ob.radius
         gradient: Gradient {
             GradientStop { position: 0.0; color: Theme.headBg1 }
             GradientStop { position: 1.0; color: Theme.headBg2 }

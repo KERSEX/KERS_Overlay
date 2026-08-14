@@ -25,7 +25,14 @@ Item {
     // grid-template-columns aus tower.css:
     //   Rennen (.sectors-hidden)  36 48 169 90 90 90 – 44
     //   Quali  (.quali-mode)      36 48 151 90 78 80 116 86
-    readonly property var cols: quali ? [36, 48, 151, 90, 78, 80, 116, 86]
+    //
+    // Spalte 6 = Sektoren. Sie steht in der Quali auf 0: die Sektorzeiten stehen
+    // unten in den Hotlap-Boxen, im Tower sind sie nicht noch einmal noetig.
+    // Alles Weitere richtet sich danach von selbst - die Kopfzeile blendet
+    // Spalten mit Breite 0 aus, und contentWidth zaehlt sie nicht mit.
+    // Name, Reifen und Luecke bekommen dafuer wieder ihre Rennbreiten: sie waren
+    // nur geschrumpft, um Platz fuer die Sektoren zu schaffen.
+    readonly property var cols: quali ? [36, 48, 169, 90, 90, 90, 0, 86]
                                       : [36, 48, 169, 90, 90, 90, 0, 44]
 
     readonly property real contentWidth: {

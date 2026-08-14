@@ -63,11 +63,11 @@ Row {
             Component.onCompleted: opacity = 1
             Behavior on opacity { NumberAnimation { duration: 600 } }
 
-            // border-top in Teamfarbe
-            Rectangle {
+            // border-top in Teamfarbe - rundet oben mit, siehe AccentTop.qml
+            AccentTop {
                 anchors { left: parent.left; right: parent.right; top: parent.top }
-                height: Theme.accentWidth
                 color: card.teamColor
+                radius: card.radius
                 z: 2
             }
 
@@ -76,6 +76,11 @@ Row {
                 id: head
                 width: parent.width
                 height: 30
+                // ⚠ Ecken hier noch einmal setzen: `clip: true` auf der Karte
+                // beschneidet in Qt Quick nur rechteckig, nie auf die Rundung -
+                // sonst deckt dieser Verlauf die oberen Ecken zu.
+                topLeftRadius: card.radius
+                topRightRadius: card.radius
                 gradient: Gradient {
                     GradientStop { position: 0.0; color: Theme.headBg1 }
                     GradientStop { position: 1.0; color: Theme.headBg2 }

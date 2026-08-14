@@ -517,10 +517,14 @@ Item {
             }
         }
 
-        // 7 · Sektoren (nur in der Quali sichtbar)
+        // 7 · Sektoren. Haengt allein an der Spaltenbreite (Tower.qml, cols[6]) -
+        // steht sie auf 0, ist die Spalte weg. Frueher hing sie an row.quali;
+        // dann waere die Spalte bei Breite 0 zwar schmal, aber weiter sichtbar
+        // gewesen, und die Zeiten haetten in die Nachbarspalte geragt (ein Item
+        // beschneidet seine Kinder nicht).
         Item {
-            visible: row.quali
-            width: row.quali ? row.cols[6] : 0
+            visible: row.cols[6] > 0
+            width: row.cols[6] || 0
             height: parent.height
 
             Column {

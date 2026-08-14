@@ -7,6 +7,7 @@ Settings-Seite und du musst nicht zweimal ueberlegen, was was ist.
 """
 
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -117,6 +118,33 @@ RENDERERS = [
 # *.json (frei benannte WM-Staende) kommen in migrate_data() dazu.
 _MIGRATE = ("hud_state.json", "overlay_settings.json", "presets.json",
             "championship.json", "main.exe", "recordings")
+
+
+def umwelt_ohne_pyinstaller() -> dict:
+    """Umgebung fuer Kindprozesse - ohne die Spuren unseres eigenen Bootloaders.
+
+    ⚠ Das ist keine Kosmetik, sondern Pflicht bei jedem Prozess, den wir starten.
+
+    Eine onefile-EXE besteht aus dem Bootloader und einem Kind, in dem Python
+    laeuft. Der Bootloader packt sich nach %TEMP%\\_MEInnnnnn aus und teilt dem
+    Kind ueber die Umgebung mit, wo das liegt (PyInstaller 6: _PYI_ARCHIVE_FILE,
+    _PYI_APPLICATION_HOME_DIR, _PYI_PARENT_PROCESS_LEVEL; frueher _MEIPASS2).
+    Unser Code laeuft IM KIND - diese Variablen stehen also in os.environ und
+    werden an alles vererbt, was wir starten.
+
+    Startet man so eine ANDERE onefile-EXE, liest deren Bootloader die Werte und
+    schliesst daraus, er sei selbst schon ausgepackt. Er packt nicht aus und
+    laedt seine python313.dll aus dem FREMDEN _MEI-Ordner:
+
+        Failed to load Python DLL '...\\_MEInnnnnn\\python313.dll'
+        LoadLibrary: Das angegebene Modul wurde nicht gefunden.
+
+    Genau daran ist der Fassungswechsel gescheitert (in beide Richtungen), und
+    genau deshalb lief main.exe bisher aus dem _MEI-Ordner des HUD statt aus dem
+    eigenen - was beim Beenden des HUD unter ihr weggeraeumt wird.
+    """
+    return {k: v for k, v in os.environ.items()
+            if k != "_MEIPASS2" and not k.startswith("_PYI_")}
 
 
 def migrate_data() -> list:

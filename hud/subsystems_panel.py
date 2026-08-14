@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QCompleter,
 
 from api_client import ApiClient
 from common import (APP_VERSION, DATA_DIR, HZ_CHOICES, PAGES, RENDERERS,
-                    make_icon)
+                    make_icon, umwelt_ohne_pyinstaller)
 from updater import ERSTE_MIT_DATENORDNER, Updater, als_zahlen
 
 # ⚠ overlay_window (WebEngine) wird hier BEWUSST nicht importiert. Der Import zog
@@ -429,9 +429,15 @@ class SubsystemsPanel(QWidget):
             return
 
         try:
+            # ⚠ env: ohne die Saeuberung erbt main.exe unsere _PYI_-Variablen und
+            # packt sich GAR NICHT aus - sie laeuft dann aus dem _MEI-Ordner des
+            # HUD. Das faellt nur nicht auf, solange das HUD lebt; beendet man es
+            # zuerst, wird der Ordner unter der laufenden main.exe weggeraeumt.
+            # Ausfuehrlich bei common.umwelt_ohne_pyinstaller.
             self._server_proc = subprocess.Popen(
                 cmd, cwd=str(ROOT),
                 creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+                env=umwelt_ohne_pyinstaller(),
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.btn_server.setText(f"Start fehlgeschlagen: {e}")

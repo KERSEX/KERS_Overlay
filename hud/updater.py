@@ -27,7 +27,7 @@ from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtNetwork import (QNetworkAccessManager, QNetworkReply,
                                QNetworkRequest)
 
-from common import APP_VERSION
+from common import APP_VERSION, umwelt_ohne_pyinstaller
 
 REPO = "KERSEX/KERS_Overlay"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
@@ -391,6 +391,15 @@ class Updater(QObject):
         inhalt = (
             "@echo off\r\n"
             "chcp 65001 >nul\r\n"
+            # Zweiter Riegel gegen den DLL-Fehler: die Popen-Umgebung ist zwar
+            # schon gesaeubert, aber hier steht es noch einmal schwarz auf weiss.
+            # Bleiben diese Variablen stehen, haelt sich die neue Fassung fuer
+            # bereits ausgepackt und sucht ihre python313.dll im _MEI-Ordner der
+            # alten. Siehe common.umwelt_ohne_pyinstaller.
+            'set "_PYI_APPLICATION_HOME_DIR="\r\n'
+            'set "_PYI_ARCHIVE_FILE="\r\n'
+            'set "_PYI_PARENT_PROCESS_LEVEL="\r\n'
+            'set "_MEIPASS2="\r\n'
             "set /a versuche=0\r\n"
             ":warten\r\n"
             "set /a versuche+=1\r\n"
@@ -417,9 +426,16 @@ class Updater(QObject):
             # ⚠ CRLF und keine BOM: cmd.exe verschluckt bei reinen LF-Zeilenenden
             # Zeichen am Zeilenanfang - das hat hier schon Builds gekostet.
             skript.write_bytes(inhalt.encode("utf-8"))
+            # ⚠ env ist hier das Entscheidende, nicht der Rest. Ohne die
+            # Saeuberung erbt das Batch unsere _PYI_-Variablen, gibt sie an
+            # "start" weiter, und der Bootloader der neuen Fassung haelt sich
+            # fuer bereits ausgepackt - er sucht seine python313.dll dann im
+            # _MEI-Ordner der ALTEN Fassung, den es nicht mehr gibt. Begruendung
+            # in voller Laenge bei common.umwelt_ohne_pyinstaller.
             subprocess.Popen(["cmd", "/c", str(skript)],
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                             cwd=str(exe.parent))
+                             cwd=str(exe.parent),
+                             env=umwelt_ohne_pyinstaller())
         except OSError as exc:
             return f"Austausch nicht startbar: {exc}"
         return ""

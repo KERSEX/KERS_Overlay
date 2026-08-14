@@ -27,7 +27,7 @@ import webbrowser
 from pathlib import Path
 from urllib.parse import urlparse
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QCompleter,
                                QFrame, QGridLayout, QGroupBox, QHBoxLayout,
                                QLabel, QMessageBox, QPushButton, QSpinBox,
@@ -518,7 +518,47 @@ class SubsystemsPanel(QWidget):
             pass
         self.btn_update.clicked.connect(self._update_anwenden)
 
-    # ── Andere Fassung waehlen ──────────────────────────────────────────────
+    # ── Vorherige Versionen ─────────────────────────────────────────────────
+    def _such_completer(self) -> None:
+        """Den EINGEBAUTEN Completer der ComboBox scharfstellen.
+
+        ⚠ NICHT setCompleter() mit einem frisch erzeugten QCompleter aufrufen:
+        der haette kein Modell und faende deshalb nie etwas - genau daran ist
+        die Suche im ersten Anlauf gescheitert. Man konnte nur die exakte
+        Nummer eintippen und "Wechseln" druecken. Nur der eingebaute Completer
+        haengt am Listenmodell der ComboBox und zieht beim Fuellen von selbst
+        mit.
+
+        MatchContains statt der Vorgabe MatchStartsWith, damit auch "232" oder
+        "08-13" etwas findet und nicht nur der Anfang der Zeile zaehlt.
+        """
+        c = self.cmb_fassung.completer()
+        if c is None:
+            return
+        c.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        c.setFilterMode(Qt.MatchFlag.MatchContains)
+        c.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+
+    def eventFilter(self, obj, event):
+        """Klick ins Textfeld zeigt die Liste."""
+        if (getattr(self, "cmb_fassung", None) is not None
+                and obj is self.cmb_fassung.lineEdit()
+                and event.type() == QEvent.Type.MouseButtonPress
+                and self.cmb_fassung.count() > 0):
+            # Verzoegert: waehrend der Klick noch verarbeitet wird, wuerde das
+            # Textfeld die gerade geoeffnete Liste sofort wieder schliessen.
+            QTimer.singleShot(0, self._liste_zeigen)
+        return super().eventFilter(obj, event)
+
+    def _liste_zeigen(self) -> None:
+        c = self.cmb_fassung.completer()
+        if c is None:
+            return
+        # Leerer Vorsatz = alles passt: der erste Klick zeigt die volle Liste,
+        # ab dem ersten Zeichen bleibt nur noch, was dazu passt.
+        c.setCompletionPrefix(self.cmb_fassung.currentText())
+        c.complete()
+
     def _releases_da(self, liste: list) -> None:
         """Die Liste von GitHub ist da - Auswahlfeld fuellen."""
         self.cmb_fassung.clear()
@@ -531,7 +571,10 @@ class SubsystemsPanel(QWidget):
                 f"{r['version']}   {r['published']}   "
                 f"{r['size'] / (1024 * 1024):.0f} MB{hier}", r["version"])
         self.cmb_fassung.setCurrentIndex(-1)
-        self.cmb_fassung.lineEdit().setPlaceholderText("Version waehlen oder tippen")
+        self.cmb_fassung.lineEdit().setPlaceholderText("Vorherige Versionen")
+        # Beim Fuellen wechselt das Modell der ComboBox - der Completer haengt
+        # danach unter Umstaenden am alten. Deshalb hier noch einmal setzen.
+        self._such_completer()
         self.btn_fassung.setEnabled(True)
 
     def _gewaehlte_fassung(self) -> str:
@@ -1029,26 +1072,25 @@ class SubsystemsPanel(QWidget):
         row.addWidget(btn_upd)
         box.addLayout(row)
 
-        # ── Andere Fassung ──────────────────────────────────────────────────
-        # Auswaehlen ODER tippen: das Feld ist editierbar und sucht mit. Der
-        # Wechsel laeuft danach durch dieselbe geprueste Kette wie ein Update
-        # (Groesse, SHA256, Austausch mit .bak) - nur die Quelle ist eine andere.
+        # ── Vorherige Versionen ─────────────────────────────────────────────
+        # Auswaehlen ODER tippen. Der Wechsel laeuft danach durch dieselbe
+        # geprueften Kette wie ein Update (Groesse, SHA256, Austausch mit .bak)
+        # - nur die Quelle ist eine andere.
         ver = QHBoxLayout()
         ver.setSpacing(6)
-        lbl_ver = QLabel("Fassung:")
+        lbl_ver = QLabel("Version:")
         self.cmb_fassung = QComboBox()
         self.cmb_fassung.setEditable(True)
         self.cmb_fassung.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         self.cmb_fassung.lineEdit().setPlaceholderText("wird geladen …")
         self.cmb_fassung.setToolTip(
-            "Andere Fassung laden - auch eine aeltere.\n"
-            "Version aus der Liste waehlen oder eintippen (z.B. 0.1.1).")
-        # Tippen soll finden, nicht nur vervollstaendigen: Teiltreffer an jeder
-        # Stelle, Gross-/Kleinschreibung egal.
-        vervollstaendigen = QCompleter(self)
-        vervollstaendigen.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        vervollstaendigen.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.cmb_fassung.setCompleter(vervollstaendigen)
+            "Vorherige Versionen laden.\n"
+            "Ins Feld klicken zeigt die Liste, Tippen sucht darin (z.B. 0.1.1).")
+        self._such_completer()
+        # Klick ins Feld soll die Liste zeigen - man muss nicht wissen, dass es
+        # ueberhaupt eine gibt. Der Ereignisfilter haengt am QLineEdit, nicht an
+        # der ComboBox: der Klick landet im Textfeld, die ComboBox sieht ihn nie.
+        self.cmb_fassung.lineEdit().installEventFilter(self)
         self.btn_fassung = QPushButton("Wechseln")
         self.btn_fassung.setEnabled(False)
         self.btn_fassung.clicked.connect(self._fassung_wechseln)

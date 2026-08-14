@@ -353,6 +353,13 @@ class Battles(QObject):
         self._gap_sample = {}
         self._pred = None
         self._stamp = 0
+        # Mindeststandzeit, jetzt pro Gruppe statt pro Box (siehe update):
+        #   _shown_at       wann die Gruppe zum ersten Mal zu sehen war
+        #   _letzte_gruppe  ihr letzter Stand, um sie noch zeichnen zu koennen
+        #   _abschied       verschwundene Gruppen, die ihre 4 s noch vor sich haben
+        self._shown_at = {}
+        self._letzte_gruppe = {}
+        self._abschied = {}
 
     @Property("QVariantList", constant=True)
     def boxes(self):
@@ -435,49 +442,55 @@ class Battles(QObject):
         for sig in [s for s in self._group_seen if s not in seen]:
             del self._group_seen[sig]
 
-        # Sticky: zuerst die Boxen bedienen, die diese Gruppe schon zeigen.
-        assigned = [None] * self.BOX_COUNT
-        used = set()
-        members = [set(int(x) for x in (b._members.split(",") if b._members else []))
-                   for b in self._boxes]
-        for gi, g in enumerate(ready):
-            best, best_overlap = -1, 1     # mindestens 2 gemeinsame Fahrer
-            for k, box in enumerate(self._boxes):
-                if assigned[k] is not None or not box.isVisible:
-                    continue
-                overlap = sum(1 for d in g if d["index"] in members[k])
-                if overlap > best_overlap:
-                    best, best_overlap = k, overlap
-            if best >= 0:
-                assigned[best] = g
-                used.add(gi)
-        for gi, g in enumerate(ready):
-            if gi in used:
+        # ── Reihenfolge: der hoechste Positionskampf steht links ──────────────
+        # `ready` ist bereits nach der Position des Fuehrenden sortiert, die
+        # Boxen werden also der Reihe nach bedient: P1-P3 links, P21-P22 rechts.
+        #
+        # ⚠ Dafuer ist die frueher hier stehende Sticky-Zuordnung entfallen (eine
+        # Box behielt "ihre" Gruppe, egal an welcher Stelle). Mit fester
+        # Reihenfolge geht das nicht mehr - sonst stuende ein Kampf mal links,
+        # mal rechts, je nachdem welche Box gerade frei war.
+        #
+        # Die Mindeststandzeit haengt deshalb jetzt an der GRUPPE statt an der
+        # Box: eine Box einfach stehenzulassen, waehrend die Gruppen nachruecken,
+        # wuerde denselben Kampf kurzzeitig zweimal zeigen (einmal nachgerueckt,
+        # einmal als Karteileiche). Verschwundene Gruppen bleiben darum als
+        # Abschiedskopie in der Liste, bis ihre 4 s um sind, und sortieren sich
+        # dabei ganz normal ein.
+        sichtbar = {f"{g[0]['index']}-{g[1]['index']}" for g in ready}
+        for g in ready:
+            sig = f"{g[0]['index']}-{g[1]['index']}"
+            self._shown_at.setdefault(sig, now)
+            self._letzte_gruppe[sig] = g
+            self._abschied.pop(sig, None)
+
+        for sig, seit in list(self._shown_at.items()):
+            if sig in sichtbar:
                 continue
-            free = next((k for k, box in enumerate(self._boxes)
-                         if assigned[k] is None and not box.isVisible), -1)
-            if free < 0:
-                free = next((k for k in range(self.BOX_COUNT) if assigned[k] is None), -1)
-            if free >= 0:
-                assigned[free] = g
-                used.add(gi)
+            # Nicht mehr aktuell: noch aufheben, solange die 4 s nicht um sind.
+            if data.get("connected") and now - seit < self.MIN_SHOW_MS:
+                self._abschied[sig] = self._letzte_gruppe.get(sig)
+            else:
+                self._shown_at.pop(sig, None)
+                self._abschied.pop(sig, None)
+                self._letzte_gruppe.pop(sig, None)
+
+        anzeige = list(ready)
+        anzeige += [g for g in self._abschied.values() if g]
+        anzeige.sort(key=lambda g: g[0].get("position") or 999)
+        anzeige = anzeige[:self.BOX_COUNT]
 
         for k, box in enumerate(self._boxes):
-            g = assigned[k]
+            g = anzeige[k] if k < len(anzeige) else None
             if g:
                 if not box.isVisible:
                     box._born = now
                     box.isVisible = True
                 self._render_box(box, g)
-            else:
-                # Mindestanzeige: eine sichtbare Box bleibt 4 s stehen.
-                if box.isVisible and data.get("connected") \
-                        and now - box._born < self.MIN_SHOW_MS:
-                    continue
-                if box.isVisible:
-                    box.isVisible = False
-                    box._members = ""
-                    box.rows.clear()
+            elif box.isVisible:
+                box.isVisible = False
+                box._members = ""
+                box.rows.clear()
 
     def _render_box(self, box: BattleBox, group) -> None:
         front, back = group[0], group[-1]
@@ -557,6 +570,10 @@ class Hotlaps(QObject):
     """
 
     MAX_BOXES = 4
+    # Wie lange eine beendete Runde noch mit ihrer Zeit stehen bleibt, bevor der
+    # naechste Fahrer den Platz bekommt. Ohne das verschwindet die Box in dem
+    # Moment, in dem die Zeit interessant wird.
+    FINISH_HOLD_MS = 4000
 
     def __init__(self, shared, parent=None):
         super().__init__(parent)
@@ -564,21 +581,83 @@ class Hotlaps(QObject):
         self._rows = SlotModel(HOTLAP_ROLES, self)
         self._tyre = {}
         self._stamp = 0
+        self._laeuft = {}         # Fahrerindex -> letzter Stand, solange er hotlappt
+        self._fertig = {}         # Fahrerindex -> {"fahrer", "bis", "platz"}
+        self._letzter_platz = {}  # Fahrerindex -> zuletzt gezeigte Stelle
+
+    # ── Nachlauf: die fertige Zeit noch kurz stehen lassen ───────────────────
+    def _nachlauf_pflegen(self, drivers, hot) -> None:
+        """Wer gerade ueber die Linie ist, wandert mit seiner Zeit in _fertig."""
+        now = _now_ms()
+        aktuell = {d["index"] for d in hot}
+        for d in hot:
+            self._laeuft[d["index"]] = d
+
+        for idx in [i for i in self._laeuft if i not in aktuell]:
+            vorher = self._laeuft.pop(idx)
+            jetzt = next((x for x in drivers if x["index"] == idx), None)
+            # Nach dem Ueberfahren steht die gefahrene Runde in last_lap. Ist sie
+            # noch nicht nachgezogen, tut es die zuletzt laufende Zeit.
+            zeit = float((jetzt or {}).get("last_lap") or 0) \
+                or float(vorher.get("current_lap_time") or 0)
+            if zeit <= 0:
+                continue                      # nichts Sinnvolles zu zeigen
+            kopie = dict(jetzt or vorher)
+            kopie["_fertig_zeit"] = zeit
+            # Der Platz wird MITGENOMMEN: die Box soll dort stehen bleiben, wo sie
+            # war, und erst nach den 4 s vom naechsten Fahrer uebernommen werden.
+            # Wuerde man den Eintrag hinten anhaengen, rutschte der eben fertige
+            # Fahrer im selben Moment nach rechts, in dem seine Zeit interessant
+            # wird - und die Box daneben spraenge nach links.
+            self._fertig[idx] = {"fahrer": kopie, "bis": now + self.FINISH_HOLD_MS,
+                                 "platz": self._letzter_platz.get(idx, self.MAX_BOXES)}
+
+        # Abgelaufen - oder der Fahrer faehrt schon wieder eine fliegende Runde.
+        for idx in [i for i, v in self._fertig.items()
+                    if v["bis"] <= now or i in aktuell]:
+            del self._fertig[idx]
+
+    def _mit_nachlauf(self, hot) -> list:
+        """Wartende Zeiten an ihrer alten Stelle wieder einsetzen."""
+        drin = {d["index"] for d in hot}
+        wartend = [i for i in self._fertig if i not in drin]
+        # Aufsteigend einsetzen, sonst verschieben sich die spaeteren Stellen.
+        wartend.sort(key=lambda i: self._fertig[i]["platz"])
+        for idx in wartend:
+            platz = min(self._fertig[idx]["platz"], len(hot))
+            hot.insert(platz, self._fertig[idx]["fahrer"])
+        return hot
 
     @Property(QObject, constant=True)
     def boxes(self):
         return self._rows
 
-    def update(self, drivers, active: bool) -> None:
+    def update(self, drivers, focus_index, active: bool) -> None:
         self._stamp += 1
         if not active:
             self._rows.clear()
+            self._fertig.clear()
+            self._laeuft.clear()
             return
         hot = [d for d in drivers
                if self._shared.quali_status(d) == "track"
                and not d.get("dnf") and not d.get("dsq")]
         hot.sort(key=lambda d: -(d.get("lap_distance") or 0))
-        hot = hot[:self.MAX_BOXES]
+
+        # Der beobachtete Fahrer steht links - man will sehen, was der gerade
+        # macht, auf den man draufgeschaltet ist. Nur wenn er wirklich eine
+        # fliegende Runde faehrt; sonst bleibt es bei "wer zuerst ueber die
+        # Linie kommt, steht links".
+        if focus_index is not None and focus_index >= 0:
+            for i, d in enumerate(hot):
+                if d["index"] == focus_index:
+                    if i:
+                        hot.insert(0, hot.pop(i))
+                    break
+
+        self._nachlauf_pflegen(drivers, hot)
+        hot = self._mit_nachlauf(hot)[:self.MAX_BOXES]
+        self._letzter_platz = {d["index"]: i for i, d in enumerate(hot)}
 
         entries = []
         for d in hot:
@@ -600,7 +679,9 @@ class Hotlaps(QObject):
             elif not prev:
                 self._tyre[idx] = (compound, 0)
 
-            clt = d.get("current_lap_time") or 0
+            # Nachlauf-Eintrag: die Uhr steht, gezeigt wird die gefahrene Zeit.
+            fertig = float(d.get("_fertig_zeit") or 0)
+            clt = 0 if fertig else (d.get("current_lap_time") or 0)
             classes = [self._sec_class(secs[i], idx, i) for i in range(3)]
             entries.append((idx, {
                 "driverIndex": idx,
@@ -616,7 +697,7 @@ class Hotlaps(QObject):
                 "timeBase": float(clt),
                 "timeAt": _now_ms() if clt > 0 else 0.0,
                 "ticking": clt > 0,
-                "staticTime": float(d.get("last_lap") or 0),
+                "staticTime": fertig or float(d.get("last_lap") or 0),
                 "delta": float(delta),
                 "deltaUp": delta <= 0.0005,
                 "hasDelta": have,

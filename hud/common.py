@@ -74,7 +74,10 @@ DEFAULT_STATE = {
     "y": 60,
     "w": 780,
     "h": 900,
-    "locked": False,         # Start entsperrt, sonst findet man das Fenster nicht
+    # Gesperrt = Klicks gehen durch zum Spiel. Das ist der Normalfall im Betrieb,
+    # deshalb ab Werk an. ⚠ Folge: das Fenster laesst sich nicht mehr mit der Maus
+    # greifen - zum Verschieben erst im Schaltbrett oder im Tray entsperren.
+    "locked": True,
     "visible": True,
     "opacity": 100,          # Fenster-Deckkraft in Prozent
     "zoom": 1.0,             # Zoomfaktor der Seite (nur Renderer "web")

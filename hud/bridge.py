@@ -256,7 +256,10 @@ class OverlayBridge(QObject):
                              and connected and not is_quali and lap >= 3)
 
         # Hotlap-Boxen: Regie-Schalter, verbunden, Quali, kein eingefrorenes Ergebnis.
-        self._hotlaps.update(drivers, self._regie.hotlap and connected and is_quali
+        # focus, damit der beobachtete Fahrer nach links rueckt, wenn er selbst
+        # eine fliegende Runde faehrt.
+        self._hotlaps.update(drivers, focus,
+                             self._regie.hotlap and connected and is_quali
                              and not session.get("_quali_result"))
 
         self._onboard.update(drivers, focus, connected, session, bool(cfg["onboard"]))

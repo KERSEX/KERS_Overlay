@@ -122,11 +122,16 @@ Item {
             }
         }
 
-        // Innerer Schein bei SC / roter Flagge
+        // Innerer Schein - nur noch bei roter Flagge.
+        //
+        // Beim Safety Car ist er raus: der 10 px breite Streifen liegt INNERHALB
+        // des Panels und legt sich dadurch ueber die obersten Zeilen. Uebrig
+        // bleibt dort der pulsierende Rahmen selbst, der die Lage genauso
+        // deutlich macht, ohne in den Inhalt zu greifen.
         Rectangle {
             anchors.fill: parent
             anchors.margins: 2
-            visible: tower.frameKind === "sc" || tower.frameKind === "rf"
+            visible: tower.frameKind === "rf"
             radius: Theme.panelRadius - 2
             color: "transparent"
             border.width: 10

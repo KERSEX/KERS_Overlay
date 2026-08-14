@@ -602,7 +602,14 @@ class Hotlaps(QObject):
                 or float(vorher.get("current_lap_time") or 0)
             if zeit <= 0:
                 continue                      # nichts Sinnvolles zu zeigen
-            kopie = dict(jetzt or vorher)
+            # ⚠ Grundlage ist der Stand VOR der Linie. Danach hat das Spiel
+            # sector1/sector2 schon fuer die neue Runde zurueckgesetzt - die
+            # Nachlauf-Box zeigte deshalb dreimal "—", ausgerechnet bei der
+            # fertigen Runde, wo die Sektoren am meisten interessieren.
+            # last_lap wird auf die eben gefahrene Zeit gesetzt; damit rechnet
+            # _s3_of den dritten Sektor korrekt als Rest aus (Zeit - S1 - S2).
+            kopie = dict(vorher)
+            kopie["last_lap"] = zeit
             kopie["_fertig_zeit"] = zeit
             # Der Platz wird MITGENOMMEN: die Box soll dort stehen bleiben, wo sie
             # war, und erst nach den 4 s vom naechsten Fahrer uebernommen werden.

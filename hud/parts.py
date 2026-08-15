@@ -365,6 +365,13 @@ class Battles(QObject):
     def boxes(self):
         return self._boxes
 
+    def _box_wunsch(self) -> int:
+        """Gewuenschte Boxenzahl aus den Settings, sicher auf 1..BOX_COUNT."""
+        try:
+            return max(1, min(self.BOX_COUNT, int(self._cfg["battleboxes"])))
+        except (KeyError, TypeError, ValueError):
+            return self.BOX_COUNT       # aeltere overlay_settings.json ohne den Wert
+
     # ── Ueberhol-Projektion ("Kampf in X Runden") ────────────────────────────
     def _update_prediction(self, drivers, active: bool) -> None:
         if not active:
@@ -478,7 +485,11 @@ class Battles(QObject):
         anzeige = list(ready)
         anzeige += [g for g in self._abschied.values() if g]
         anzeige.sort(key=lambda g: g[0].get("position") or 999)
-        anzeige = anzeige[:self.BOX_COUNT]
+        # Wie viele Boxen der Nutzer sehen will (Setting, 1-4). BOX_COUNT bleibt
+        # die bauliche Obergrenze: die vier Boxobjekte existieren weiter, die
+        # ueberzaehligen werden nur nicht mehr befuellt und blenden sich damit
+        # von selbst aus (Battles.qml: width = visible ? 310 : 0).
+        anzeige = anzeige[:self._box_wunsch()]
 
         for k, box in enumerate(self._boxes):
             g = anzeige[k] if k < len(anzeige) else None
@@ -575,15 +586,23 @@ class Hotlaps(QObject):
     # Moment, in dem die Zeit interessant wird.
     FINISH_HOLD_MS = 4000
 
-    def __init__(self, shared, parent=None):
+    def __init__(self, shared, cfg, parent=None):
         super().__init__(parent)
         self._shared = shared
+        self._cfg = cfg
         self._rows = SlotModel(HOTLAP_ROLES, self)
         self._tyre = {}
         self._stamp = 0
         self._laeuft = {}         # Fahrerindex -> letzter Stand, solange er hotlappt
         self._fertig = {}         # Fahrerindex -> {"fahrer", "bis", "platz"}
         self._letzter_platz = {}  # Fahrerindex -> zuletzt gezeigte Stelle
+
+    def _box_wunsch(self) -> int:
+        """Gewuenschte Boxenzahl aus den Settings, sicher auf 1..MAX_BOXES."""
+        try:
+            return max(1, min(self.MAX_BOXES, int(self._cfg["hotlapboxes"])))
+        except (KeyError, TypeError, ValueError):
+            return self.MAX_BOXES       # aeltere overlay_settings.json ohne den Wert
 
     # ── Nachlauf: die fertige Zeit noch kurz stehen lassen ───────────────────
     def _nachlauf_pflegen(self, drivers, hot) -> None:
@@ -663,7 +682,7 @@ class Hotlaps(QObject):
                     break
 
         self._nachlauf_pflegen(drivers, hot)
-        hot = self._mit_nachlauf(hot)[:self.MAX_BOXES]
+        hot = self._mit_nachlauf(hot)[:self._box_wunsch()]
         self._letzter_platz = {d["index"]: i for i, d in enumerate(hot)}
 
         entries = []

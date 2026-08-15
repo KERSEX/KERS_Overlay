@@ -152,6 +152,11 @@ DEFAULT_SETTINGS = {
     "flbdur": 4.5,         # Fastest-Lap-Banner Dauer (Sekunden)
     "dmgcrit": 60,         # Damage-Icon blinkt ab ... %
     "battlethresh": 1.5,   # Abstand (s), ab dem zwei Autos als "Battle" gelten
+    # Wie viele Boxen nebeneinander stehen dürfen. 1–4; das Overlay hält vier
+    # Plätze bereit, mehr sind baulich nicht vorgesehen (Battles.BOX_COUNT bzw.
+    # Hotlaps.MAX_BOXES in hud/parts.py).
+    "battleboxes": 4,      # Battle-Boxen im Rennen
+    "hotlapboxes": 4,      # Hotlap-Boxen in der Quali
     # WM-Stand: Dateiname der .json neben der .exe, aus der der Stand kommt.
     # "" = championship.json. Auswahlliste liefert /api/champfiles.
     "champ_file": "",
@@ -1465,6 +1470,16 @@ def api_settings():
                 if k == "champ_file":
                     name = os.path.basename(str(v or ""))
                     overlay_settings[k] = name if (name and name in _list_champ_files()) else ""
+                    continue
+                # Boxenzahl: hart auf 1–4 begrenzen. Der allgemeine int()-Zweig
+                # weiter unten begrenzt NICHT — eine 9 aus einem manuell
+                # gebastelten Aufruf käme sonst durch, und das Overlay hält nur
+                # vier Plätze bereit.
+                if k in ("battleboxes", "hotlapboxes"):
+                    try:
+                        overlay_settings[k] = max(1, min(4, int(v)))
+                    except (TypeError, ValueError):
+                        pass
                     continue
                 dv = DEFAULT_SETTINGS[k]
                 try:

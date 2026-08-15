@@ -51,6 +51,10 @@ DEFAULT_CFG = {
     "ampel": True,
     "mapcorner": "tr",
     "opacity": 1.0,
+    # ⚠ Ohne Eintrag HIER kaeme die Einstellung nie an: Config.apply uebernimmt
+    # nur Schluessel, die in DEFAULT_CFG stehen.
+    "battleboxes": 4,
+    "hotlapboxes": 4,
 }
 
 

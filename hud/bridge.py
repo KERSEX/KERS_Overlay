@@ -64,7 +64,7 @@ class OverlayBridge(QObject):
         self._race_control = RaceControl(self._banner)
         self._undercut = Undercut(self._banner)
         self._battles = Battles(self._cfg, self)
-        self._hotlaps = Hotlaps(self._shared, self)
+        self._hotlaps = Hotlaps(self._shared, self._cfg, self)
         self._onboard = Onboard(self._shared, self._cfg, self)
         self._lower_third = LowerThird(self._shared, self._cfg, self)
         self._pit = PitCards(self)

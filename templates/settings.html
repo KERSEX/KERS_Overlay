@@ -181,6 +181,10 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
       <div class="ctl"><input type="number" min="0" max="3600" step="30" data-k="holds"></div></div>
     <div class="row"><label>Battle-Schwelle<small>Abstand in Sekunden, ab dem zwei Autos als „Battle" gelten</small></label>
       <div class="ctl"><input type="range" min="0.5" max="3" step="0.1" data-k="battlethresh"><span class="val" data-v="battlethresh"></span></div></div>
+    <div class="row"><label>Battle-Boxen<small>Wie viele Kämpfe gleichzeitig stehen dürfen (1–4). Links steht immer der höchste Positionskampf.</small></label>
+      <div class="ctl"><input type="number" min="1" max="4" step="1" data-k="battleboxes"></div></div>
+    <div class="row"><label>Hotlap-Boxen<small>Wie viele fliegende Runden in der Quali gleichzeitig stehen dürfen (1–4)</small></label>
+      <div class="ctl"><input type="number" min="1" max="4" step="1" data-k="hotlapboxes"></div></div>
     <div class="row"><label>Damage blinkt ab<small>% Flügelschaden, ab dem das Icon pulsiert</small></label>
       <div class="ctl"><input type="range" min="30" max="90" step="5" data-k="dmgcrit"><span class="val" data-v="dmgcrit"></span></div></div>
   </div>

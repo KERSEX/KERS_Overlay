@@ -22,7 +22,10 @@ Item {
     Tower {
         // Der linke Abstand faengt die Strafen-Pillen auf, die aus der Zeile
         // herausragen (im CSS ist das padding-left: 72px am body).
-        x: 72
+        // Auf Wunsch um ein Drittel verringert: 72 - 24 = 48. ⚠ Damit bleibt
+        // entsprechend weniger Luft fuer die Pillen - stossen sie am Fensterrand
+        // an, ist das hier die Stellschraube.
+        x: 48
         y: 10
         stageHeight: root.height
         z: 30

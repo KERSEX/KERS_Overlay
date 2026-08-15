@@ -94,6 +94,18 @@ Item {
         "champ":      [420, 300]
     })
 
+    /** Das y, das die LAGE bestimmt - nicht das gerade sichtbare.
+     *
+     *  ⚠ Vier Bausteine (Meldungs-Banner, Fastest-Lap-Banner, Lower-Third,
+     *  Gefahrenzone) werden ueber `baseY` positioniert und animieren ihr `y`
+     *  davon weg: beim Ein- und Ausblenden um 14 bis 18 px. Liest man beim
+     *  Ziehen `y` und schreibt es als `baseY` zurueck, wird dieser Versatz
+     *  jedes Mal erneut aufgeschlagen - der Baustein sitzt dann neben dem
+     *  Mauszeiger und wandert bei jedem Anfassen weiter. */
+    function lageY(item) {
+        return (item && item.baseY !== undefined) ? item.baseY : (item ? item.y : 0);
+    }
+
     /** Der echte Baustein zu einem Schluessel. */
     function echtes(name) {
         for (let i = 0; i < root.children.length; i++)
@@ -302,7 +314,7 @@ Item {
             visible: Hud.layoutEdit && (!echt || !echt.visible
                                         || echt.width < 4 || echt.height < 4)
             x: echt ? echt.x : 0
-            y: echt ? echt.y : 0
+            y: root.lageY(echt)      // baseY, wo es eins gibt - siehe lageY
             width: root.teilGroessen[modelData][0]
             height: root.teilGroessen[modelData][1]
             z: echt ? echt.z : 40
@@ -347,9 +359,21 @@ Item {
 
         property var griff: null        // gerade gepackter Baustein
         property var unterMaus: null    // nur zum Hervorheben
-        property real packX: 0          // Abstand Mauszeiger zur Bausteinecke
-        property real packY: 0
         property string ecke: ""
+        // ⚠ Alles Folgende wird beim PACKEN eingefroren und waehrend des Ziehens
+        // nicht mehr aus dem Baustein gelesen. Grund: die Vorschau speist ein
+        // laufendes Rennen ein, die Inhalte aendern staendig ihre Groesse (Boxen
+        // kommen und gehen, der Tower waechst). Rechnete man live mit der
+        // aktuellen Groesse, wanderte ein unten oder mittig verankerter Baustein
+        // unter der Maus weg.
+        property real startX: 0         // Lage beim Packen
+        property real startY: 0
+        property real pressX: 0         // Mausposition beim Packen
+        property real pressY: 0
+        property real griffW: 0         // Groesse beim Packen
+        property real griffH: 0
+        property real letztX: 0         // zuletzt gesetzte Lage - die wird gespeichert
+        property real letztY: 0
 
         function karte(name, e, dx, dy, z) {
             const neu = {};
@@ -371,14 +395,18 @@ Item {
                     return;
                 }
                 const t = layoutEditor.griff;
-                // In der Szene halten - sonst zieht man einen Baustein aus dem
-                // Bild und kommt ohne die Regler in /settings nicht mehr heran.
-                const nx = Math.max(0, Math.min(root.width - t.width, m.x - layoutEditor.packX));
-                const ny = Math.max(0, Math.min(root.height - t.height, m.y - layoutEditor.packY));
+                // Reine Verschiebung ab dem Packpunkt. In der Szene halten -
+                // sonst zieht man einen Baustein aus dem Bild und kommt ohne die
+                // Regler in /settings nicht mehr heran.
+                layoutEditor.letztX = Math.max(0, Math.min(root.width - layoutEditor.griffW,
+                                     layoutEditor.startX + (m.x - layoutEditor.pressX)));
+                layoutEditor.letztY = Math.max(0, Math.min(root.height - layoutEditor.griffH,
+                                     layoutEditor.startY + (m.y - layoutEditor.pressY)));
                 Kers.layoutLive(layoutEditor.karte(
                     root.schluessel(t), layoutEditor.ecke,
-                    root.dxAus(layoutEditor.ecke, nx, t.width),
-                    root.dyAus(layoutEditor.ecke, ny, t.height), t.z));
+                    root.dxAus(layoutEditor.ecke, layoutEditor.letztX, layoutEditor.griffW),
+                    root.dyAus(layoutEditor.ecke, layoutEditor.letztY, layoutEditor.griffH),
+                    t.z));
             }
 
             onPressed: (m) => {
@@ -386,23 +414,36 @@ Item {
                 if (!t) return;
                 layoutEditor.griff = t;
                 layoutEditor.unterMaus = t;
-                layoutEditor.packX = m.x - t.x;
-                layoutEditor.packY = m.y - t.y;
+                // ⚠ lageY statt y: bei den vier Bausteinen mit baseY ist das
+                // sichtbare y um die Ein-/Ausblend-Animation verschoben. Naehme
+                // man das, saesse der Baustein nach dem Loslassen daneben.
+                layoutEditor.startX = t.x;
+                layoutEditor.startY = root.lageY(t);
+                layoutEditor.pressX = m.x;
+                layoutEditor.pressY = m.y;
+                layoutEditor.griffW = t.width;
+                layoutEditor.griffH = t.height;
+                layoutEditor.letztX = layoutEditor.startX;
+                layoutEditor.letztY = layoutEditor.startY;
                 // Wer schon einen Ankerpunkt hat, behaelt ihn - sonst spraenge die
                 // Bezugsecke beim kleinsten Ziehen um. Nur beim ERSTEN Verschieben
                 // wird der naechstgelegene genommen.
                 const vorhanden = root.teil(root.schluessel(t));
                 layoutEditor.ecke = vorhanden ? (vorhanden.ecke || "tl")
-                                              : root.eckeNah(t.x, t.y, t.width, t.height);
+                                              : root.eckeNah(t.x, root.lageY(t),
+                                                             t.width, t.height);
             }
 
             onReleased: {
                 const t = layoutEditor.griff;
                 if (t) {
+                    // Dieselben eingefrorenen Werte wie beim Ziehen - so liegt der
+                    // gespeicherte Platz genau dort, wo der Baustein zuletzt stand.
                     Kers.layoutSpeichern(layoutEditor.karte(
                         root.schluessel(t), layoutEditor.ecke,
-                        root.dxAus(layoutEditor.ecke, t.x, t.width),
-                        root.dyAus(layoutEditor.ecke, t.y, t.height), t.z));
+                        root.dxAus(layoutEditor.ecke, layoutEditor.letztX, layoutEditor.griffW),
+                        root.dyAus(layoutEditor.ecke, layoutEditor.letztY, layoutEditor.griffH),
+                        t.z));
                 }
                 layoutEditor.griff = null;
             }

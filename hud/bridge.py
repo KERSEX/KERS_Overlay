@@ -238,7 +238,7 @@ class OverlayBridge(QObject):
 
         if on:
             from demo import DemoFeed
-            self._feed = DemoFeed(self._hz, quali=False, parent=self)
+            self._feed = DemoFeed(self._hz, quali=False, vorschau=True, parent=self)
         else:
             self._feed = LiveFeed(self._base_url, self._hz, self)
         self._feed.payload.connect(self._on_payload)

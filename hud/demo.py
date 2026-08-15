@@ -98,9 +98,13 @@ class DemoFeed(QObject):
     payload = Signal(dict)
     linkChanged = Signal(bool)
 
-    def __init__(self, hz: int = 30, quali: bool = False, parent=None):
+    def __init__(self, hz: int = 30, quali: bool = False, vorschau: bool = False,
+                 parent=None):
         super().__init__(parent)
         self._quali = quali
+        # vorschau = wir laufen nur, damit sich das Layout bearbeiten laesst.
+        # Dann darf nichts bildschirmfuellend dazwischenfahren (siehe _emit).
+        self._vorschau = bool(vorschau)
         self._t0 = time.monotonic()
         self._timer = QTimer(self)
         self._timer.setInterval(max(16, int(1000 / max(1, min(60, hz)))))
@@ -318,7 +322,13 @@ class DemoFeed(QObject):
             # Die Regie blendet im Demo-Modus von selbst durch: so bekommt man auch
             # Chart und WM-Stand zu sehen, ohne /regie zu bedienen (die es hier
             # ohne Server ohnehin nicht gibt).
-            "regie": {"chart": self._demo_chart(t), "champ": 100 <= (t % 140) < 125,
+            # ⚠ Im Vorschau-Modus (Layout bearbeiten) KEIN Chart: das legt sich
+            # bildschirmfuellend ueber alles und man kaeme an keinen Baustein mehr
+            # heran. Der WM-Stand dagegen laeuft dort dauerhaft mit, damit er sich
+            # ueberhaupt platzieren laesst - sonst waere er nur 25 von 140
+            # Sekunden zu sehen.
+            "regie": {"chart": "none" if self._vorschau else self._demo_chart(t),
+                      "champ": True if self._vorschau else (100 <= (t % 140) < 125),
                       "battles": True, "hotlap": True},
         })
 

@@ -410,6 +410,10 @@ class SettingsState(_StateBase):
     penSideChanged, penSide = _prop("penSide", str, "left")
     penHideFinishChanged, penHideFinish = _prop("penHideFinish", bool, True)
 
+    # Freies Layout, je Baustein {ecke, dx, dy, z}. Leerer Eintrag = der Baustein
+    # bleibt an seinem einprogrammierten Platz (siehe Overlay.qml).
+    layoutChanged, layout = _prop("layout", "QVariantMap", {})
+
     def apply(self, cfg) -> None:
         opacity = cfg["opacity"] if cfg["opacity"] > 0 else 1.0
         self._assign({
@@ -432,6 +436,7 @@ class SettingsState(_StateBase):
             "battleDir": "column" if str(cfg["battledir"]) == "column" else "row",
             "penSide": "right" if str(cfg["penside"]) == "right" else "left",
             "penHideFinish": bool(cfg["penhidefinish"]),
+            "layout": dict(cfg["layout"] or {}),
         })
 
 

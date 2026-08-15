@@ -118,6 +118,49 @@ CHAMP_DEFAULT_NAME = "championship.json"
 # Ein alter gespeicherter Wert wird beim Laden auf "tr" zurückgeholt.
 MAP_CORNERS = ("tc", "tr", "rc", "bl", "bc", "br")
 POINTS_SYSTEM = {1: 25, 2: 18, 3: 15, 4: 12, 5: 10, 6: 8, 7: 6, 8: 4, 9: 2, 10: 1}   # A3: Punkte Top 10 (Logik aus KERS_WM_Overlay)
+
+# ── Freies Layout ─────────────────────────────────────────────────────────────
+# Jeder Baustein hängt an einem der neun Ankerpunkte (3x3-Raster) und bekommt von
+# dort einen Versatz. Absolute Koordinaten wären zu starr: das HUD-Fenster ist mal
+# 2560x1440, in OBS 1920x1080 — was unten rechts klebt, soll unten rechts bleiben.
+LAYOUT_ECKEN = ("tl", "tc", "tr", "lc", "cc", "rc", "bl", "bc", "br")
+# Reihenfolge = Reihenfolge in /settings. Der zweite Wert ist die Beschriftung.
+LAYOUT_TEILE = [
+    ("tower",      "Timing Tower"),
+    ("trackmap",   "Trackmap"),
+    ("racemsg",    "Meldungs-Banner"),
+    ("flbanner",   "Fastest-Lap-Banner"),
+    ("lights",     "Start-Ampel"),
+    ("battles",    "Battle-Boxen"),
+    ("hotlaps",    "Hotlap-Boxen"),
+    ("lowerthird", "Lower-Third"),
+    ("danger",     "Gefahrenzone"),
+    ("onboard",    "Onboard"),
+    ("pitproj",    "Pit-Projektion"),
+    ("pitcards",   "Boxenstopp-Karten"),
+    ("champ",      "WM-Stand"),
+]
+# Startwerte für die Regler — sie werden erst GESCHRIEBEN, wenn man einen Baustein
+# anfasst. ⚠ Bewusst nicht als Vorgabe in DEFAULT_SETTINGS: vier Bausteine stehen
+# heute dynamisch (Tower je nach penside, Ampel bei 12 % der Höhe, Pit-Projektion
+# je nach sichtbarem Onboard, Trackmap über mapcorner). Ein fester Wert würde die
+# Rechnerei ersetzen und damit verschlechtern. Solange kein Eintrag existiert,
+# gilt im Overlay weiter der bisherige Ausdruck.
+LAYOUT_STANDARD = {
+    "tower":      {"ecke": "tl", "dx": 48,  "dy": 10,  "z": 30},
+    "trackmap":   {"ecke": "tr", "dx": 12,  "dy": 12,  "z": 42},
+    "racemsg":    {"ecke": "tc", "dx": 0,   "dy": 22,  "z": 46},
+    "flbanner":   {"ecke": "tc", "dx": 0,   "dy": 84,  "z": 47},
+    "lights":     {"ecke": "tc", "dx": 0,   "dy": 170, "z": 80},
+    "battles":    {"ecke": "bc", "dx": 0,   "dy": 28,  "z": 40},
+    "hotlaps":    {"ecke": "bc", "dx": 0,   "dy": 28,  "z": 40},
+    "lowerthird": {"ecke": "bc", "dx": 0,   "dy": 380, "z": 41},
+    "danger":     {"ecke": "bc", "dx": 0,   "dy": 40,  "z": 46},
+    "onboard":    {"ecke": "bl", "dx": 24,  "dy": 28,  "z": 44},
+    "pitproj":    {"ecke": "bl", "dx": 24,  "dy": 24,  "z": 44},
+    "pitcards":   {"ecke": "br", "dx": 24,  "dy": 28,  "z": 45},
+    "champ":      {"ecke": "br", "dx": 24,  "dy": 40,  "z": 45},
+}
 DEFAULT_SETTINGS = {
     # Sichtbarkeit der Komponenten
     "tower": True, "battles": True, "map": True, "onboard": True,
@@ -163,6 +206,10 @@ DEFAULT_SETTINGS = {
     # ⚠ Rechts sitzt auch die Zielflagge — deshalb der zweite Schalter.
     "penside": "left",     # left | right
     "penhidefinish": True,  # Pillen ausblenden, sobald die Zielflagge steht
+    # Freies Layout, je Baustein {ecke, dx, dy, z}. LEER heißt "alles wie gehabt";
+    # ein Baustein ohne Eintrag behält seine einprogrammierte Lage (siehe
+    # LAYOUT_STANDARD oben).
+    "layout": {},
     # WM-Stand: Dateiname der .json neben der .exe, aus der der Stand kommt.
     # "" = championship.json. Auswahlliste liefert /api/champfiles.
     "champ_file": "",
@@ -1425,6 +1472,19 @@ def settings_page():
     # (http://<PC-IP>:5100/settings) -> Änderungen wirken live im Overlay.
     return render_template("settings.html")
 
+@app.route("/api/layout")
+def api_layout():
+    """Bausteinliste, Ankerpunkte und Startwerte für die Layout-Regler.
+
+    Bewusst vom Server statt fest in settings.html: die Liste steht ohnehin hier
+    (LAYOUT_TEILE), und doppelt gepflegt liefe sie irgendwann auseinander.
+    """
+    return jsonify({
+        "teile": [{"key": k, "label": l} for k, l in LAYOUT_TEILE],
+        "ecken": list(LAYOUT_ECKEN),
+        "standard": LAYOUT_STANDARD,
+    })
+
 @app.route("/api/logos")
 def api_logos():
     # Auswahlliste für die Settings-Seite (Dateinamen, ohne Pfad).
@@ -1481,6 +1541,35 @@ def api_settings():
                 # weiter unten begrenzt NICHT — eine 9 aus einem manuell
                 # gebastelten Aufruf käme sonst durch, und das Overlay hält nur
                 # vier Plätze bereit.
+                # Layout: verschachtelt, deshalb ein eigener Zweig.
+                # ⚠ Ohne ihn liefe es in den else-Zweig ganz unten und käme als
+                # STRING im Speicher an ("{'tower': ...}"), weil dort str(v) steht.
+                # Geprüft wird streng: nur bekannte Bausteine, nur bekannte
+                # Ankerpunkte, Zahlen begrenzt. Ein Eintrag, der nichts taugt,
+                # wird übersprungen statt die ganze Änderung abzulehnen — sonst
+                # verliert man beim Ziehen eines Bausteins die anderen mit.
+                if k == "layout":
+                    if not isinstance(v, dict):
+                        continue
+                    sauber = {}
+                    for teil, wert in v.items():
+                        if teil not in LAYOUT_STANDARD or not isinstance(wert, dict):
+                            continue
+                        ecke = str(wert.get("ecke", "tl"))
+                        try:
+                            sauber[teil] = {
+                                "ecke": ecke if ecke in LAYOUT_ECKEN else "tl",
+                                # 4000 statt "Fensterbreite": der Server kennt die
+                                # Fenstergröße nicht. Reicht für 4K und hält
+                                # Unsinn wie 1e9 draußen.
+                                "dx": max(-4000, min(4000, int(wert.get("dx", 0)))),
+                                "dy": max(-4000, min(4000, int(wert.get("dy", 0)))),
+                                "z": max(0, min(100, int(wert.get("z", 40)))),
+                            }
+                        except (TypeError, ValueError):
+                            continue
+                    overlay_settings[k] = sauber
+                    continue
                 # Nur die angebotenen Werte zulassen — der allgemeine str()-Zweig
                 # unten nimmt sonst jeden Unsinn an, und das QML fiele auf einen
                 # stillen Vorgabewert zurück, ohne dass man den Fehler sieht.

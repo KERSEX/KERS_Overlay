@@ -85,6 +85,12 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
 .lempty{padding:24px 18px;color:var(--muted);font-size:13px;line-height:1.7}
 .lempty code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px;color:var(--txt)}
 .colorcombo:not(.set) .cclear{visibility:hidden}
+/* Layout: je Baustein ein aufklappbarer Block */
+.lhint{color:var(--muted);font-size:12px;line-height:1.6;margin:-4px 0 12px}
+.lay .ctl input[type=range]{width:120px}
+.lay .ctl .val{min-width:46px}
+.lay .lstd{font-size:11px;color:var(--muted);padding:2px 0 6px}
+.lay .lstd.eigen{color:var(--yellow)}
 /* Presets */
 .presets{display:flex;gap:10px;flex-wrap:wrap}
 .pbtn{flex:1;min-width:110px;padding:12px;border-radius:10px;border:2px solid var(--line);background:rgba(255,255,255,.03);
@@ -164,6 +170,16 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
   <div class="grp">
     <h2>Komponenten</h2>
     <div id="toggles"></div>
+  </div>
+
+  <div class="grp">
+    <h2>Layout</h2>
+    <p class="lhint">Jeder Baustein hängt an einem Ankerpunkt und bekommt von dort einen Versatz —
+      so bleibt er beim Wechsel der Fenstergröße an seiner Ecke. Solange „Standard“ dasteht, gilt
+      die eingebaute Position; sie ist bei manchen Bausteinen beweglich (der Tower folgt der
+      Strafen-Seite, die Trackmap der Trackmap-Position, die Pit-Projektion weicht dem Onboard aus).
+      Sobald du etwas verstellst, gilt dein Wert.</p>
+    <div id="layout"></div>
   </div>
 
   <div class="grp">
@@ -543,6 +559,92 @@ function renderInputs(){
   });
   schalterAuffrischen();     // kennt auch die Umschalter (siehe dort)
 }
+// ── Layout ────────────────────────────────────────────────────────────────
+// Bausteinliste, Ankerpunkte und Startwerte kommen vom Server (/api/layout) und
+// werden NICHT hier gedoppelt - sie stehen ohnehin in main.py und liefen sonst
+// irgendwann auseinander.
+let LAY = null;                    // { teile:[{key,label}], ecken:[], standard:{} }
+const ECKNAME = { tl:"oben links", tc:"oben mitte", tr:"oben rechts",
+                  lc:"links mitte", cc:"mitte", rc:"rechts mitte",
+                  bl:"unten links", bc:"unten mitte", br:"unten rechts" };
+
+async function ladeLayoutListe(){
+  try{
+    const r = await fetch("/api/layout");
+    LAY = await r.json();
+    renderLayout();
+  }catch(e){
+    document.getElementById("layout").innerHTML =
+      `<div class="lhint">Layout-Liste nicht abrufbar — läuft der Server noch mit einer älteren main.py? (/api/layout ist neu.)</div>`;
+  }
+}
+
+/** Aktueller Eintrag oder der Startwert vom Server (ohne ihn zu speichern). */
+function layWert(key){
+  const eig = (S.layout || {})[key];
+  return eig || LAY.standard[key] || { ecke:"tl", dx:0, dy:0, z:40 };
+}
+function layEigen(key){ return !!(S.layout || {})[key]; }
+
+/** Einen Wert setzen — legt den Eintrag beim ersten Anfassen aus dem Startwert an. */
+function laySetze(key, feld, wert){
+  const alt = S.layout || {};
+  const eintrag = { ...layWert(key), [feld]: wert };
+  save({ layout: { ...alt, [key]: eintrag } }, false, 60);
+}
+function layZurueck(key){
+  const neu = { ...(S.layout || {}) };
+  delete neu[key];
+  save({ layout: neu });
+}
+
+let layoutGebaut = false;
+function renderLayout(){
+  if(!LAY) return;
+  const box = document.getElementById("layout");
+  if(!layoutGebaut){
+    box.innerHTML = LAY.teile.map(({key,label})=>{
+      // Beim ersten Mal zugeklappt: 13 Bausteine à 5 Zeilen waeren sonst eine
+      // sehr lange Seite. ⚠ Der Wert muss ECHT gesetzt werden, nicht nur beim
+      // Zeichnen angenommen - der Auf/Zu-Schalter macht closedGrp[g]=!closedGrp[g],
+      // und aus `undefined` wuerde damit `true`, also nochmal zu.
+      if(closedGrp["lay:"+key] === undefined) closedGrp["lay:"+key] = true;
+      return `<div class="sub lay${closedGrp["lay:"+key]?" closed":""}" data-g="lay:${key}">`
+        + `<button class="subhead" type="button"><span class="arrow">▾</span>${label}`
+        + `<span class="cnt" data-lstate="${key}"></span></button><div class="subbody">`
+        + `<div class="row"><label>Ankerpunkt<small>Von hier aus wird der Versatz gerechnet</small></label>`
+        + `<div class="ctl"><select class="sel" data-lay="${key}:ecke">`
+        + LAY.ecken.map(e=>`<option value="${e}">${ECKNAME[e]||e}</option>`).join("")
+        + `</select></div></div>`
+        + `<div class="row"><label>Versatz waagerecht</label><div class="ctl">`
+        + `<input type="range" min="0" max="1200" step="2" data-lay="${key}:dx"><span class="val" data-lval="${key}:dx"></span></div></div>`
+        + `<div class="row"><label>Versatz senkrecht</label><div class="ctl">`
+        + `<input type="range" min="0" max="1200" step="2" data-lay="${key}:dy"><span class="val" data-lval="${key}:dy"></span></div></div>`
+        + `<div class="row"><label>Ebene<small>Höher liegt weiter vorn</small></label><div class="ctl">`
+        + `<input type="range" min="0" max="100" step="1" data-lay="${key}:z"><span class="val" data-lval="${key}:z"></span></div></div>`
+        + `<div class="row"><label>&nbsp;</label><div class="ctl">`
+        + `<button type="button" class="mini" data-lreset="${key}">Auf Standard zurück</button></div></div>`
+        + `</div></div>`;
+    }).join("");
+    layoutGebaut = true;
+  }
+  // Werte auffrischen - ohne Neubau, sonst verlieren die Regler beim Ziehen den Fokus.
+  box.querySelectorAll("[data-lay]").forEach(el=>{
+    if(document.activeElement===el) return;
+    const [key,feld] = el.dataset.lay.split(":");
+    el.value = layWert(key)[feld];
+  });
+  box.querySelectorAll(".val[data-lval]").forEach(el=>{
+    const [key,feld] = el.dataset.lval.split(":");
+    el.textContent = layWert(key)[feld];
+  });
+  box.querySelectorAll("[data-lstate]").forEach(el=>{
+    const key = el.dataset.lstate;
+    el.textContent = layEigen(key) ? "eigene Position" : "Standard";
+    el.classList.toggle("eigen", layEigen(key));
+  });
+}
+
 function renderPresets(){
   const cur = matchedPreset();   // K17: aus den echten Werten, nicht aus dem gespeicherten Feld
   document.getElementById("presets").innerHTML = Object.entries(PRESETS).map(([id,p])=>
@@ -562,7 +664,7 @@ function renderColorCombos(){   // K18: Farbwähler mit leer-Zustand (leer = Fal
 }
 // renderChampUI zuletzt: renderInputs setzt die <select>-Werte, die Einträge des
 // WM-Dropdowns entstehen aber erst hier — sonst stünde beim ersten Durchlauf nichts drin.
-function renderAll(){ renderToggles(); renderInputs(); renderPresets(); renderUserPresets(); renderColorCombos(); renderLogoUI(); renderChampUI(); }
+function renderAll(){ renderToggles(); renderInputs(); renderLayout(); renderPresets(); renderUserPresets(); renderColorCombos(); renderLogoUI(); renderChampUI(); }
 
 let delArmed = null, delArmTimer = null;   // Löschen: zwei Klicks statt confirm()-Dialog
 
@@ -588,11 +690,17 @@ document.addEventListener("click", e=>{
   if(up){ const set = UP[up.dataset.up]; if(set) save({...set, preset:"u:"+up.dataset.up}, true); return; }
   const sh=e.target.closest(".subhead");   // K17: Gruppe auf-/zuklappen (nur lokal gemerkt)
   if(sh){
-    const g=sh.closest(".sub").dataset.g;
+    const sub=sh.closest(".sub");
+    const g=sub.dataset.g;
     closedGrp[g]=!closedGrp[g];
     try{ localStorage.setItem("kers_setgrp", JSON.stringify(closedGrp)); }catch(err){}
-    renderToggles(); return;
+    // Beide Listen werden nur einmal gebaut und danach aufgefrischt; das Auf/Zu
+    // muss deshalb direkt an der Klasse haengen, nicht am Neubau.
+    sub.classList.toggle("closed", !!closedGrp[g]);
+    return;
   }
+  const lr=e.target.closest("[data-lreset]");
+  if(lr){ layZurueck(lr.dataset.lreset); return; }
   const clr=e.target.closest(".cclear"); if(clr){ const cc=clr.closest(".colorcombo"); if(cc) save({[cc.dataset.color]: ""}); return; }   // K18: auf Standard
   const t=e.target.closest(".tgl");
   if(t&&t.dataset.k){
@@ -607,6 +715,8 @@ document.addEventListener("input", e=>{
   const cc=e.target.closest && e.target.closest(".colorcombo[data-color]");   // K18: eigener Farbwähler
   if(cc && e.target.classList.contains("cpick")){ save({[cc.dataset.color]: e.target.value}); return; }
   const sk=e.target.dataset && e.target.dataset.str; if(sk){ save({[sk]: e.target.value}); return; }   // A2: Text/Farbe
+  const lay=e.target.dataset && e.target.dataset.lay;   // Layout-Regler
+  if(lay){ const [key,feld]=lay.split(":"); laySetze(key, feld, parseInt(e.target.value,10)); return; }
   const k=e.target.dataset && e.target.dataset.k; if(!k) return;
   const wert = parseFloat(e.target.value);
   // Der Regler ersetzt den frueheren Schalter "battles". Den liest aber das
@@ -617,6 +727,8 @@ document.addEventListener("input", e=>{
   save({[k]: wert, ...zusatz}, false, e.target.type === "range" ? 60 : 250);
 });
 document.addEventListener("change", e=>{   // String-Dropdowns (z.B. Trackmap-Position)
+  const lay=e.target.dataset && e.target.dataset.lay;   // Ankerpunkt-Auswahl
+  if(lay){ const [key,feld]=lay.split(":"); laySetze(key, feld, e.target.value); return; }
   const k=e.target.dataset && e.target.dataset.sel; if(!k) return;
   save({[k]: e.target.value});
   // save() hat S schon aktualisiert -> der Hinweis unter dem Feld stimmt sofort,
@@ -732,7 +844,7 @@ document.addEventListener("keydown", e=>{
   if(e.key==="Enter" && e.target.id==="presetName"){ e.preventDefault(); savePreset(e.target.value); }
 });
 
-(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); S = await (await fetch("/api/settings")).json(); renderAll(); loadVersions(); })();
+(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); S = await (await fetch("/api/settings")).json(); await ladeLayoutListe(); renderAll(); loadVersions(); })();
 // Versionen nachziehen: erkennt, wenn eine Datei zwischendurch bearbeitet wurde (Hash/Datum)
 // oder wenn main.py neu gestartet und der "Neustart nötig"-Hinweis damit hinfällig ist.
 setInterval(loadVersions, 20000);

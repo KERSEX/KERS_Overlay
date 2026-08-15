@@ -128,6 +128,20 @@ Item {
         return [item ? item.width : 0, item ? item.height : 0];
     }
 
+    /** Alle Schluessel - Reihenfolge egal, gebraucht fuer Platzhalter und Marken. */
+    readonly property var teilNamen: [
+        "tower", "trackmap", "racemsg", "flbanner", "lights", "battles",
+        "hotlaps", "lowerthird", "danger", "onboard", "pitproj",
+        "pitcards", "champ"]
+
+    /** Der Platzhalter zu einem Schluessel. Gegenstueck zu echtes(). */
+    function platzhalter(name) {
+        for (let i = 0; i < root.children.length; i++)
+            if (root.children[i].objectName === "ph:" + name)
+                return root.children[i];
+        return null;
+    }
+
     /** Hat der ECHTE Baustein hinter diesem Element schon eine Groesse?
      *  Nein heisst: er zeigt noch nie etwas an, man haelt seinen Platzhalter. */
     function hatGroesse(item) {
@@ -338,9 +352,7 @@ Item {
     // auch dann, wenn er nichts anzeigt. So stehen die Standardpositionen nur an
     // einer Stelle.
     Repeater {
-        model: ["tower", "trackmap", "racemsg", "flbanner", "lights", "battles",
-                "hotlaps", "lowerthird", "danger", "onboard", "pitproj",
-                "pitcards", "champ"]
+        model: root.teilNamen
 
         Item {
             id: platz
@@ -512,6 +524,61 @@ Item {
                         t.z));
                 }
                 layoutEditor.griff = null;
+            }
+        }
+
+        // Marke auf JEDEM Baustein, nicht nur dem unter der Maus.
+        // ⚠ Ohne die sieht man beim Bearbeiten nur, was man gerade beruehrt -
+        // ein duenner, kurzlebiger Baustein wie der Meldungs-Banner (380x50,
+        // und er zeigt nur zwischendurch etwas) war so kaum zu finden.
+        Repeater {
+            model: root.teilNamen
+
+            Item {
+                id: marke
+                required property string modelData
+                readonly property var echt: root.echtes(modelData)
+                readonly property var platz: root.platzhalter(modelData)
+                // ⚠ Bewusst als Ausdruck ueber die Eigenschaften und NICHT als
+                // Funktionsaufruf: so merkt sich QML die Abhaengigkeit von
+                // visible/width/height und rechnet neu, sobald ein Baustein
+                // auftaucht oder verschwindet. Ein Aufruf wuerde einmal
+                // ausgewertet und die Marke bliebe am ersten Ergebnis kleben.
+                // Dieselbe Wahl wie in teilUnter(): die Marke soll zeigen, was
+                // man trifft.
+                readonly property var ziel:
+                    (echt && echt.visible && echt.width > 4 && echt.height > 4)
+                    ? echt : ((platz && platz.visible) ? platz : null)
+
+                visible: ziel !== null
+                x: ziel ? ziel.x : 0
+                y: ziel ? root.lageY(ziel) : 0
+                width: ziel ? ziel.width : 0
+                height: ziel ? ziel.height : 0
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: "transparent"
+                    radius: Theme.panelRadius
+                    border { width: 1; color: Qt.rgba(1, 1, 1, 0.45) }
+                }
+
+                // Beschriftung INNEN oben links - ausserhalb waere sie bei einem
+                // Baustein am oberen Rand (Meldungs-Banner sitzt auf y=22) weg.
+                Rectangle {
+                    anchors { left: parent.left; top: parent.top; margins: 3 }
+                    width: markeText.implicitWidth + 10
+                    height: markeText.implicitHeight + 4
+                    radius: 3
+                    color: Qt.rgba(0, 0, 0, 0.65)
+                    Text {
+                        id: markeText
+                        anchors.centerIn: parent
+                        text: marke.modelData
+                        color: "#ffffff"
+                        font { family: Theme.sans; pixelSize: 11; weight: Font.Bold }
+                    }
+                }
             }
         }
 

@@ -233,6 +233,11 @@ class HudController(QObject):
             self._locked_vorher = self._window.state["locked"]
             if self._locked_vorher:
                 self._window.set_locked(False)
+            # Fokus holen, damit Esc ankommt. Im Alltag wird das Fenster bewusst
+            # ohne Fokus gezeigt (SW_SHOWNOACTIVATE, siehe
+            # _apply_native_toolwindow) - beim Bearbeiten arbeitet man aber
+            # ohnehin genau hier, und ohne aktives Fenster kaeme keine Taste an.
+            self._window.requestActivate()
         self._layout_edit = on
         # Erfundene Daten einspeisen: ohne laufendes Rennen waere die Szene leer
         # und es gaebe nichts zum Verschieben.

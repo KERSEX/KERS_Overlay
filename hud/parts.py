@@ -183,6 +183,20 @@ class MessageBanner(_StateBase):
             self._queue.pop(0)
         self._next()
 
+    def leeren(self) -> None:
+        """Sofort still: laufende Meldung weg, Warteschlange leer, Uhren aus.
+
+        ⚠ Gebraucht beim Verlassen des Vorschau-Modus. Der Banner haengt an
+        eigenen Uhren statt am Datenstrom - ein leerer Stand raeumt ihn also
+        NICHT ab. Ohne das marschierten die erfundenen Rennleitungs-Meldungen
+        noch bis zu zehn Eintraege lang weiter, nachdem man Fertig gedrueckt hat.
+        """
+        self._timer.stop()
+        self._gap.stop()
+        self._queue.clear()
+        self._busy = False
+        self.isVisible = False
+
     def _next(self) -> None:
         if self._busy or not self._queue:
             return
@@ -214,6 +228,13 @@ class RaceControl:
 
     def __init__(self, banner: MessageBanner):
         self._banner = banner
+        self._last_id = 0
+
+    def leeren(self) -> None:
+        """⚠ Wichtiger als es aussieht: die Ids des erfundenen Rennens fangen bei
+        1 an, die einer echten Session auch. Bliebe _last_id nach der Vorschau
+        auf z. B. 8 stehen, verschluckte update() die ersten acht echten
+        Rennleitungs-Meldungen kommentarlos."""
         self._last_id = 0
 
     def update(self, data: dict) -> None:
@@ -250,6 +271,13 @@ class Undercut:
 
     def __init__(self, banner: MessageBanner):
         self._banner = banner
+        self._in_pit = {}
+        self._attempts = []
+
+    def leeren(self) -> None:
+        """Boxen-Buchhaltung des erfundenen Rennens vergessen - sonst zaehlte ein
+        Fahrer, der in der Vorschau in der Box stand, spaeter als frisch
+        eingefahren und loeste einen erfundenen Undercut-Alarm aus."""
         self._in_pit = {}
         self._attempts = []
 

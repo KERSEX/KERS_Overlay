@@ -29,7 +29,7 @@ from PySide6.QtCore import QObject, Property, QUrl, Signal, Slot
 from PySide6.QtNetwork import (QNetworkAccessManager, QNetworkReply,
                                QNetworkRequest)
 
-from derive import Config, SharedState
+from derive import DEFAULT_CFG, Config, SharedState
 from extras import Championship, Charts, Trackmap
 from feed import LiveFeed
 from models import DriverModel, RegieState, SessionState, SettingsState
@@ -244,7 +244,43 @@ class OverlayBridge(QObject):
         self._feed.payload.connect(self._on_payload)
         self._feed.linkChanged.connect(self._on_link)
         self._demo_an = on
+        # Vor dem Start, damit ein sofort eintreffender echter Stand nicht gleich
+        # wieder weggeraeumt wird.
+        if not on:
+            self._szene_leeren()
         self._feed.start()
+
+    def _szene_leeren(self) -> None:
+        """Zurueck auf "noch nichts empfangen", nachdem die Vorschau aus ist.
+
+        ⚠ Ohne das bleibt das erfundene Rennen einfach stehen: der LiveFeed
+        schickt erst wieder etwas, wenn ein Server laeuft. Laeuft keiner, kommt
+        nie ein Stand, der die Bausteine ueberschreiben koennte - das Beispiel
+        klebt dann fuer immer im Bild.
+
+        Die abgeleitete Buchhaltung muss mit weg, sonst schleppte eine spaetere
+        echte Session die Bestsektoren, Stints und Reifenalter des erfundenen
+        Rennens mit.
+        """
+        self._shared = SharedState(self._cfg)
+        self._ever_connected = False
+        self._last_conn_ms = 0.0
+        self._drivers.clear()
+        # Diese drei haengen nicht am Datenstrom, sondern an eigenen Uhren und
+        # eigener Buchhaltung - ein leerer Stand erreicht sie nicht.
+        self._banner.leeren()
+        self._race_control.leeren()
+        self._undercut.leeren()
+        # Durch den normalen Weg schicken, damit jeder Baustein genau so
+        # abgeschaltet wird wie ohne Verbindung beim Start - und nicht hier eine
+        # zweite Liste gepflegt werden muss, welcher Baustein wie aus geht.
+        # Die Settings gehen als aktueller Stand mit: mit `None` faellt Config
+        # auf die Vorgaben zurueck und Branding und Deckkraft blitzten kurz auf.
+        self._on_payload({
+            "connected": False, "drivers": [], "session": {},
+            "settings": {k: self._cfg[k] for k in DEFAULT_CFG},
+            "regie": {},
+        })
 
     # ── Layout zurueckschreiben ──────────────────────────────────────────────
     @staticmethod

@@ -533,8 +533,16 @@ Item {
         }
 
         // Rueckfallebene, falls ein Baustein ueber dem Knopf liegt.
+        // ⚠ Qt.ApplicationShortcut, nicht der voreingestellte Fenster-Bezug: das
+        // Overlay wird bewusst ohne Fokus gezeigt (ShowWindow mit
+        // SW_SHOWNOACTIVATE, damit es dem Spiel den Fokus nicht klaut), ist also
+        // meist NICHT das aktive Fenster - ein Fenster-Kuerzel bekaeme nie eine
+        // Taste zu sehen. Mit Anwendungs-Bezug greift Esc auch, wenn gerade das
+        // Schaltbrett vorn ist. Zusaetzlich holt sich das Fenster beim
+        // Einschalten den Fokus (requestActivate in qml_overlay.py).
         Shortcut {
             sequence: "Esc"
+            context: Qt.ApplicationShortcut
             enabled: Hud.layoutEdit
             onActivated: Hud.layoutEdit = false
         }

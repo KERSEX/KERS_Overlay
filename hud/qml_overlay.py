@@ -168,6 +168,7 @@ class HudController(QObject):
     """
 
     lockedChanged = Signal(bool)
+    layoutEditChanged = Signal(bool)
     bgChanged = Signal()
 
     # Hintergrundfarbe im Chroma-Key-Modus. Magenta, weil es in einem Formel-1-
@@ -187,6 +188,9 @@ class HudController(QObject):
         self._edit_corner = ""
         self._origin_geo = None
         self._origin_mouse = None
+        # Layout-Bearbeiten (Bausteine verschieben) und der Sperrzustand davor
+        self._layout_edit = False
+        self._locked_vorher = True
 
     # ── Gesperrt / Bearbeiten ────────────────────────────────────────────────
     @Property(bool, notify=lockedChanged)
@@ -202,6 +206,37 @@ class HudController(QObject):
         if self._locked != value:
             self._locked = value
             self.lockedChanged.emit(value)
+
+    # ── Layout bearbeiten ────────────────────────────────────────────────────
+    @Property(bool, notify=layoutEditChanged)
+    def layoutEdit(self):
+        """True = Bausteine lassen sich mit der Maus verschieben."""
+        return self._layout_edit
+
+    @layoutEdit.setter
+    def layoutEdit(self, value):
+        self.set_layout_edit(bool(value))
+
+    def set_layout_edit(self, on: bool) -> None:
+        """Bearbeiten an/aus. Schaltet das Fenster gleich mit frei.
+
+        ⚠ Gesperrt gehen alle Klicks durch das Fenster hindurch
+        (WindowTransparentForInput) - die Szene bekaeme gar keine Maus. Zum
+        Bearbeiten muss also entsperrt werden. Beim Ausschalten wird der
+        vorherige Zustand wiederhergestellt, damit das Overlay nicht
+        versehentlich entsperrt im Rennen steht und Klicks abfaengt.
+        """
+        on = bool(on)
+        if on == self._layout_edit:
+            return
+        if on:
+            self._locked_vorher = self._window.state["locked"]
+            if self._locked_vorher:
+                self._window.set_locked(False)
+        self._layout_edit = on
+        self.layoutEditChanged.emit(on)
+        if not on and self._locked_vorher:
+            self._window.set_locked(True)
 
     # ── Hintergrund / OBS ────────────────────────────────────────────────────
     @Property(bool, notify=bgChanged)
@@ -567,6 +602,10 @@ class QmlOverlayWindow(QQuickView):
                 self._topmost_timer.start()
         else:
             self._topmost_timer.stop()
+
+    def set_layout_edit(self, on: bool) -> None:
+        """Vom Schaltbrett: Bausteine verschiebbar machen. Nur im QML-Renderer."""
+        self.hud.set_layout_edit(bool(on))
 
     def set_findable(self, on: bool) -> None:
         """Fuer OBS auffindbar machen (kostet einen Taskleisten-Eintrag)."""

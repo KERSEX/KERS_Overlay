@@ -739,7 +739,25 @@ class SubsystemsPanel(QWidget):
         row.addWidget(btn_center, 1)
         row.addWidget(btn_reload, 1)
         lay.addLayout(row)
+
+        # Layout bearbeiten - nur im QML-Renderer, der Web-Renderer kennt es nicht.
+        if hasattr(self.hud, "set_layout_edit"):
+            self.btn_layout = QPushButton("Layout bearbeiten")
+            self.btn_layout.setCheckable(True)
+            self.btn_layout.setToolTip(
+                "Bausteine mit der Maus an ihren Platz ziehen.\n\n"
+                "Entsperrt das HUD dabei automatisch - gesperrt gehen alle Klicks\n"
+                "durch das Fenster hindurch und die Szene bekaeme gar keine Maus.\n"
+                "Beim Ausschalten wird der vorherige Sperrzustand wiederhergestellt.")
+            self.btn_layout.toggled.connect(self._layout_edit_umschalten)
+            lay.addWidget(self.btn_layout)
         return wrap
+
+    def _layout_edit_umschalten(self, on: bool) -> None:
+        self.hud.set_layout_edit(bool(on))
+        self.btn_layout.setText("Layout bearbeiten - FERTIG" if on
+                                else "Layout bearbeiten")
+        self.btn_layout.setStyleSheet(DANGER if on else "")
 
     def _apply_power(self, on: bool) -> None:
         self.btn_power.blockSignals(True)

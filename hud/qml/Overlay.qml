@@ -55,8 +55,49 @@ Item {
         return (t && t.z !== undefined) ? t.z : standard;
     }
 
+    // ── Umkehrung: aus einer Bildschirmposition den Versatz zurueckrechnen ───
+    // Braucht das Ziehen. Muss zu lx/ly passen, sonst springt ein Baustein beim
+    // Loslassen.
+    function dxAus(ecke, x, w) {
+        if (ecke === "tl" || ecke === "lc" || ecke === "bl") return Math.round(x);
+        if (ecke === "tr" || ecke === "rc" || ecke === "br") return Math.round(root.width - w - x);
+        return Math.round(x - Math.round((root.width - w) / 2));
+    }
+    function dyAus(ecke, y, h) {
+        if (ecke === "tl" || ecke === "tc" || ecke === "tr") return Math.round(y);
+        if (ecke === "bl" || ecke === "bc" || ecke === "br") return Math.round(root.height - h - y);
+        return Math.round(y - Math.round((root.height - h) / 2));
+    }
+
+    /** Naechstgelegener Ankerpunkt zur Mitte des Bausteins - fuer noch nie
+     *  verschobene Bausteine, die noch keinen eigenen haben. Wer schon einen
+     *  hat, behaelt ihn: sonst spraenge die Bezugsecke beim kleinsten Ziehen um. */
+    function eckeNah(x, y, w, h) {
+        const mx = x + w / 2, my = y + h / 2;
+        const sp = mx < root.width / 3 ? "l" : (mx < root.width * 2 / 3 ? "c" : "r");
+        const ze = my < root.height / 3 ? "t" : (my < root.height * 2 / 3 ? "m" : "b");
+        if (ze === "t") return sp === "l" ? "tl" : (sp === "c" ? "tc" : "tr");
+        if (ze === "b") return sp === "l" ? "bl" : (sp === "c" ? "bc" : "br");
+        return sp === "l" ? "lc" : (sp === "c" ? "cc" : "rc");
+    }
+
+    /** Welcher Baustein liegt unter diesem Punkt? Der oberste gewinnt.
+     *  Nur Elemente MIT objectName kommen in Frage - die Bearbeiten-Flaeche und
+     *  der Fensterrahmen haben keinen und fallen damit von selbst heraus. */
+    function teilUnter(px, py) {
+        let treffer = null;
+        for (let i = 0; i < root.children.length; i++) {
+            const c = root.children[i];
+            if (!c.visible || !c.objectName) continue;
+            if (px < c.x || px > c.x + c.width || py < c.y || py > c.y + c.height) continue;
+            if (!treffer || c.z >= treffer.z) treffer = c;
+        }
+        return treffer;
+    }
+
     // ── Timing Tower: oben links ────────────────────────────────────────────
     Tower {
+        objectName: "tower"
         // Der linke Abstand existiert NUR, um die Strafen-Pillen aufzufangen, die
         // links aus der Zeile herausragen (im CSS: padding-left am body, dort 72,
         // hier auf Wunsch um ein Drittel verringert auf 48).
@@ -83,6 +124,7 @@ Item {
     // bleibt `width: src.size` aus Trackmap.qml unangetastet.
     Trackmap {
         id: trackmap
+        objectName: "trackmap"
         z: root.lz("trackmap", 42)
 
         // Unbekannte Werte (z.B. das abgeschaffte "tl" aus einer aelteren
@@ -115,18 +157,21 @@ Item {
     // (siehe die Warnung bei der Trackmap). Der Rueckfallwert bildet exakt das
     // ab, was der Anker vorher tat.
     RaceMessage {
+        objectName: "racemsg"
         x: root.lx("racemsg", width, Math.round((root.width - width) / 2))
         baseY: root.ly("racemsg", height, 22)
         z: root.lz("racemsg", 46)
     }
 
     FastestLapBanner {
+        objectName: "flbanner"
         x: root.lx("flbanner", width, Math.round((root.width - width) / 2))
         baseY: root.ly("flbanner", height, 84)
         z: root.lz("flbanner", 47)
     }
 
     StartLights {
+        objectName: "lights"
         x: root.lx("lights", width, Math.round((root.width - width) / 2))
         y: root.ly("lights", height, root.height * 0.12)
         z: root.lz("lights", 80)
@@ -136,24 +181,28 @@ Item {
     // Beide sitzen an derselben Stelle; sie schliessen sich gegenseitig aus
     // (Battles nur im Rennen, Hotlaps nur in der Quali).
     Battles {
+        objectName: "battles"
         x: root.lx("battles", width, Math.round((root.width - width) / 2))
         y: root.ly("battles", height, root.height - height - 28)
         z: root.lz("battles", 40)
     }
 
     Hotlaps {
+        objectName: "hotlaps"
         x: root.lx("hotlaps", width, Math.round((root.width - width) / 2))
         y: root.ly("hotlaps", height, root.height - height - 28)
         z: root.lz("hotlaps", 40)
     }
 
     LowerThird {
+        objectName: "lowerthird"
         x: (root.width - width) / 2
         baseY: root.ly("lowerthird", height, root.height - 380 - height)
         z: root.lz("lowerthird", 41)
     }
 
     DangerZone {
+        objectName: "danger"
         x: root.lx("danger", width, Math.round((root.width - width) / 2))
         baseY: root.ly("danger", height, root.height - 40 - height)
         z: root.lz("danger", 46)
@@ -162,12 +211,14 @@ Item {
     // ── Unten links: Onboard, darueber die Pit-Projektion ───────────────────
     Onboard {
         id: onboard
+        objectName: "onboard"
         x: root.lx("onboard", width, 24)
         y: root.ly("onboard", height, root.height - height - 28)
         z: root.lz("onboard", 44)
     }
 
     PitProjection {
+        objectName: "pitproj"
         x: root.lx("pitproj", width, 24)
         // Im Web liegen beide auf 24 px ueber dem unteren Rand und ueberlappen
         // sich dort. Hier weicht die Projektion nach oben aus, wenn das Onboard
@@ -181,12 +232,14 @@ Item {
 
     // ── Unten rechts: Boxenstopps, darunter der WM-Stand ────────────────────
     PitCards {
+        objectName: "pitcards"
         x: root.lx("pitcards", width, root.width - width - 24)
         y: root.ly("pitcards", height, root.height - height - 28)
         z: root.lz("pitcards", 45)
     }
 
     Championship {
+        objectName: "champ"
         x: root.lx("champ", width, root.width - width - 24)
         y: root.ly("champ", height, root.height - height - 40)
         z: root.lz("champ", 45)
@@ -198,11 +251,133 @@ Item {
         z: 88
     }
 
+    // ── Layout bearbeiten: Bausteine mit der Maus ziehen ────────────────────
+    // Waehrend des Ziehens geht die neue Lage nur LOKAL ins Overlay
+    // (Kers.layoutLive) - so folgt der Baustein sofort der Maus, ohne dass bei
+    // jedem Mausschritt eine Anfrage zum Server geht. Erst beim Loslassen wird
+    // gespeichert (Kers.layoutSpeichern). Begruendung dazu in bridge.py.
+    Item {
+        id: layoutEditor
+        anchors.fill: parent
+        visible: Hud.layoutEdit
+        z: 9998
+
+        property var griff: null        // gerade gepackter Baustein
+        property var unterMaus: null    // nur zum Hervorheben
+        property real packX: 0          // Abstand Mauszeiger zur Bausteinecke
+        property real packY: 0
+        property string ecke: ""
+
+        function karte(name, e, dx, dy, z) {
+            const neu = {};
+            const alt = Kers.settings.layout || {};
+            for (const k in alt) neu[k] = alt[k];
+            neu[name] = { ecke: e, dx: dx, dy: dy, z: Math.round(z) };
+            return neu;
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: layoutEditor.griff ? Qt.ClosedHandCursor
+                       : (layoutEditor.unterMaus ? Qt.OpenHandCursor : Qt.ArrowCursor)
+
+            onPositionChanged: (m) => {
+                if (!layoutEditor.griff) {
+                    layoutEditor.unterMaus = root.teilUnter(m.x, m.y);
+                    return;
+                }
+                const t = layoutEditor.griff;
+                // In der Szene halten - sonst zieht man einen Baustein aus dem
+                // Bild und kommt ohne die Regler in /settings nicht mehr heran.
+                const nx = Math.max(0, Math.min(root.width - t.width, m.x - layoutEditor.packX));
+                const ny = Math.max(0, Math.min(root.height - t.height, m.y - layoutEditor.packY));
+                Kers.layoutLive(layoutEditor.karte(
+                    t.objectName, layoutEditor.ecke,
+                    root.dxAus(layoutEditor.ecke, nx, t.width),
+                    root.dyAus(layoutEditor.ecke, ny, t.height), t.z));
+            }
+
+            onPressed: (m) => {
+                const t = root.teilUnter(m.x, m.y);
+                if (!t) return;
+                layoutEditor.griff = t;
+                layoutEditor.unterMaus = t;
+                layoutEditor.packX = m.x - t.x;
+                layoutEditor.packY = m.y - t.y;
+                // Wer schon einen Ankerpunkt hat, behaelt ihn - sonst spraenge die
+                // Bezugsecke beim kleinsten Ziehen um. Nur beim ERSTEN Verschieben
+                // wird der naechstgelegene genommen.
+                const vorhanden = root.teil(t.objectName);
+                layoutEditor.ecke = vorhanden ? (vorhanden.ecke || "tl")
+                                              : root.eckeNah(t.x, t.y, t.width, t.height);
+            }
+
+            onReleased: {
+                const t = layoutEditor.griff;
+                if (t) {
+                    Kers.layoutSpeichern(layoutEditor.karte(
+                        t.objectName, layoutEditor.ecke,
+                        root.dxAus(layoutEditor.ecke, t.x, t.width),
+                        root.dyAus(layoutEditor.ecke, t.y, t.height), t.z));
+                }
+                layoutEditor.griff = null;
+            }
+        }
+
+        // Hervorhebung des Bausteins unter der Maus
+        Rectangle {
+            visible: layoutEditor.unterMaus !== null
+            x: layoutEditor.unterMaus ? layoutEditor.unterMaus.x : 0
+            y: layoutEditor.unterMaus ? layoutEditor.unterMaus.y : 0
+            width: layoutEditor.unterMaus ? layoutEditor.unterMaus.width : 0
+            height: layoutEditor.unterMaus ? layoutEditor.unterMaus.height : 0
+            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
+            border { width: 2; color: Theme.accent }
+            radius: Theme.panelRadius
+
+            Rectangle {
+                anchors { left: parent.left; bottom: parent.top; bottomMargin: 2 }
+                width: nameText.implicitWidth + 12
+                height: nameText.implicitHeight + 6
+                radius: 4
+                color: Theme.accent
+                Text {
+                    id: nameText
+                    anchors.centerIn: parent
+                    text: layoutEditor.unterMaus ? layoutEditor.unterMaus.objectName : ""
+                    color: "#ffffff"
+                    font { family: Theme.sans; pixelSize: 13; weight: Font.Bold }
+                }
+            }
+        }
+
+        // Hinweiszeile oben mittig
+        Rectangle {
+            anchors { horizontalCenter: parent.horizontalCenter; top: parent.top
+                      topMargin: 12 }
+            width: hinweis.implicitWidth + 28
+            height: hinweis.implicitHeight + 16
+            radius: Theme.panelRadius
+            color: Theme.panelBg
+            border { width: 1; color: Theme.accent }
+            Text {
+                id: hinweis
+                anchors.centerIn: parent
+                text: "Layout bearbeiten — Bausteine ziehen. Beenden im Schaltbrett."
+                color: Theme.textMain
+                font { family: Theme.sans; pixelSize: 15; weight: Font.DemiBold }
+            }
+        }
+    }
+
     // Der Bearbeiten-Rahmen liegt ueber allem, ist aber nur sichtbar, wenn das
     // HUD entsperrt ist. Gesperrt gehen ohnehin alle Klicks durchs Fenster hindurch.
+    // Beim Layout-Bearbeiten ist er aus: dort geht es um die Bausteine, nicht um
+    // das Fenster, und sein Rahmen laege nur stoerend darueber.
     EditFrame {
         anchors.fill: parent
-        visible: !Hud.locked
+        visible: !Hud.locked && !Hud.layoutEdit
         z: 9999
     }
 }

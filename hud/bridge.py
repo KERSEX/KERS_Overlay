@@ -22,9 +22,12 @@ Die Aufteilung der Zustaende in mehrere kleine Objekte ist Absicht: aendert sich
 Session-Titel, sollen nicht die Bindings der Settings mit neu rechnen.
 """
 
+import json
 import time
 
-from PySide6.QtCore import QObject, Property, Signal, Slot
+from PySide6.QtCore import QObject, Property, QUrl, Signal, Slot
+from PySide6.QtNetwork import (QNetworkAccessManager, QNetworkReply,
+                               QNetworkRequest)
 
 from derive import Config, SharedState
 from extras import Championship, Charts, Trackmap
@@ -51,6 +54,11 @@ class OverlayBridge(QObject):
         super().__init__(parent)
         self._cfg = Config(overrides)
         self._shared = SharedState(self._cfg)
+        # Fuer den Rueckweg zum Server (Layout speichern). Parent ist bewusst
+        # self: ein QObject ohne Parent raeumt der Python-GC weg, waehrend seine
+        # Anfrage noch laeuft - das hat hier schon einen Absturz gekostet.
+        self._base_url = base_url.rstrip("/")
+        self._nam = QNetworkAccessManager(self)
 
         self._drivers = DriverModel(self)
         self._session = SessionState(self)
@@ -187,6 +195,7 @@ class OverlayBridge(QObject):
         self._trackmap.stop()
 
     def set_base_url(self, base_url: str) -> None:
+        self._base_url = base_url.rstrip("/")
         self._feed.set_base_url(base_url)
         for part in (self._trackmap, self._charts, self._champ):
             part.set_base_url(base_url)
@@ -199,6 +208,58 @@ class OverlayBridge(QObject):
         """Eine Einstellung lokal ueberschreiben (Gegenstueck zu den URL-Parametern
         der Web-Bausteine). `undefined`/None gibt sie an den Server zurueck."""
         self._cfg.set_override(key, value)
+        self._settings.apply(self._cfg)
+
+    # ── Layout zurueckschreiben ──────────────────────────────────────────────
+    @Slot("QVariant")
+    def layoutLive(self, layout) -> None:
+        """Waehrend des Ziehens: nur lokal, damit der Baustein der Maus folgt.
+
+        Lokale Ueberschreibungen gewinnen gegen den Server (Config.apply), der
+        laufende Datenstrom kann den Baustein also nicht zurueckspringen lassen.
+        """
+        self.override("layout", dict(layout or {}))
+
+    @Slot("QVariant")
+    def layoutSpeichern(self, layout) -> None:
+        """Nach dem Loslassen: an den Server schicken und danach die lokale
+        Ueberschreibung wieder aufgeben.
+
+        ⚠ Die Reihenfolge ist wichtig. Gaebe man die Ueberschreibung sofort auf,
+        gaelte bis zur Antwort wieder der ALTE Serverwert und der Baustein
+        spraenge kurz zurueck. Deshalb: Ueberschreibung stehen lassen, senden,
+        und erst in der Antwort - die den kompletten neuen Stand enthaelt -
+        aufgeben und den Stand direkt uebernehmen. Damit gibt es keine Luecke.
+
+        Gesendet wird ueber QNetworkAccessManager statt requests: ein
+        blockierender Aufruf wuerde die Overlay-Schleife anhalten (gleiche
+        Begruendung wie in api_client.py und updater.py).
+        """
+        daten = dict(layout or {})
+        self.override("layout", daten)
+
+        url = QUrl(f"{self._base_url}/api/settings")
+        req = QNetworkRequest(url)
+        req.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader,
+                      "application/json")
+        reply = self._nam.post(req, json.dumps({"layout": daten}).encode("utf-8"))
+        reply.finished.connect(lambda: self._layout_gesendet(reply))
+
+    def _layout_gesendet(self, reply) -> None:
+        try:
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                # Nicht angekommen: die Ueberschreibung BLEIBT stehen, damit die
+                # Verschiebung wenigstens bis zum Neustart haelt.
+                print(f"[HUD] Layout nicht gespeichert: {reply.errorString()}")
+                return
+            antwort = json.loads(bytes(reply.readAll().data()).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError) as exc:
+            print(f"[HUD] Antwort auf das Layout unlesbar: {exc}")
+            return
+        finally:
+            reply.deleteLater()
+        self._cfg.set_override("layout", None)     # ab jetzt gilt der Server
+        self._cfg.apply(antwort)
         self._settings.apply(self._cfg)
 
     # ── Payload verarbeiten ──────────────────────────────────────────────────

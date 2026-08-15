@@ -93,6 +93,9 @@ class OverlayBridge(QObject):
 
         # Der Demo-Feed hat dieselbe Schnittstelle wie der echte (payload/linkChanged/
         # start/stop) - der Rest der Bruecke merkt keinen Unterschied.
+        self._hz = hz
+        self._demo_dauerhaft = bool(demo)      # per --demo gestartet
+        self._demo_an = bool(demo)
         if demo:
             from demo import DemoFeed
             self._feed = DemoFeed(hz, quali=(demo == "quali"), parent=self)
@@ -209,6 +212,39 @@ class OverlayBridge(QObject):
         der Web-Bausteine). `undefined`/None gibt sie an den Server zurueck."""
         self._cfg.set_override(key, value)
         self._settings.apply(self._cfg)
+
+    # ── Vorschau-Daten fuers Layout-Bearbeiten ───────────────────────────────
+    def set_vorschau(self, on: bool) -> None:
+        """Waehrend des Layout-Bearbeitens erfundene Daten einspeisen.
+
+        Ohne laufendes Rennen ist die Szene leer - man saehe nichts zum
+        Verschieben. Der Demo-Feed hat dieselbe Schnittstelle wie der echte
+        (payload/linkChanged/start/stop), der Rest der Bruecke merkt den Tausch
+        also nicht.
+
+        ⚠ Wer das HUD mit --demo gestartet hat, bekommt hier gar nichts: dort
+        laeuft die Demo ohnehin, und ein Tausch wuerde sie nur neu starten.
+        """
+        on = bool(on)
+        if self._demo_dauerhaft or on == self._demo_an:
+            return
+        self._feed.stop()
+        try:
+            self._feed.payload.disconnect(self._on_payload)
+            self._feed.linkChanged.disconnect(self._on_link)
+        except (RuntimeError, TypeError):
+            pass
+        self._feed.deleteLater()
+
+        if on:
+            from demo import DemoFeed
+            self._feed = DemoFeed(self._hz, quali=False, parent=self)
+        else:
+            self._feed = LiveFeed(self._base_url, self._hz, self)
+        self._feed.payload.connect(self._on_payload)
+        self._feed.linkChanged.connect(self._on_link)
+        self._demo_an = on
+        self._feed.start()
 
     # ── Layout zurueckschreiben ──────────────────────────────────────────────
     @Slot("QVariant")

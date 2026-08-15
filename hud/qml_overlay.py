@@ -234,6 +234,9 @@ class HudController(QObject):
             if self._locked_vorher:
                 self._window.set_locked(False)
         self._layout_edit = on
+        # Erfundene Daten einspeisen: ohne laufendes Rennen waere die Szene leer
+        # und es gaebe nichts zum Verschieben.
+        self._window.bridge.set_vorschau(on)
         self.layoutEditChanged.emit(on)
         if not on and self._locked_vorher:
             self._window.set_locked(True)

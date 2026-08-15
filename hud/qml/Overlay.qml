@@ -81,6 +81,31 @@ Item {
         return sp === "l" ? "lc" : (sp === "c" ? "cc" : "rc");
     }
 
+    // Ungefaehre Groesse je Baustein - NUR fuer die Platzhalter beim Bearbeiten.
+    // Die Vorschau speist zwar erfundene Renndaten ein, aber die Quali-Bausteine
+    // (Hotlap-Boxen, Gefahrenzone) erscheinen darin nie, und ein unsichtbarer
+    // Baustein ist 0 px gross - ohne Platzhalter kaeme man an ihn nicht heran.
+    // Bewusst hier und nicht im Server: gebraucht wird es allein an dieser Stelle.
+    readonly property var teilGroessen: ({
+        "tower":      [700, 620], "trackmap": [480, 480], "racemsg":  [380, 50],
+        "flbanner":   [520, 90],  "lights":   [420, 90],  "battles":  [640, 220],
+        "hotlaps":    [630, 210], "lowerthird": [560, 120], "danger": [460, 90],
+        "onboard":    [230, 300], "pitproj":  [230, 120], "pitcards": [300, 200],
+        "champ":      [420, 300]
+    })
+
+    /** Der echte Baustein zu einem Schluessel. */
+    function echtes(name) {
+        for (let i = 0; i < root.children.length; i++)
+            if (root.children[i].objectName === name) return root.children[i];
+        return null;
+    }
+    /** Platzhalter heissen "ph:tower" - hier faellt das Praefix weg. */
+    function schluessel(item) {
+        const n = item ? item.objectName : "";
+        return n.indexOf("ph:") === 0 ? n.substring(3) : n;
+    }
+
     /** Welcher Baustein liegt unter diesem Punkt? Der oberste gewinnt.
      *  Nur Elemente MIT objectName kommen in Frage - die Bearbeiten-Flaeche und
      *  der Fensterrahmen haben keinen und fallen damit von selbst heraus. */
@@ -251,6 +276,64 @@ Item {
         z: 88
     }
 
+    // ── Platzhalter fuer Bausteine, die gerade nichts anzeigen ──────────────
+    // Die Vorschau speist erfundene Renndaten ein, aber manches erscheint darin
+    // nie: die Hotlap-Boxen und die Gefahrenzone gibt es nur in der Quali, andere
+    // Bausteine haengen an Ereignissen. Ein unsichtbarer Baustein ist 0 px gross
+    // und damit unerreichbar - deshalb hier ein greifbarer Kasten.
+    //
+    // ⚠ Der Repeater steht ABSICHTLICH direkt in root: seine Elemente werden
+    // dadurch Kinder von root und damit von teilUnter() gefunden. Laegen sie in
+    // der Bearbeiten-Flaeche, muesste die Trefferpruefung zwei Orte durchsuchen.
+    // Position und Ebene kommen vom echten Baustein - der hat seine Koordinaten
+    // auch dann, wenn er nichts anzeigt. So stehen die Standardpositionen nur an
+    // einer Stelle.
+    Repeater {
+        model: ["tower", "trackmap", "racemsg", "flbanner", "lights", "battles",
+                "hotlaps", "lowerthird", "danger", "onboard", "pitproj",
+                "pitcards", "champ"]
+
+        Item {
+            id: platz
+            required property string modelData
+            readonly property var echt: root.echtes(modelData)
+
+            objectName: "ph:" + modelData
+            visible: Hud.layoutEdit && (!echt || !echt.visible
+                                        || echt.width < 4 || echt.height < 4)
+            x: echt ? echt.x : 0
+            y: echt ? echt.y : 0
+            width: root.teilGroessen[modelData][0]
+            height: root.teilGroessen[modelData][1]
+            z: echt ? echt.z : 40
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.panelRadius
+                color: Qt.rgba(0, 0, 0, 0.55)
+                border { width: 2; color: Qt.rgba(1, 1, 1, 0.35) }
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 4
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: platz.modelData
+                        color: Theme.textMain
+                        font { family: Theme.display; pixelSize: 22; weight: Font.Bold
+                               capitalization: Font.AllUppercase; letterSpacing: 2 }
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "zeigt gerade nichts an"
+                        color: Theme.textMuted
+                        font { family: Theme.sans; pixelSize: 12 }
+                    }
+                }
+            }
+        }
+    }
+
     // ── Layout bearbeiten: Bausteine mit der Maus ziehen ────────────────────
     // Waehrend des Ziehens geht die neue Lage nur LOKAL ins Overlay
     // (Kers.layoutLive) - so folgt der Baustein sofort der Maus, ohne dass bei
@@ -293,7 +376,7 @@ Item {
                 const nx = Math.max(0, Math.min(root.width - t.width, m.x - layoutEditor.packX));
                 const ny = Math.max(0, Math.min(root.height - t.height, m.y - layoutEditor.packY));
                 Kers.layoutLive(layoutEditor.karte(
-                    t.objectName, layoutEditor.ecke,
+                    root.schluessel(t), layoutEditor.ecke,
                     root.dxAus(layoutEditor.ecke, nx, t.width),
                     root.dyAus(layoutEditor.ecke, ny, t.height), t.z));
             }
@@ -308,7 +391,7 @@ Item {
                 // Wer schon einen Ankerpunkt hat, behaelt ihn - sonst spraenge die
                 // Bezugsecke beim kleinsten Ziehen um. Nur beim ERSTEN Verschieben
                 // wird der naechstgelegene genommen.
-                const vorhanden = root.teil(t.objectName);
+                const vorhanden = root.teil(root.schluessel(t));
                 layoutEditor.ecke = vorhanden ? (vorhanden.ecke || "tl")
                                               : root.eckeNah(t.x, t.y, t.width, t.height);
             }
@@ -317,7 +400,7 @@ Item {
                 const t = layoutEditor.griff;
                 if (t) {
                     Kers.layoutSpeichern(layoutEditor.karte(
-                        t.objectName, layoutEditor.ecke,
+                        root.schluessel(t), layoutEditor.ecke,
                         root.dxAus(layoutEditor.ecke, t.x, t.width),
                         root.dyAus(layoutEditor.ecke, t.y, t.height), t.z));
                 }
@@ -345,7 +428,7 @@ Item {
                 Text {
                     id: nameText
                     anchors.centerIn: parent
-                    text: layoutEditor.unterMaus ? layoutEditor.unterMaus.objectName : ""
+                    text: root.schluessel(layoutEditor.unterMaus)
                     color: "#ffffff"
                     font { family: Theme.sans; pixelSize: 13; weight: Font.Bold }
                 }

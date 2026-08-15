@@ -281,6 +281,8 @@ const TOGGLE_GROUPS = [
     ["damage",     "Damage-Icons",            "Flügelschaden im Tower"],
     ["comeback",   "Comeback-Badge",          "▲/▼ Plätze seit dem Start (im Rennen)"],
     ["pbflash",    "Bestrunde-Flash",         "Zeile blitzt grün (persönl. Best) / lila (Session-Best)"],
+    ["penside",    "Strafen rechts",          "Aus: Strafen-Pillen hängen links aus der Zeile. An: rechts, auf der Seite der Zielflagge.", "swap:left:right"],
+    ["penhidefinish","Strafen bei Zielflagge aus","Sobald die Zielflagge steht, verschwinden die Pillen. Aus: sie rücken hinter die Flagge. Wirkt nur, wenn die Strafen rechts stehen."],
   ]],
   ["battle", "Battles & Strategie", [
     // Regler statt Schalter: die Anzahl schliesst das Ein/Aus mit ein (0 = aus).
@@ -289,6 +291,7 @@ const TOGGLE_GROUPS = [
     // weiterhin liest, nicht stehen bleibt.
     ["battleboxes", "Battle-Boxen",        "Wie viele Kämpfe gleichzeitig unten mittig stehen. 0 = aus, links immer der höchste Positionskampf.", "range"],
     ["hotlapboxes", "Hotlap-Boxen (Quali)", "Wie viele fliegende Runden gleichzeitig stehen. 0 = aus.", "range"],
+    ["battledir",   "Battle-Boxen stapeln", "Aus: nebeneinander. An: übereinander, der höchste Kampf oben.", "swap:row:column"],
     ["pred",       "Kampf-Countdown",         "Vorhersage „Kampf in X Runden“ über der Battle-Box"],
     ["fresh",      "Frische-Reifen (Battle)", "„−N Rnd“ am Jäger mit deutlich frischeren Reifen"],
     ["undercut",   "Undercut-Alarm",          "Meldung bei Undercut-Versuchen"],
@@ -453,12 +456,30 @@ function save(patch, fromPreset, delayMs){
 // das, seit hier aber Schieberegler stehen nicht mehr: save() ruft renderAll(),
 // und der Regler waere beim Ziehen bei jedem Ereignis neu erzeugt worden. Er
 // haette den Fokus verloren und sich nicht mehr ziehen lassen.
+// Ein Eintrag gilt als "an": bei einem Schalter, wenn der Wert wahr ist; bei
+// einem Regler, wenn er ueber 0 steht; bei einem Umschalter (swap:aus:an), wenn
+// er auf dem zweiten Wert steht. Ohne das zaehlte ein Umschalter IMMER als an -
+// sein Wert ist ja ein nicht-leerer Text.
+function istAn(k, typ){
+  if(typeof typ === "string" && typ.startsWith("swap:")) return S[k] === typ.split(":")[2];
+  return !!S[k];
+}
+// Schalterstellungen auffrischen. ⚠ Muss an EINER Stelle stehen: renderToggles
+// und renderInputs haben das frueher beide getan, und renderInputs kannte den
+// Umschalter nicht - "left" ist ein nicht-leerer Text und damit wahr, also stand
+// der Schalter immer auf "an", egal welcher Wert gesetzt war.
+function schalterAuffrischen(wurzel){
+  (wurzel || document).querySelectorAll(".tgl[data-k]").forEach(t=>{
+    const sw = t.dataset.swap;      // "aus:an" -> an, wenn der Wert der zweite ist
+    t.classList.toggle("on", sw ? S[t.dataset.k] === sw.split(":")[1] : !!S[t.dataset.k]);
+  });
+}
 let togglesGebaut = false;
 function renderToggles(){
   const box = document.getElementById("toggles");
   if(!togglesGebaut){
     box.innerHTML = TOGGLE_GROUPS.map(([id,name,items])=>{
-      const on = items.filter(([k])=>S[k]).length;
+      const on = items.filter(([k,,,t])=>istAn(k,t)).length;
       return `<div class="sub${closedGrp[id]?" closed":""}" data-g="${id}">`
         + `<button class="subhead" type="button"><span class="arrow">▾</span>${name}`
         + `<span class="cnt">${on}/${items.length} an</span></button><div class="subbody">`
@@ -466,7 +487,9 @@ function renderToggles(){
             `<div class="row"><label>${l}<small>${d}</small></label>`
             + (typ === "range"
                ? `<div class="ctl"><input type="range" min="0" max="4" step="1" data-k="${k}"><span class="val" data-v="${k}"></span></div>`
-               : `<div class="tgl ${S[k]?"on":""}" data-k="${k}"></div>`)
+               : `<div class="tgl ${istAn(k,typ)?"on":""}" data-k="${k}"`
+                 + (typ && typ.startsWith("swap:") ? ` data-swap="${typ.slice(5)}"` : "")
+                 + `></div>`)
             + `</div>`).join("")
         + `</div></div>`;
     }).join("");
@@ -479,9 +502,9 @@ function renderToggles(){
     if(!grp) return;
     grp.classList.toggle("closed", !!closedGrp[id]);
     const cnt = grp.querySelector(".cnt");
-    if(cnt) cnt.textContent = `${items.filter(([k])=>S[k]).length}/${items.length} an`;
+    if(cnt) cnt.textContent = `${items.filter(([k,,,t])=>istAn(k,t)).length}/${items.length} an`;
   });
-  box.querySelectorAll(".tgl[data-k]").forEach(t=>t.classList.toggle("on", !!S[t.dataset.k]));
+  schalterAuffrischen(box);
 }
 function renderInputs(){
   document.querySelectorAll("input[data-k]").forEach(inp=>{
@@ -518,7 +541,7 @@ function renderInputs(){
     else if(typeof val==="number") val = (val%1===0? val : val.toFixed(1));
     v.textContent = val + (k==="maprot"?"°":k==="mapsize"?" px":k==="dmgcrit"?" %":"");
   });
-  document.querySelectorAll(".grp .tgl").forEach(t=>{ if(t.dataset.k) t.classList.toggle("on", !!S[t.dataset.k]); });
+  schalterAuffrischen();     // kennt auch die Umschalter (siehe dort)
 }
 function renderPresets(){
   const cur = matchedPreset();   // K17: aus den echten Werten, nicht aus dem gespeicherten Feld
@@ -571,7 +594,13 @@ document.addEventListener("click", e=>{
     renderToggles(); return;
   }
   const clr=e.target.closest(".cclear"); if(clr){ const cc=clr.closest(".colorcombo"); if(cc) save({[cc.dataset.color]: ""}); return; }   // K18: auf Standard
-  const t=e.target.closest(".tgl"); if(t&&t.dataset.k){ save({[t.dataset.k]: !S[t.dataset.k]}); return; }
+  const t=e.target.closest(".tgl");
+  if(t&&t.dataset.k){
+    const sw = t.dataset.swap;    // Umschalter zwischen zwei Textwerten
+    if(sw){ const [aus,an]=sw.split(":"); save({[t.dataset.k]: S[t.dataset.k]===an ? aus : an}); }
+    else  { save({[t.dataset.k]: !S[t.dataset.k]}); }
+    return;
+  }
   const p=e.target.closest(".pbtn"); if(p){ const pr=PRESETS[p.dataset.p]; save({...pr.set, preset:p.dataset.p}, true); return; }
 });
 document.addEventListener("input", e=>{

@@ -404,6 +404,12 @@ class SettingsState(_StateBase):
     # aus /settings nie im QML an und die Karte blieb immer oben rechts.
     mapCornerChanged, mapCorner = _prop("mapCorner", str, "tr")
 
+    # Battle-Boxen nebeneinander ("row") oder gestapelt ("column").
+    battleDirChanged, battleDir = _prop("battleDir", str, "row")
+    # Seite der Strafen-Pillen und ob sie bei der Zielflagge weichen.
+    penSideChanged, penSide = _prop("penSide", str, "left")
+    penHideFinishChanged, penHideFinish = _prop("penHideFinish", bool, True)
+
     def apply(self, cfg) -> None:
         opacity = cfg["opacity"] if cfg["opacity"] > 0 else 1.0
         self._assign({
@@ -423,6 +429,9 @@ class SettingsState(_StateBase):
             "showTicker": bool(cfg["ticker"]),
             "dmgCrit": int(cfg["dmgcrit"] or 60),
             "mapCorner": str(cfg["mapcorner"] or "tr"),
+            "battleDir": "column" if str(cfg["battledir"]) == "column" else "row",
+            "penSide": "right" if str(cfg["penside"]) == "right" else "left",
+            "penHideFinish": bool(cfg["penhidefinish"]),
         })
 
 

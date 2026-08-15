@@ -5,12 +5,20 @@
 import QtQuick
 import ".."
 
-Row {
+// Grid statt Row, damit sich die Richtung umschalten laesst: vier Spalten
+// verhalten sich wie eine Reihe, eine Spalte stapelt die Boxen uebereinander.
+// Ein zweiter Positionierer daneben waere die Alternative gewesen - dann hinge
+// das Repeater-Modell aber an zwei Stellen.
+Grid {
     id: area
 
+    columns: Kers.settings.battleDir === "column" ? 1 : 4
     spacing: 16
     // align-items: flex-end - unterschiedlich hohe Boxen stehen auf einer Linie.
-    layoutDirection: Qt.LeftToRight
+    // ⚠ Ersetzt den frueheren `anchors.bottom` an den Boxen: ein Grid setzt x UND
+    // y seiner Kinder, ein Anker dorthin wuerde sich damit beissen. Row liess y
+    // frei, deshalb ging es vorher.
+    verticalItemAlignment: Grid.AlignBottom
 
     Repeater {
         model: Kers.battles.boxes
@@ -23,7 +31,6 @@ Row {
             width: visible ? 310 : 0
             height: card.height
             visible: box.isVisible || card.opacity > 0
-            anchors.bottom: parent ? parent.bottom : undefined
 
             Rectangle {
                 id: card

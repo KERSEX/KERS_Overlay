@@ -55,6 +55,9 @@ DEFAULT_CFG = {
     # nur Schluessel, die in DEFAULT_CFG stehen.
     "battleboxes": 4,
     "hotlapboxes": 4,
+    "battledir": "row",
+    "penside": "left",
+    "penhidefinish": True,
 }
 
 

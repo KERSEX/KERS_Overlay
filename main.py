@@ -157,6 +157,12 @@ DEFAULT_SETTINGS = {
     # (Battles.BOX_COUNT bzw. Hotlaps.MAX_BOXES in hud/parts.py).
     "battleboxes": 4,      # Battle-Boxen im Rennen (0 = aus)
     "hotlapboxes": 4,      # Hotlap-Boxen in der Quali (0 = aus)
+    # Battle-Boxen nebeneinander ("row") oder gestapelt ("column").
+    "battledir": "row",
+    # Auf welcher Seite die Strafen-Pillen aus der Tower-Zeile herausragen.
+    # ⚠ Rechts sitzt auch die Zielflagge — deshalb der zweite Schalter.
+    "penside": "left",     # left | right
+    "penhidefinish": True,  # Pillen ausblenden, sobald die Zielflagge steht
     # WM-Stand: Dateiname der .json neben der .exe, aus der der Stand kommt.
     # "" = championship.json. Auswahlliste liefert /api/champfiles.
     "champ_file": "",
@@ -1475,6 +1481,15 @@ def api_settings():
                 # weiter unten begrenzt NICHT — eine 9 aus einem manuell
                 # gebastelten Aufruf käme sonst durch, und das Overlay hält nur
                 # vier Plätze bereit.
+                # Nur die angebotenen Werte zulassen — der allgemeine str()-Zweig
+                # unten nimmt sonst jeden Unsinn an, und das QML fiele auf einen
+                # stillen Vorgabewert zurück, ohne dass man den Fehler sieht.
+                if k == "battledir":
+                    overlay_settings[k] = "column" if str(v) == "column" else "row"
+                    continue
+                if k == "penside":
+                    overlay_settings[k] = "right" if str(v) == "right" else "left"
+                    continue
                 if k in ("battleboxes", "hotlapboxes"):
                     try:
                         overlay_settings[k] = max(0, min(4, int(v)))

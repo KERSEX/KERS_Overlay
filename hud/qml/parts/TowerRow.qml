@@ -154,17 +154,38 @@ Item {
         z: 6
     }
 
-    // ── Strafen-Pillen: haengen LINKS aus der Zeile heraus ──────────────────
+    // ── Strafen-Pillen: haengen seitlich aus der Zeile heraus ───────────────
+    //
+    // Seite kommt aus den Settings. ⚠ Rechts steht auch die Zielflagge (gleich
+    // unten, `left: parent.right`) - beide wollen denselben Platz. Deshalb:
+    //   penHideFinish an  -> die Pillen verschwinden, sobald die Flagge steht
+    //   penHideFinish aus -> sie ruecken hinter die Flagge (27 px = deren
+    //                        Breite 22 plus ihr Abstand 5)
+    // Links gibt es den Konflikt nicht, dort bleibt der Abstand wie gehabt.
     Column {
         id: penStack
-        anchors { right: parent.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+
+        readonly property bool rechts: Kers.settings.penSide === "right"
+        readonly property bool zielflagge: row.isFinished
+        visible: !(rechts && zielflagge && Kers.settings.penHideFinish)
+
+        // ⚠ Bewusst x statt umschaltbarer Anker: ein Anker laesst sich mit
+        // `undefined` NICHT verlaesslich wieder abschalten - dieselbe Falle, die
+        // beim Trackmap-Umbau die Karte gleichzeitig links UND rechts haengen
+        // liess (siehe Overlay.qml). verticalCenter bleibt ein Anker, der wird
+        // ja nie umgeschaltet.
+        anchors.verticalCenter: parent.verticalCenter
+        x: rechts ? row.width + (zielflagge ? 5 + 27 : 5)
+                  : -width - 8
         spacing: 3
         z: 5
 
         // Durchfahrtstrafe hat Vorrang vor der Zeitstrafe.
         Rectangle {
             visible: !row.dsq && (row.penDt > 0 || row.penalties > 0)
-            anchors.right: parent.right
+            // Buendig zur Zeile: links haengend nach rechts, rechts haengend
+            // nach links. Wieder x statt Anker, gleiche Begruendung wie oben.
+            x: penStack.rechts ? 0 : penStack.width - width
             width: penLabel.implicitWidth + 14
             height: penLabel.implicitHeight + 8
             radius: 4
@@ -183,7 +204,7 @@ Item {
         // der Zaehler beginnt von vorn (das Modulo macht schon models.py).
         Rectangle {
             visible: !row.dsq && (row.cornerWarnings === 1 || row.cornerWarnings === 2)
-            anchors.right: parent.right
+            x: penStack.rechts ? 0 : penStack.width - width
             width: tlLabel.implicitWidth + 12
             height: tlLabel.implicitHeight + 6
             radius: 4

@@ -550,17 +550,32 @@ Item {
                     (echt && echt.visible && echt.width > 4 && echt.height > 4)
                     ? echt : ((platz && platz.visible) ? platz : null)
 
+                // Liegt die Maus auf diesem Baustein? Dann ist die Marke selbst
+                // die Hervorhebung - es gibt bewusst nur EIN Rechteck und EINE
+                // Beschriftung je Baustein.
+                readonly property bool dran: ziel !== null
+                                             && layoutEditor.unterMaus === ziel
+
                 visible: ziel !== null
+                // ⚠ Das SICHTBARE y, nicht lageY/baseY. Die Marke liegt ueber
+                // dem, was man sieht; bei den vier Bausteinen mit baseY sind das
+                // bis zu 18 px Unterschied, und der Rahmen sass daneben.
+                // (Fuer die Ziehen-Rechnung gilt weiter lageY - siehe dort.)
                 x: ziel ? ziel.x : 0
-                y: ziel ? root.lageY(ziel) : 0
+                y: ziel ? ziel.y : 0
                 width: ziel ? ziel.width : 0
                 height: ziel ? ziel.height : 0
 
                 Rectangle {
                     anchors.fill: parent
-                    color: "transparent"
                     radius: Theme.panelRadius
-                    border { width: 1; color: Qt.rgba(1, 1, 1, 0.45) }
+                    color: marke.dran ? Qt.rgba(Theme.accent.r, Theme.accent.g,
+                                                Theme.accent.b, 0.10)
+                                      : "transparent"
+                    border {
+                        width: marke.dran ? 2 : 1
+                        color: marke.dran ? Theme.accent : Qt.rgba(1, 1, 1, 0.45)
+                    }
                 }
 
                 // Beschriftung INNEN oben links - ausserhalb waere sie bei einem
@@ -570,7 +585,7 @@ Item {
                     width: markeText.implicitWidth + 10
                     height: markeText.implicitHeight + 4
                     radius: 3
-                    color: Qt.rgba(0, 0, 0, 0.65)
+                    color: marke.dran ? Theme.accent : Qt.rgba(0, 0, 0, 0.65)
                     Text {
                         id: markeText
                         anchors.centerIn: parent
@@ -578,33 +593,6 @@ Item {
                         color: "#ffffff"
                         font { family: Theme.sans; pixelSize: 11; weight: Font.Bold }
                     }
-                }
-            }
-        }
-
-        // Hervorhebung des Bausteins unter der Maus
-        Rectangle {
-            visible: layoutEditor.unterMaus !== null
-            x: layoutEditor.unterMaus ? layoutEditor.unterMaus.x : 0
-            y: layoutEditor.unterMaus ? layoutEditor.unterMaus.y : 0
-            width: layoutEditor.unterMaus ? layoutEditor.unterMaus.width : 0
-            height: layoutEditor.unterMaus ? layoutEditor.unterMaus.height : 0
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
-            border { width: 2; color: Theme.accent }
-            radius: Theme.panelRadius
-
-            Rectangle {
-                anchors { left: parent.left; bottom: parent.top; bottomMargin: 2 }
-                width: nameText.implicitWidth + 12
-                height: nameText.implicitHeight + 6
-                radius: 4
-                color: Theme.accent
-                Text {
-                    id: nameText
-                    anchors.centerIn: parent
-                    text: root.schluessel(layoutEditor.unterMaus)
-                    color: "#ffffff"
-                    font { family: Theme.sans; pixelSize: 13; weight: Font.Bold }
                 }
             }
         }

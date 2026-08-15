@@ -106,6 +106,35 @@ Item {
         return (item && item.baseY !== undefined) ? item.baseY : (item ? item.y : 0);
     }
 
+    /** Mit WELCHER Groesse zeichnet lx/ly diesen Baustein gleich?
+     *
+     *  ⚠ Das ist der Kern der Umrechnung. dxAus/dyAus muessen mit derselben
+     *  Groesse rechnen, mit der lx/ly nachher zeichnen - sonst verschiebt sich
+     *  der Baustein um die Differenz. Bei unten verankerten nach unten, bei
+     *  mittig verankerten um die Haelfte.
+     *
+     *  Zwei Quellen fuer eine Abweichung, beide real aufgetreten:
+     *    1. Die Groesse beim Anfassen wird eingefroren (damit der Baustein
+     *       waehrend des Ziehens nicht unter der Maus wegwandert, wenn sein
+     *       Inhalt waechst) - gezeichnet wird aber mit der aktuellen.
+     *    2. Man fasst einen PLATZHALTER an. Der traegt eine geschaetzte Groesse
+     *       aus teilGroessen, gezeichnet wird spaeter der echte Baustein.
+     *
+     *  Deshalb hier immer die Groesse des ECHTEN Bausteins nehmen, und nur wenn
+     *  der gerade nichts anzeigt die des Platzhalters. */
+    function zielGroesse(item) {
+        const e = root.echtes(root.schluessel(item));
+        if (e && e.width > 4 && e.height > 4) return [e.width, e.height];
+        return [item ? item.width : 0, item ? item.height : 0];
+    }
+
+    /** Hat der ECHTE Baustein hinter diesem Element schon eine Groesse?
+     *  Nein heisst: er zeigt noch nie etwas an, man haelt seinen Platzhalter. */
+    function hatGroesse(item) {
+        const e = root.echtes(root.schluessel(item));
+        return !!(e && e.width > 4 && e.height > 4);
+    }
+
     /** Der echte Baustein zu einem Schluessel. */
     function echtes(name) {
         for (let i = 0; i < root.children.length; i++)
@@ -122,12 +151,18 @@ Item {
      *  Nur Elemente MIT objectName kommen in Frage - die Bearbeiten-Flaeche und
      *  der Fensterrahmen haben keinen und fallen damit von selbst heraus. */
     function teilUnter(px, py) {
-        let treffer = null;
+        let treffer = null, bester = -1;
         for (let i = 0; i < root.children.length; i++) {
             const c = root.children[i];
             if (!c.visible || !c.objectName) continue;
             if (px < c.x || px > c.x + c.width || py < c.y || py > c.y + c.height) continue;
-            if (!treffer || c.z >= treffer.z) treffer = c;
+            // ⚠ Bei gleicher Ebene gewinnt der ECHTE Baustein gegen einen
+            // Platzhalter. Battle- und Hotlap-Boxen liegen auf demselben Platz
+            // und derselben Ebene 40 und schliessen sich gegenseitig aus - ohne
+            // diesen Vorrang packte man im Rennen immer den Platzhalter der
+            // Hotlap-Boxen, der ueber den sichtbaren Battle-Boxen liegt.
+            const rang = c.z * 2 + (c.objectName.indexOf("ph:") === 0 ? 0 : 1);
+            if (rang >= bester) { bester = rang; treffer = c; }
         }
         return treffer;
     }
@@ -233,7 +268,9 @@ Item {
 
     LowerThird {
         objectName: "lowerthird"
-        x: (root.width - width) / 2
+        // ⚠ Ging bis 0.2.0 NICHT durch lx: das Lower-Third liess sich waagerecht
+        // ziehen, sprang aber beim Loslassen zurueck in die Mitte.
+        x: root.lx("lowerthird", width, Math.round((root.width - width) / 2))
         baseY: root.ly("lowerthird", height, root.height - 380 - height)
         z: root.lz("lowerthird", 41)
     }
@@ -313,10 +350,21 @@ Item {
             objectName: "ph:" + modelData
             visible: Hud.layoutEdit && (!echt || !echt.visible
                                         || echt.width < 4 || echt.height < 4)
-            x: echt ? echt.x : 0
-            y: root.lageY(echt)      // baseY, wo es eins gibt - siehe lageY
-            width: root.teilGroessen[modelData][0]
-            height: root.teilGroessen[modelData][1]
+            // ⚠ In die Szene zwingen. Ein Baustein, der nichts anzeigt, ist
+            // 0 px gross - seine unten verankerte Lage ist damit buendig mit der
+            // Unterkante, und ein 210 px hoher Platzhalter haengt zu drei
+            // Vierteln aus dem Bild. Genau die Hotlap-Boxen waren so im Rennen
+            // praktisch nicht zu greifen.
+            x: Math.max(0, Math.min(root.width - width, echt ? echt.x : 0))
+            y: Math.max(0, Math.min(root.height - height, root.lageY(echt)))
+            // ⚠ Die Schaetzung aus teilGroessen NUR, wenn der echte Baustein gar
+            // keine Groesse hat. Hat er eine (er zeigt nur nichts an, ist aber
+            // ausgemessen), gilt seine - sonst faengt man den Platzhalter in
+            // einer Groesse an, in der der Baustein nachher nie gezeichnet wird.
+            width: (echt && echt.width > 4) ? echt.width
+                                            : root.teilGroessen[modelData][0]
+            height: (echt && echt.height > 4) ? echt.height
+                                              : root.teilGroessen[modelData][1]
             z: echt ? echt.z : 40
 
             Rectangle {
@@ -402,10 +450,15 @@ Item {
                                      layoutEditor.startX + (m.x - layoutEditor.pressX)));
                 layoutEditor.letztY = Math.max(0, Math.min(root.height - layoutEditor.griffH,
                                      layoutEditor.startY + (m.y - layoutEditor.pressY)));
+                // ⚠ Fuer die Umrechnung die ZEICHEN-Groesse, nicht die
+                // eingefrorene: siehe zielGroesse(). Die eingefrorene bleibt
+                // fuer die Bewegung selbst zustaendig (oben), damit der
+                // Baustein nicht unter der Maus wegwandert.
+                const g = root.zielGroesse(t);
                 Kers.layoutLive(layoutEditor.karte(
                     root.schluessel(t), layoutEditor.ecke,
-                    root.dxAus(layoutEditor.ecke, layoutEditor.letztX, layoutEditor.griffW),
-                    root.dyAus(layoutEditor.ecke, layoutEditor.letztY, layoutEditor.griffH),
+                    root.dxAus(layoutEditor.ecke, layoutEditor.letztX, g[0]),
+                    root.dyAus(layoutEditor.ecke, layoutEditor.letztY, g[1]),
                     t.z));
             }
 
@@ -429,20 +482,33 @@ Item {
                 // Bezugsecke beim kleinsten Ziehen um. Nur beim ERSTEN Verschieben
                 // wird der naechstgelegene genommen.
                 const vorhanden = root.teil(root.schluessel(t));
-                layoutEditor.ecke = vorhanden ? (vorhanden.ecke || "tl")
-                                              : root.eckeNah(t.x, root.lageY(t),
-                                                             t.width, t.height);
+                if (vorhanden) {
+                    layoutEditor.ecke = vorhanden.ecke || "tl";
+                } else if (!root.hatGroesse(t)) {
+                    // ⚠ Baustein ohne eigene Groesse (zeigt nichts an, man hat
+                    // seinen Platzhalter gepackt): jede Ecke ausser oben links
+                    // rechnet die Groesse mit ein - und die kennt niemand, ehe
+                    // er das erste Mal etwas anzeigt. Mit "tl" ist der
+                    // gespeicherte Versatz schlicht die Koordinate der oberen
+                    // linken Ecke, und der Baustein taucht spaeter genau dort
+                    // auf, wo der Platzhalter stand.
+                    layoutEditor.ecke = "tl";
+                } else {
+                    layoutEditor.ecke = root.eckeNah(t.x, root.lageY(t),
+                                                     t.width, t.height);
+                }
             }
 
             onReleased: {
                 const t = layoutEditor.griff;
                 if (t) {
-                    // Dieselben eingefrorenen Werte wie beim Ziehen - so liegt der
+                    // Dieselbe Rechnung wie beim Ziehen - so liegt der
                     // gespeicherte Platz genau dort, wo der Baustein zuletzt stand.
+                    const g = root.zielGroesse(t);
                     Kers.layoutSpeichern(layoutEditor.karte(
                         root.schluessel(t), layoutEditor.ecke,
-                        root.dxAus(layoutEditor.ecke, layoutEditor.letztX, layoutEditor.griffW),
-                        root.dyAus(layoutEditor.ecke, layoutEditor.letztY, layoutEditor.griffH),
+                        root.dxAus(layoutEditor.ecke, layoutEditor.letztX, g[0]),
+                        root.dyAus(layoutEditor.ecke, layoutEditor.letztY, g[1]),
                         t.z));
                 }
                 layoutEditor.griff = null;

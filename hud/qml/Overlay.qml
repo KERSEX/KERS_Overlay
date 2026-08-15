@@ -20,12 +20,15 @@ Item {
 
     // ── Timing Tower: oben links ────────────────────────────────────────────
     Tower {
-        // Der linke Abstand faengt die Strafen-Pillen auf, die aus der Zeile
-        // herausragen (im CSS ist das padding-left: 72px am body).
-        // Auf Wunsch um ein Drittel verringert: 72 - 24 = 48. ⚠ Damit bleibt
-        // entsprechend weniger Luft fuer die Pillen - stossen sie am Fensterrand
-        // an, ist das hier die Stellschraube.
-        x: 48
+        // Der linke Abstand existiert NUR, um die Strafen-Pillen aufzufangen, die
+        // links aus der Zeile herausragen (im CSS: padding-left am body, dort 72,
+        // hier auf Wunsch um ein Drittel verringert auf 48).
+        //
+        // Stehen die Pillen rechts (Setting penside), braucht es links gar keine
+        // Reserve mehr - dann reicht derselbe Randabstand wie bei der Trackmap.
+        // Der Tower rueckt damit von selbst nach links, sobald du umstellst, und
+        // wieder zurueck, wenn du es rueckgaengig machst.
+        x: Kers.settings.penSide === "right" ? 12 : 48
         y: 10
         stageHeight: root.height
         z: 30

@@ -247,6 +247,20 @@ class OverlayBridge(QObject):
         self._feed.start()
 
     # ── Layout zurueckschreiben ──────────────────────────────────────────────
+    @staticmethod
+    def _als_dict(wert) -> dict:
+        """Ein Objekt aus QML in ein echtes Dictionary umwandeln.
+
+        ⚠ Ein in QML gebautes JS-Objekt kommt trotz @Slot("QVariant") als
+        PySide6.QtQml.QJSValue an, NICHT als dict - `dict(...)` scheitert dann mit
+        "'QJSValue' object is not iterable" und das HUD stolpert. toVariant()
+        wandelt um, und zwar auch die verschachtelten Eintraege. Geprueft wird per
+        hasattr statt per Import, damit bridge.py nicht extra QtQml braucht.
+        """
+        if hasattr(wert, "toVariant"):
+            wert = wert.toVariant()
+        return dict(wert or {})
+
     @Slot("QVariant")
     def layoutLive(self, layout) -> None:
         """Waehrend des Ziehens: nur lokal, damit der Baustein der Maus folgt.
@@ -254,7 +268,7 @@ class OverlayBridge(QObject):
         Lokale Ueberschreibungen gewinnen gegen den Server (Config.apply), der
         laufende Datenstrom kann den Baustein also nicht zurueckspringen lassen.
         """
-        self.override("layout", dict(layout or {}))
+        self.override("layout", self._als_dict(layout))
 
     @Slot("QVariant")
     def layoutSpeichern(self, layout) -> None:
@@ -271,7 +285,7 @@ class OverlayBridge(QObject):
         blockierender Aufruf wuerde die Overlay-Schleife anhalten (gleiche
         Begruendung wie in api_client.py und updater.py).
         """
-        daten = dict(layout or {})
+        daten = self._als_dict(layout)
         self.override("layout", daten)
 
         url = QUrl(f"{self._base_url}/api/settings")

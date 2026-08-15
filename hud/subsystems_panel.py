@@ -299,6 +299,10 @@ class SubsystemsPanel(QWidget):
         self.hud.hudLockedChanged.connect(
             lambda v: self._set_checked(self.cb_locked, v))
         self.hud.hudVisibilityChanged.connect(self._apply_power)
+        # Beenden geht auch IN der Szene (Fertig-Knopf / Esc) - dann muss der
+        # Knopf hier nachziehen. Nur der QML-Renderer kennt das.
+        if hasattr(self.hud, "hudLayoutEditChanged"):
+            self.hud.hudLayoutEditChanged.connect(self._apply_layout_edit)
 
         self.move(int(state["panel_x"]), int(state["panel_y"]))
         if bool(state.get("panel_on_top")):
@@ -748,13 +752,23 @@ class SubsystemsPanel(QWidget):
                 "Bausteine mit der Maus an ihren Platz ziehen.\n\n"
                 "Entsperrt das HUD dabei automatisch - gesperrt gehen alle Klicks\n"
                 "durch das Fenster hindurch und die Szene bekaeme gar keine Maus.\n"
-                "Beim Ausschalten wird der vorherige Sperrzustand wiederhergestellt.")
+                "Beendet wird IN der Szene (Fertig-Knopf oben oder Esc): das\n"
+                "entsperrte HUD liegt bildschirmgross ueber diesem Fenster.\n"
+                "Danach wird der vorherige Sperrzustand wiederhergestellt.")
             self.btn_layout.toggled.connect(self._layout_edit_umschalten)
             lay.addWidget(self.btn_layout)
         return wrap
 
     def _layout_edit_umschalten(self, on: bool) -> None:
         self.hud.set_layout_edit(bool(on))
+        self._beschrifte_layout_knopf(bool(on))
+
+    def _apply_layout_edit(self, on: bool) -> None:
+        """HUD -> Oberflaeche: in der Szene auf Fertig geklickt (oder Esc)."""
+        self._set_checked(self.btn_layout, bool(on))
+        self._beschrifte_layout_knopf(bool(on))
+
+    def _beschrifte_layout_knopf(self, on: bool) -> None:
         self.btn_layout.setText("Layout bearbeiten - FERTIG" if on
                                 else "Layout bearbeiten")
         self.btn_layout.setStyleSheet(DANGER if on else "")

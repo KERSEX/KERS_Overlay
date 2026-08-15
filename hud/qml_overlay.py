@@ -240,6 +240,10 @@ class HudController(QObject):
         self.layoutEditChanged.emit(on)
         if not on and self._locked_vorher:
             self._window.set_locked(True)
+        # Nach draussen melden: der Fertig-Knopf sitzt auch IN der Szene (das
+        # Schaltbrett liegt beim Bearbeiten unter der entsperrten Klickflaeche),
+        # also muss sein Gegenstueck im Schaltbrett hinterherziehen.
+        self._window.hudLayoutEditChanged.emit(on)
 
     # ── Hintergrund / OBS ────────────────────────────────────────────────────
     @Property(bool, notify=bgChanged)
@@ -333,6 +337,9 @@ class QmlOverlayWindow(QQuickView):
     hudLockedChanged = Signal(bool)
     hudVisibilityChanged = Signal(bool)
     sceneLoaded = Signal(bool)
+    # Nur hier, nicht im Web-Renderer: der kennt kein Layout-Bearbeiten. Das
+    # Schaltbrett verbindet sich deshalb nur, wenn es die Methode dazu findet.
+    hudLayoutEditChanged = Signal(bool)
 
     def __init__(self, state: dict, demo: str = ""):
         super().__init__()

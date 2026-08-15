@@ -476,22 +476,67 @@ Item {
             }
         }
 
-        // Hinweiszeile oben mittig
+        // Hinweiszeile oben mittig - mit eigenem Fertig-Knopf.
+        // ⚠ Der Knopf MUSS hier sein und nicht nur im Schaltbrett: zum Bearbeiten
+        // wird das Fenster entsperrt, und dann liegt eine bildschirmgrosse
+        // Klickflaeche in der Vordergrund-Schicht ueber allem - das Schaltbrett
+        // ist unter ihr nicht mehr erreichbar (derselbe Grund, aus dem
+        // fill_screen() in subsystems_panel.py zwingend wieder sperrt).
         Rectangle {
             anchors { horizontalCenter: parent.horizontalCenter; top: parent.top
                       topMargin: 12 }
-            width: hinweis.implicitWidth + 28
-            height: hinweis.implicitHeight + 16
+            width: zeile.implicitWidth + 28
+            height: zeile.implicitHeight + 16
             radius: Theme.panelRadius
             color: Theme.panelBg
             border { width: 1; color: Theme.accent }
-            Text {
-                id: hinweis
+
+            Row {
+                id: zeile
                 anchors.centerIn: parent
-                text: "Layout bearbeiten — Bausteine ziehen. Beenden im Schaltbrett."
-                color: Theme.textMain
-                font { family: Theme.sans; pixelSize: 15; weight: Font.DemiBold }
+                spacing: 14
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Layout bearbeiten — Bausteine ziehen."
+                    color: Theme.textMain
+                    font { family: Theme.sans; pixelSize: 15; weight: Font.DemiBold }
+                }
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: fertigText.implicitWidth + 24
+                    height: fertigText.implicitHeight + 14
+                    radius: 4
+                    color: fertigMaus.pressed ? Qt.darker(Theme.accent, 1.3)
+                         : (fertigMaus.containsMouse ? Qt.lighter(Theme.accent, 1.2)
+                                                     : Theme.accent)
+                    Text {
+                        id: fertigText
+                        anchors.centerIn: parent
+                        text: "Fertig (Esc)"
+                        color: "#ffffff"
+                        font { family: Theme.sans; pixelSize: 15; weight: Font.Bold }
+                    }
+                    MouseArea {
+                        id: fertigMaus
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Hud.layoutEdit = false
+                        // Sonst bliebe die Hervorhebung auf dem Baustein
+                        // haengen, ueber dem die Maus zuletzt war.
+                        onEntered: layoutEditor.unterMaus = null
+                    }
+                }
             }
+        }
+
+        // Rueckfallebene, falls ein Baustein ueber dem Knopf liegt.
+        Shortcut {
+            sequence: "Esc"
+            enabled: Hud.layoutEdit
+            onActivated: Hud.layoutEdit = false
         }
     }
 

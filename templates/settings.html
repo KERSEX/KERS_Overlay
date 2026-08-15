@@ -181,10 +181,6 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
       <div class="ctl"><input type="number" min="0" max="3600" step="30" data-k="holds"></div></div>
     <div class="row"><label>Battle-Schwelle<small>Abstand in Sekunden, ab dem zwei Autos als „Battle" gelten</small></label>
       <div class="ctl"><input type="range" min="0.5" max="3" step="0.1" data-k="battlethresh"><span class="val" data-v="battlethresh"></span></div></div>
-    <div class="row"><label>Battle-Boxen<small>Wie viele Kämpfe gleichzeitig stehen dürfen (1–4). Links steht immer der höchste Positionskampf.</small></label>
-      <div class="ctl"><input type="number" min="1" max="4" step="1" data-k="battleboxes"></div></div>
-    <div class="row"><label>Hotlap-Boxen<small>Wie viele fliegende Runden in der Quali gleichzeitig stehen dürfen (1–4)</small></label>
-      <div class="ctl"><input type="number" min="1" max="4" step="1" data-k="hotlapboxes"></div></div>
     <div class="row"><label>Damage blinkt ab<small>% Flügelschaden, ab dem das Icon pulsiert</small></label>
       <div class="ctl"><input type="range" min="30" max="90" step="5" data-k="dmgcrit"><span class="val" data-v="dmgcrit"></span></div></div>
   </div>
@@ -287,7 +283,12 @@ const TOGGLE_GROUPS = [
     ["pbflash",    "Bestrunde-Flash",         "Zeile blitzt grün (persönl. Best) / lila (Session-Best)"],
   ]],
   ["battle", "Battles & Strategie", [
-    ["battles",    "Battle-Boxen",            "Kämpfe unten mittig (+ Hotlap-Boxen in der Quali)"],
+    // Regler statt Schalter: die Anzahl schliesst das Ein/Aus mit ein (0 = aus).
+    // Der frühere Schalter "battles" ist damit ersetzt — er wird beim Ziehen
+    // mitgeschrieben (siehe input-Handler), damit das Web-Overlay, das ihn
+    // weiterhin liest, nicht stehen bleibt.
+    ["battleboxes", "Battle-Boxen",        "Wie viele Kämpfe gleichzeitig unten mittig stehen. 0 = aus, links immer der höchste Positionskampf.", "range"],
+    ["hotlapboxes", "Hotlap-Boxen (Quali)", "Wie viele fliegende Runden gleichzeitig stehen. 0 = aus.", "range"],
     ["pred",       "Kampf-Countdown",         "Vorhersage „Kampf in X Runden“ über der Battle-Box"],
     ["fresh",      "Frische-Reifen (Battle)", "„−N Rnd“ am Jäger mit deutlich frischeren Reifen"],
     ["undercut",   "Undercut-Alarm",          "Meldung bei Undercut-Versuchen"],
@@ -311,9 +312,9 @@ const TOGGLE_GROUPS = [
   ]],
 ];
 const PRESETS = {
-  voll:    { label:"Voll",    desc:"alles an",                 set:{ tower:true,battles:true,map:true,onboard:true,lights:true,damage:true,msgs:true,flbanner:true,lowerthird:true,undercut:true,ticker:true,deltabar:true,ampel:true,pred:true,danger:true,comeback:true,pbflash:true,fresh:true,strat:true,pitproj:true,rows:0 } },
-  kompakt: { label:"Kompakt", desc:"Tower + Map + Wichtiges",  set:{ tower:true,battles:true,map:true,onboard:false,lights:true,damage:true,msgs:true,flbanner:true,lowerthird:false,undercut:false,ticker:false,deltabar:false,ampel:false,pred:true,danger:true,comeback:true,pbflash:true,fresh:true,strat:true,pitproj:true,rows:0 } },
-  minimal: { label:"Minimal", desc:"nur Top 10, sonst nichts", set:{ tower:true,battles:false,map:false,onboard:false,lights:true,damage:false,msgs:false,flbanner:false,lowerthird:false,undercut:false,ticker:false,deltabar:false,ampel:false,pred:false,danger:false,comeback:false,pbflash:false,fresh:false,strat:false,pitproj:false,rows:10 } },
+  voll:    { label:"Voll",    desc:"alles an",                 set:{ tower:true,battles:true,map:true,onboard:true,lights:true,damage:true,msgs:true,flbanner:true,lowerthird:true,undercut:true,ticker:true,deltabar:true,ampel:true,pred:true,danger:true,comeback:true,pbflash:true,fresh:true,strat:true,pitproj:true,rows:0,battleboxes:4,hotlapboxes:4 } },
+  kompakt: { label:"Kompakt", desc:"Tower + Map + Wichtiges",  set:{ tower:true,battles:true,map:true,onboard:false,lights:true,damage:true,msgs:true,flbanner:true,lowerthird:false,undercut:false,ticker:false,deltabar:false,ampel:false,pred:true,danger:true,comeback:true,pbflash:true,fresh:true,strat:true,pitproj:true,rows:0,battleboxes:4,hotlapboxes:4 } },
+  minimal: { label:"Minimal", desc:"nur Top 10, sonst nichts", set:{ tower:true,battles:false,map:false,onboard:false,lights:true,damage:false,msgs:false,flbanner:false,lowerthird:false,undercut:false,ticker:false,deltabar:false,ampel:false,pred:false,danger:false,comeback:false,pbflash:false,fresh:false,strat:false,pitproj:false,rows:10,battleboxes:0,hotlapboxes:0 } },
 };
 
 let S = {};            // aktueller Stand vom Server
@@ -447,16 +448,40 @@ function save(patch, fromPreset, delayMs){
   renderAll();   // UI sofort spiegeln
 }
 
+// ⚠ Die Liste wird EINMAL gebaut und danach nur noch aufgefrischt. Frueher
+// ersetzte jede Aenderung das komplette innerHTML - mit reinen Schaltern ging
+// das, seit hier aber Schieberegler stehen nicht mehr: save() ruft renderAll(),
+// und der Regler waere beim Ziehen bei jedem Ereignis neu erzeugt worden. Er
+// haette den Fokus verloren und sich nicht mehr ziehen lassen.
+let togglesGebaut = false;
 function renderToggles(){
-  document.getElementById("toggles").innerHTML = TOGGLE_GROUPS.map(([id,name,items])=>{
-    const on = items.filter(([k])=>S[k]).length;
-    return `<div class="sub${closedGrp[id]?" closed":""}" data-g="${id}">`
-      + `<button class="subhead" type="button"><span class="arrow">▾</span>${name}`
-      + `<span class="cnt">${on}/${items.length} an</span></button><div class="subbody">`
-      + items.map(([k,l,d]) =>
-          `<div class="row"><label>${l}<small>${d}</small></label><div class="tgl ${S[k]?"on":""}" data-k="${k}"></div></div>`).join("")
-      + `</div></div>`;
-  }).join("");
+  const box = document.getElementById("toggles");
+  if(!togglesGebaut){
+    box.innerHTML = TOGGLE_GROUPS.map(([id,name,items])=>{
+      const on = items.filter(([k])=>S[k]).length;
+      return `<div class="sub${closedGrp[id]?" closed":""}" data-g="${id}">`
+        + `<button class="subhead" type="button"><span class="arrow">▾</span>${name}`
+        + `<span class="cnt">${on}/${items.length} an</span></button><div class="subbody">`
+        + items.map(([k,l,d,typ]) =>
+            `<div class="row"><label>${l}<small>${d}</small></label>`
+            + (typ === "range"
+               ? `<div class="ctl"><input type="range" min="0" max="4" step="1" data-k="${k}"><span class="val" data-v="${k}"></span></div>`
+               : `<div class="tgl ${S[k]?"on":""}" data-k="${k}"></div>`)
+            + `</div>`).join("")
+        + `</div></div>`;
+    }).join("");
+    togglesGebaut = true;
+    return;                       // die Werte setzt gleich renderInputs()
+  }
+  // Auffrischen ohne Neubau: Auf/Zu, Zaehler, Schalterstellungen.
+  TOGGLE_GROUPS.forEach(([id,name,items])=>{
+    const grp = box.querySelector(`.sub[data-g="${id}"]`);
+    if(!grp) return;
+    grp.classList.toggle("closed", !!closedGrp[id]);
+    const cnt = grp.querySelector(".cnt");
+    if(cnt) cnt.textContent = `${items.filter(([k])=>S[k]).length}/${items.length} an`;
+  });
+  box.querySelectorAll(".tgl[data-k]").forEach(t=>t.classList.toggle("on", !!S[t.dataset.k]));
 }
 function renderInputs(){
   document.querySelectorAll("input[data-k]").forEach(inp=>{
@@ -467,7 +492,10 @@ function renderInputs(){
     // 1.00 stellen: von dort zieht man in beide Richtungen los, ohne Sprung.
     // Fallback, falls der Server den Key (noch) nicht kennt — z.B. direkt nach einem Update
     // oder bei einem Preset aus einer älteren Version. Ohne das stünde "NaN" im Feld.
-    const v = S[k];
+    // Ein Preset (oder eine aeltere Fassung) kann battles auf false gesetzt
+    // haben, ohne battleboxes zu kennen. Dann zeigt der Regler 0 - sonst stuende
+    // dort eine 4, waehrend unten nichts zu sehen ist.
+    const v = (k === "battleboxes" && S.battles === false) ? 0 : S[k];
     inp.value = (k === "scale" && !(v > 0)) ? 1 : (v === undefined || v === null ? (inp.dataset.def || 1) : v);
   });
   const sa = document.getElementById("scaleAuto");
@@ -480,6 +508,11 @@ function renderInputs(){
   });
   document.querySelectorAll(".val[data-v]").forEach(v=>{
     const k=v.dataset.v; let val=S[k];
+    if(k==="battleboxes" || k==="hotlapboxes"){
+      if(k==="battleboxes" && S.battles === false) val = 0;
+      v.textContent = (val > 0) ? val : "aus";     // 0 liest sich als Zahl schlecht
+      return;
+    }
     if(k==="scale") val = (val>0?val.toFixed(2):"auto");
     else if(k==="opacity") val = Number(val === undefined || val === null ? 1 : val).toFixed(2);   // Schritt 0.05 -> 2 Nachkommastellen
     else if(typeof val==="number") val = (val%1===0? val : val.toFixed(1));
@@ -546,8 +579,13 @@ document.addEventListener("input", e=>{
   if(cc && e.target.classList.contains("cpick")){ save({[cc.dataset.color]: e.target.value}); return; }
   const sk=e.target.dataset && e.target.dataset.str; if(sk){ save({[sk]: e.target.value}); return; }   // A2: Text/Farbe
   const k=e.target.dataset && e.target.dataset.k; if(!k) return;
+  const wert = parseFloat(e.target.value);
+  // Der Regler ersetzt den frueheren Schalter "battles". Den liest aber das
+  // Web-Overlay (static/parts/battles.js) weiterhin, und er steckt in den
+  // Presets - deshalb wird er hier mitgeschrieben, statt ihn haengen zu lassen.
+  const zusatz = (k === "battleboxes") ? {battles: wert > 0} : {};
   // Schieberegler: kurzer Debounce -> der Tower zieht beim Ziehen praktisch sofort mit.
-  save({[k]: parseFloat(e.target.value)}, false, e.target.type === "range" ? 60 : 250);
+  save({[k]: wert, ...zusatz}, false, e.target.type === "range" ? 60 : 250);
 });
 document.addEventListener("change", e=>{   // String-Dropdowns (z.B. Trackmap-Position)
   const k=e.target.dataset && e.target.dataset.sel; if(!k) return;

@@ -366,9 +366,9 @@ class Battles(QObject):
         return self._boxes
 
     def _box_wunsch(self) -> int:
-        """Gewuenschte Boxenzahl aus den Settings, sicher auf 1..BOX_COUNT."""
+        """Gewuenschte Boxenzahl aus den Settings, sicher auf 0..BOX_COUNT (0 = aus)."""
         try:
-            return max(1, min(self.BOX_COUNT, int(self._cfg["battleboxes"])))
+            return max(0, min(self.BOX_COUNT, int(self._cfg["battleboxes"])))
         except (KeyError, TypeError, ValueError):
             return self.BOX_COUNT       # aeltere overlay_settings.json ohne den Wert
 
@@ -598,9 +598,9 @@ class Hotlaps(QObject):
         self._letzter_platz = {}  # Fahrerindex -> zuletzt gezeigte Stelle
 
     def _box_wunsch(self) -> int:
-        """Gewuenschte Boxenzahl aus den Settings, sicher auf 1..MAX_BOXES."""
+        """Gewuenschte Boxenzahl aus den Settings, sicher auf 0..MAX_BOXES (0 = aus)."""
         try:
-            return max(1, min(self.MAX_BOXES, int(self._cfg["hotlapboxes"])))
+            return max(0, min(self.MAX_BOXES, int(self._cfg["hotlapboxes"])))
         except (KeyError, TypeError, ValueError):
             return self.MAX_BOXES       # aeltere overlay_settings.json ohne den Wert
 

@@ -757,7 +757,7 @@ class SubsystemsPanel(QWidget):
                 "Danach wird der vorherige Sperrzustand wiederhergestellt.")
             self.btn_layout.toggled.connect(self._layout_edit_umschalten)
 
-            btn_layout_reset = QPushButton("Positionen zurueck")
+            btn_layout_reset = QPushButton("Standard Layout")
             btn_layout_reset.setToolTip(
                 "Alle Bausteine zurueck auf ihren einprogrammierten Platz.\n\n"
                 "Betrifft NUR die Positionen (die Einstellung 'layout'), nicht\n"
@@ -786,7 +786,7 @@ class SubsystemsPanel(QWidget):
         mapcorner). Ein fester Zahlenwert waere ein Rueckschritt.
         """
         antwort = QMessageBox.question(
-            self, "Positionen zurueck",
+            self, "Standard Layout",
             "Alle Bausteine wieder an ihren einprogrammierten Platz stellen?\n\n"
             "Das verwirft jede Verschiebung, die du gemacht hast. Andere\n"
             "Einstellungen bleiben unberuehrt.",

@@ -756,12 +756,45 @@ class SubsystemsPanel(QWidget):
                 "entsperrte HUD liegt bildschirmgross ueber diesem Fenster.\n"
                 "Danach wird der vorherige Sperrzustand wiederhergestellt.")
             self.btn_layout.toggled.connect(self._layout_edit_umschalten)
-            lay.addWidget(self.btn_layout)
+
+            btn_layout_reset = QPushButton("Positionen zurueck")
+            btn_layout_reset.setToolTip(
+                "Alle Bausteine zurueck auf ihren einprogrammierten Platz.\n\n"
+                "Betrifft NUR die Positionen (die Einstellung 'layout'), nicht\n"
+                "Branding, Farben oder die uebrigen Einstellungen - dafuer gibt\n"
+                "es 'Auf Standard zurueck' in /settings.")
+            btn_layout_reset.clicked.connect(self._layout_zuruecksetzen)
+
+            zeile = QHBoxLayout()
+            zeile.addWidget(self.btn_layout, 2)
+            zeile.addWidget(btn_layout_reset, 1)
+            lay.addLayout(zeile)
         return wrap
 
     def _layout_edit_umschalten(self, on: bool) -> None:
         self.hud.set_layout_edit(bool(on))
         self._beschrifte_layout_knopf(bool(on))
+
+    def _layout_zuruecksetzen(self) -> None:
+        """Alle verschobenen Bausteine zurueck an ihren Platz.
+
+        Ein leeres `layout` heisst nicht "alles bei 0/0", sondern "kein Eintrag"
+        - und ohne Eintrag gilt in Overlay.qml wieder der einprogrammierte
+        Ausdruck. Genau deshalb ist die Einstellung leer voreingestellt: vier
+        Bausteine rechnen dort dynamisch (Tower nach der Strafen-Seite, Ampel
+        bei 12 % der Hoehe, Pit-Projektion je nach Onboard, Trackmap ueber
+        mapcorner). Ein fester Zahlenwert waere ein Rueckschritt.
+        """
+        antwort = QMessageBox.question(
+            self, "Positionen zurueck",
+            "Alle Bausteine wieder an ihren einprogrammierten Platz stellen?\n\n"
+            "Das verwirft jede Verschiebung, die du gemacht hast. Andere\n"
+            "Einstellungen bleiben unberuehrt.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if antwort != QMessageBox.StandardButton.Yes:
+            return
+        self.hud.layout_zuruecksetzen()
 
     def _apply_layout_edit(self, on: bool) -> None:
         """HUD -> Oberflaeche: in der Szene auf Fertig geklickt (oder Esc)."""

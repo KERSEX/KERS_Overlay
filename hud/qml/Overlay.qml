@@ -609,8 +609,12 @@ Item {
             width: zeile.implicitWidth + 28
             height: zeile.implicitHeight + 16
             radius: Theme.panelRadius
-            color: Theme.panelBg
-            border { width: 1; color: Theme.accent }
+            // Halb durchsichtig: der Balken sitzt oben mittig und damit genau
+            // ueber Meldungs-Banner und Fastest-Lap-Banner. Deckend verdeckte er
+            // beim Bearbeiten zwei der Bausteine, die man platzieren will.
+            color: Qt.rgba(Theme.panelBg.r, Theme.panelBg.g, Theme.panelBg.b, 0.55)
+            border { width: 1; color: Qt.rgba(Theme.accent.r, Theme.accent.g,
+                                              Theme.accent.b, 0.7) }
 
             Row {
                 id: zeile

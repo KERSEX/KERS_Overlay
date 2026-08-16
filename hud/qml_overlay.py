@@ -622,6 +622,17 @@ class QmlOverlayWindow(QQuickView):
         """Vom Schaltbrett: Bausteine verschiebbar machen. Nur im QML-Renderer."""
         self.hud.set_layout_edit(bool(on))
 
+    def layout_zuruecksetzen(self) -> None:
+        """Vom Schaltbrett: alle Bausteine zurueck an ihren Platz.
+
+        Ein leeres Layout geht denselben Weg wie eine Verschiebung: erst lokal
+        uebernehmen, dann an den Server, und in der Antwort die lokale
+        Ueberschreibung aufgeben. Kommt die Antwort nicht (kein Server), bleibt
+        die Ueberschreibung stehen - zurueckgesetzt ist es dann bis zum
+        Neustart. Begruendung ausfuehrlich in bridge.layoutSpeichern.
+        """
+        self.bridge.layoutSpeichern({})
+
     def set_findable(self, on: bool) -> None:
         """Fuer OBS auffindbar machen (kostet einen Taskleisten-Eintrag)."""
         self.state["obs_findable"] = bool(on)

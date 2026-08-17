@@ -532,8 +532,6 @@ Item {
         property string modus: "lage"        // "lage" = verschieben, "groesse"
         property real startFaktor: 1
         property real letztFaktor: 1
-        property real festDx: 0              // Lage bleibt beim Groessenziehen fest
-        property real festDy: 0
         property int richtungX: 1            // +1 = nach rechts groesser
         property int richtungY: 1
 
@@ -553,6 +551,41 @@ Item {
         // steht, ist danach weg - deshalb muss `groesse` mit. Ohne diese Zeile
         // haette ein Verschieben die eingestellte Groesse stillschweigend auf 1
         // zurueckgesetzt, und zwar ohne Fehlermeldung irgendwo.
+        /** Der Layout-Eintrag beim Groessenziehen.
+         *
+         *  ⚠ Die gegenueberliegende Ecke bleibt liegen - der Baustein waechst
+         *  aus der Ecke heraus, die man haelt. Ohne das richtet er sich nach
+         *  seinem ANKERPUNKT, und der ist bei sieben der dreizehn Bausteine
+         *  mittig (tc/bc/cc): dort waere er nach beiden Seiten gleichzeitig
+         *  gewachsen, also "aus der Mitte heraus".
+         *
+         *  Gerechnet wird nicht an der Maus, sondern an der eingefrorenen
+         *  Flaeche mal dem Verhaeltnis der Faktoren. So bleibt die feste Ecke
+         *  wirklich stehen, statt um Rundungsreste zu wandern. */
+        function groesseKarte(t, f) {
+            const k = layoutEditor.startFaktor > 0
+                      ? f / layoutEditor.startFaktor : 1;
+            const w = layoutEditor.griffW * k;
+            const h = layoutEditor.griffH * k;
+            let nx = layoutEditor.richtungX > 0
+                     ? layoutEditor.startX
+                     : layoutEditor.startX + layoutEditor.griffW - w;
+            let ny = layoutEditor.richtungY > 0
+                     ? layoutEditor.startY
+                     : layoutEditor.startY + layoutEditor.griffH - h;
+            // ⚠ In der Szene halten, wie beim Verschieben. Zieht man einen
+            // Baustein an der linken oberen Ecke auf, waechst er nach links -
+            // ohne Grenze bis aus dem Bild heraus (gemessen: x = -60). Am Rand
+            // gibt dann die feste Ecke nach; das ist das kleinere Uebel,
+            // verglichen mit einem Baustein, den man nicht mehr sieht.
+            nx = Math.max(0, Math.min(root.width - w, nx));
+            ny = Math.max(0, Math.min(root.height - h, ny));
+            return layoutEditor.karte(
+                root.schluessel(t), layoutEditor.ecke,
+                root.dxAus(layoutEditor.ecke, nx, w),
+                root.dyAus(layoutEditor.ecke, ny, h), t.z, f);
+        }
+
         function karte(name, e, dx, dy, z, groesse) {
             const neu = {};
             const alt = Kers.settings.layout || {};
@@ -585,11 +618,8 @@ Item {
                 const t = layoutEditor.griff;
 
                 // ── Groesse ziehen ──────────────────────────────────────────
-                // Die LAGE bleibt fest (festDx/festDy). Das reicht: x und y
-                // werden aus Ankerpunkt und Flaeche gerechnet, der Baustein
-                // waechst dadurch von selbst VON seiner Ankerecke weg statt
-                // ueber sie hinaus. Nachgemessen: unten links verankert bleibt
-                // 24/28 px zur Ecke, egal welcher Faktor.
+                // Die Lage wandert mit: die gegenueberliegende Ecke soll
+                // liegen bleiben, siehe groesseKarte().
                 if (layoutEditor.modus === "groesse") {
                     const dw = (m.x - layoutEditor.pressX) * layoutEditor.richtungX;
                     const dh = (m.y - layoutEditor.pressY) * layoutEditor.richtungY;
@@ -600,10 +630,8 @@ Item {
                                + (layoutEditor.griffH > 0 ? dh / layoutEditor.griffH : 0)) / 2;
                     layoutEditor.letztFaktor = Math.max(
                         0.5, Math.min(2, layoutEditor.startFaktor * (1 + rel)));
-                    Kers.layoutLive(layoutEditor.karte(
-                        root.schluessel(t), layoutEditor.ecke,
-                        layoutEditor.festDx, layoutEditor.festDy, t.z,
-                        layoutEditor.letztFaktor));
+                    Kers.layoutLive(layoutEditor.groesseKarte(
+                        t, layoutEditor.letztFaktor));
                     return;
                 }
                 // Reine Verschiebung ab dem Packpunkt. In der Szene halten -
@@ -664,9 +692,10 @@ Item {
                                                      root.fbW(t), root.fbH(t));
                 }
 
-                // Anfasser gepackt? Dann Groesse statt Lage. Die Lage wird JETZT
-                // eingefroren - mit der Flaeche von jetzt, denn danach aendert
-                // sie sich ja gerade.
+                // Anfasser gepackt? Dann Groesse statt Lage. startX/startY und
+                // griffW/griffH von oben sind der Bezug: aus ihnen rechnet
+                // groesseKarte() die neue Lage so, dass die gegenueberliegende
+                // Ecke liegen bleibt.
                 const a = layoutEditor.anfasserUnter(t, m.x, m.y);
                 layoutEditor.modus = a ? "groesse" : "lage";
                 if (a) {
@@ -674,21 +703,14 @@ Item {
                     layoutEditor.richtungY = a.y;
                     layoutEditor.startFaktor = root.ls(root.schluessel(t));
                     layoutEditor.letztFaktor = layoutEditor.startFaktor;
-                    layoutEditor.festDx = root.dxAus(layoutEditor.ecke,
-                                                     t.x, layoutEditor.griffW);
-                    layoutEditor.festDy = root.dyAus(layoutEditor.ecke,
-                                                     root.lageY(t),
-                                                     layoutEditor.griffH);
                 }
             }
 
             onReleased: {
                 const t = layoutEditor.griff;
                 if (t && layoutEditor.modus === "groesse") {
-                    Kers.layoutSpeichern(layoutEditor.karte(
-                        root.schluessel(t), layoutEditor.ecke,
-                        layoutEditor.festDx, layoutEditor.festDy, t.z,
-                        layoutEditor.letztFaktor));
+                    Kers.layoutSpeichern(layoutEditor.groesseKarte(
+                        t, layoutEditor.letztFaktor));
                 } else if (t) {
                     // Dieselbe Rechnung wie beim Ziehen - so liegt der
                     // gespeicherte Platz genau dort, wo der Baustein zuletzt stand.

@@ -54,6 +54,16 @@ Item {
         const t = teil(name);
         return (t && t.z !== undefined) ? t.z : standard;
     }
+    /** Groessenfaktor eines Bausteins. 1 = wie einprogrammiert.
+     *
+     *  ⚠ Ein Eintrag OHNE `groesse` gilt als 1. Das ist der Grund, warum
+     *  Einstellungsdateien aus 0.2.0 unveraendert weiterlaufen: dort steht das
+     *  Feld nicht drin, und es soll auch nicht nachgetragen werden. */
+    function ls(name) {
+        const t = teil(name);
+        const g = t ? t.groesse : undefined;
+        return (g === undefined || g === null || !(g > 0)) ? 1 : g;
+    }
 
     // ── Umkehrung: aus einer Bildschirmposition den Versatz zurueckrechnen ───
     // Braucht das Ziehen. Muss zu lx/ly passen, sonst springt ein Baustein beim
@@ -122,10 +132,25 @@ Item {
      *
      *  Deshalb hier immer die Groesse des ECHTEN Bausteins nehmen, und nur wenn
      *  der gerade nichts anzeigt die des Platzhalters. */
+    /** Die Flaeche, die ein Baustein wirklich einnimmt.
+     *
+     *  ⚠ Seit dem Groessenfaktor ist `width` NICHT mehr die sichtbare Breite.
+     *  Qt skaliert den gezeichneten Baum, nicht die Geometrie: die Kinder eines
+     *  Bausteins lesen weiter seine unskalierte Breite (und muessen das auch,
+     *  sonst ginge der Faktor bei jedem `parent.width` ein zweites Mal ein).
+     *  Nach AUSSEN zaehlt darum width * scale - fuer die Lage, die
+     *  Trefferpruefung, die Marken und die Umrechnung beim Ziehen.
+     *
+     *  Tower und Lower-Third rechnen ihren Faktor selbst in ihre Masse ein und
+     *  lassen `scale` auf 1; fuer die kommt hier dasselbe heraus. */
+    function fbW(item) { return item ? item.width * item.scale : 0; }
+    function fbH(item) { return item ? item.height * item.scale : 0; }
+
     function zielGroesse(item) {
         const e = root.echtes(root.schluessel(item));
-        if (e && e.width > 4 && e.height > 4) return [e.width, e.height];
-        return [item ? item.width : 0, item ? item.height : 0];
+        if (e && root.fbW(e) > 4 && root.fbH(e) > 4)
+            return [root.fbW(e), root.fbH(e)];
+        return [root.fbW(item), root.fbH(item)];
     }
 
     /** Alle Schluessel - Reihenfolge egal, gebraucht fuer Platzhalter und Marken. */
@@ -146,7 +171,7 @@ Item {
      *  Nein heisst: er zeigt noch nie etwas an, man haelt seinen Platzhalter. */
     function hatGroesse(item) {
         const e = root.echtes(root.schluessel(item));
-        return !!(e && e.width > 4 && e.height > 4);
+        return !!(e && root.fbW(e) > 4 && root.fbH(e) > 4);
     }
 
     /** Der echte Baustein zu einem Schluessel. */
@@ -169,7 +194,9 @@ Item {
         for (let i = 0; i < root.children.length; i++) {
             const c = root.children[i];
             if (!c.visible || !c.objectName) continue;
-            if (px < c.x || px > c.x + c.width || py < c.y || py > c.y + c.height) continue;
+            // Sichtbare Flaeche, nicht die Geometrie - siehe fbW().
+            if (px < c.x || px > c.x + root.fbW(c)
+                || py < c.y || py > c.y + root.fbH(c)) continue;
             // ⚠ Bei gleicher Ebene gewinnt der ECHTE Baustein gegen einen
             // Platzhalter. Battle- und Hotlap-Boxen liegen auf demselben Platz
             // und derselben Ebene 40 und schliessen sich gegenseitig aus - ohne
@@ -183,6 +210,7 @@ Item {
 
     // ── Timing Tower: oben links ────────────────────────────────────────────
     Tower {
+        id: towerTeil
         objectName: "tower"
         // Der linke Abstand existiert NUR, um die Strafen-Pillen aufzufangen, die
         // links aus der Zeile herausragen (im CSS: padding-left am body, dort 72,
@@ -192,10 +220,12 @@ Item {
         // Reserve mehr - dann reicht derselbe Randabstand wie bei der Trackmap.
         // Der Tower rueckt damit von selbst nach links, sobald du umstellst, und
         // wieder zurueck, wenn du es rueckgaengig machst.
-        x: root.lx("tower", width, Kers.settings.penSide === "right" ? 12 : 48)
-        y: root.ly("tower", height, 10)
+        x: root.lx("tower", root.fbW(towerTeil),
+                   Kers.settings.penSide === "right" ? 12 : 48)
+        y: root.ly("tower", root.fbH(towerTeil), 10)
         stageHeight: root.height
         z: root.lz("tower", 30)
+        groesse: root.ls("tower")     // rechnet er selbst ein, siehe Tower.qml
     }
 
     // ── Trackmap: Platz aus den Settings (mapcorner) ────────────────────────
@@ -226,14 +256,21 @@ Item {
 
         // Ohne Layout-Eintrag gilt weiter mapcorner - sonst haetten wir zwei
         // Stellen, die dieselbe Karte verschieben wollen.
-        x: root.lx("trackmap", width,
+        transformOrigin: Item.TopLeft
+        scale: root.ls("trackmap")
+        // ⚠ Ueberall die sichtbare Flaeche (fbW/fbH) statt width/height - sonst
+        // rechnet der Rueckfall mit der unskalierten Groesse und die Karte
+        // ragt bei einem Faktor ueber 1 aus dem Bild.
+        x: root.lx("trackmap", root.fbW(trackmap),
                    corner === "bl" ? gap
-                   : (corner === "tc" || corner === "bc") ? Math.round((parent.width - width) / 2)
-                   : parent.width - width - gap)
-        y: root.ly("trackmap", height,
+                   : (corner === "tc" || corner === "bc")
+                     ? Math.round((root.width - root.fbW(trackmap)) / 2)
+                   : root.width - root.fbW(trackmap) - gap)
+        y: root.ly("trackmap", root.fbH(trackmap),
                    (corner === "tc" || corner === "tr") ? gap
-                   : corner === "rc" ? Math.round((parent.height - height) / 2)
-                   : parent.height - height - gap)
+                   : corner === "rc"
+                     ? Math.round((root.height - root.fbH(trackmap)) / 2)
+                   : root.height - root.fbH(trackmap) - gap)
     }
 
     // ── Meldungen und Banner: oben mittig ───────────────────────────────────
@@ -243,23 +280,35 @@ Item {
     // (siehe die Warnung bei der Trackmap). Der Rueckfallwert bildet exakt das
     // ab, was der Anker vorher tat.
     RaceMessage {
+        id: racemsgTeil
         objectName: "racemsg"
-        x: root.lx("racemsg", width, Math.round((root.width - width) / 2))
-        baseY: root.ly("racemsg", height, 22)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("racemsg")
+        x: root.lx("racemsg", root.fbW(racemsgTeil),
+                   Math.round((root.width - root.fbW(racemsgTeil)) / 2))
+        baseY: root.ly("racemsg", root.fbH(racemsgTeil), 22)
         z: root.lz("racemsg", 46)
     }
 
     FastestLapBanner {
+        id: flbannerTeil
         objectName: "flbanner"
-        x: root.lx("flbanner", width, Math.round((root.width - width) / 2))
-        baseY: root.ly("flbanner", height, 84)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("flbanner")
+        x: root.lx("flbanner", root.fbW(flbannerTeil),
+                   Math.round((root.width - root.fbW(flbannerTeil)) / 2))
+        baseY: root.ly("flbanner", root.fbH(flbannerTeil), 84)
         z: root.lz("flbanner", 47)
     }
 
     StartLights {
+        id: lightsTeil
         objectName: "lights"
-        x: root.lx("lights", width, Math.round((root.width - width) / 2))
-        y: root.ly("lights", height, root.height * 0.12)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("lights")
+        x: root.lx("lights", root.fbW(lightsTeil),
+                   Math.round((root.width - root.fbW(lightsTeil)) / 2))
+        y: root.ly("lights", root.fbH(lightsTeil), root.height * 0.12)
         z: root.lz("lights", 80)
     }
 
@@ -267,32 +316,51 @@ Item {
     // Beide sitzen an derselben Stelle; sie schliessen sich gegenseitig aus
     // (Battles nur im Rennen, Hotlaps nur in der Quali).
     Battles {
+        id: battlesTeil
         objectName: "battles"
-        x: root.lx("battles", width, Math.round((root.width - width) / 2))
-        y: root.ly("battles", height, root.height - height - 28)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("battles")
+        x: root.lx("battles", root.fbW(battlesTeil),
+                   Math.round((root.width - root.fbW(battlesTeil)) / 2))
+        y: root.ly("battles", root.fbH(battlesTeil),
+                   root.height - root.fbH(battlesTeil) - 28)
         z: root.lz("battles", 40)
     }
 
     Hotlaps {
+        id: hotlapsTeil
         objectName: "hotlaps"
-        x: root.lx("hotlaps", width, Math.round((root.width - width) / 2))
-        y: root.ly("hotlaps", height, root.height - height - 28)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("hotlaps")
+        x: root.lx("hotlaps", root.fbW(hotlapsTeil),
+                   Math.round((root.width - root.fbW(hotlapsTeil)) / 2))
+        y: root.ly("hotlaps", root.fbH(hotlapsTeil),
+                   root.height - root.fbH(hotlapsTeil) - 28)
         z: root.lz("hotlaps", 40)
     }
 
     LowerThird {
+        id: lowerthirdTeil
         objectName: "lowerthird"
         // ⚠ Ging bis 0.2.0 NICHT durch lx: das Lower-Third liess sich waagerecht
         // ziehen, sprang aber beim Loslassen zurueck in die Mitte.
-        x: root.lx("lowerthird", width, Math.round((root.width - width) / 2))
-        baseY: root.ly("lowerthird", height, root.height - 380 - height)
+        groesse: root.ls("lowerthird")   // rechnet er selbst ein, s. LowerThird.qml
+        x: root.lx("lowerthird", root.fbW(lowerthirdTeil),
+                   Math.round((root.width - root.fbW(lowerthirdTeil)) / 2))
+        baseY: root.ly("lowerthird", root.fbH(lowerthirdTeil),
+                       root.height - 380 - root.fbH(lowerthirdTeil))
         z: root.lz("lowerthird", 41)
     }
 
     DangerZone {
+        id: dangerTeil
         objectName: "danger"
-        x: root.lx("danger", width, Math.round((root.width - width) / 2))
-        baseY: root.ly("danger", height, root.height - 40 - height)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("danger")
+        x: root.lx("danger", root.fbW(dangerTeil),
+                   Math.round((root.width - root.fbW(dangerTeil)) / 2))
+        baseY: root.ly("danger", root.fbH(dangerTeil),
+                       root.height - 40 - root.fbH(dangerTeil))
         z: root.lz("danger", 46)
     }
 
@@ -300,36 +368,56 @@ Item {
     Onboard {
         id: onboard
         objectName: "onboard"
-        x: root.lx("onboard", width, 24)
-        y: root.ly("onboard", height, root.height - height - 28)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("onboard")
+        x: root.lx("onboard", root.fbW(onboard), 24)
+        y: root.ly("onboard", root.fbH(onboard),
+                   root.height - root.fbH(onboard) - 28)
         z: root.lz("onboard", 44)
     }
 
     PitProjection {
+        id: pitprojTeil
         objectName: "pitproj"
-        x: root.lx("pitproj", width, 24)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("pitproj")
+        x: root.lx("pitproj", root.fbW(pitprojTeil), 24)
         // Im Web liegen beide auf 24 px ueber dem unteren Rand und ueberlappen
         // sich dort. Hier weicht die Projektion nach oben aus, wenn das Onboard
         // steht - sichtbar sind sie ohnehin selten gleichzeitig. Das Ausweichen
         // steckt im Rueckfallwert: sobald die Projektion einen eigenen Eintrag
         // hat, gilt der Platz, den du ihr gegeben hast.
-        y: root.ly("pitproj", height,
-                   root.height - height - (onboard.visible ? 28 + onboard.height + 10 : 24))
+        //
+        // ⚠ Auch hier die SICHTBARE Hoehe des Onboards: vergroessert man es,
+        // muss die Projektion entsprechend weiter nach oben ausweichen.
+        y: root.ly("pitproj", root.fbH(pitprojTeil),
+                   root.height - root.fbH(pitprojTeil)
+                   - (onboard.visible ? 28 + root.fbH(onboard) + 10 : 24))
         z: root.lz("pitproj", 44)
     }
 
     // ── Unten rechts: Boxenstopps, darunter der WM-Stand ────────────────────
     PitCards {
+        id: pitcardsTeil
         objectName: "pitcards"
-        x: root.lx("pitcards", width, root.width - width - 24)
-        y: root.ly("pitcards", height, root.height - height - 28)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("pitcards")
+        x: root.lx("pitcards", root.fbW(pitcardsTeil),
+                   root.width - root.fbW(pitcardsTeil) - 24)
+        y: root.ly("pitcards", root.fbH(pitcardsTeil),
+                   root.height - root.fbH(pitcardsTeil) - 28)
         z: root.lz("pitcards", 45)
     }
 
     Championship {
+        id: champTeil
         objectName: "champ"
-        x: root.lx("champ", width, root.width - width - 24)
-        y: root.ly("champ", height, root.height - height - 40)
+        transformOrigin: Item.TopLeft
+        scale: root.ls("champ")
+        x: root.lx("champ", root.fbW(champTeil),
+                   root.width - root.fbW(champTeil) - 24)
+        y: root.ly("champ", root.fbH(champTeil),
+                   root.height - root.fbH(champTeil) - 40)
         z: root.lz("champ", 45)
     }
 
@@ -361,7 +449,7 @@ Item {
 
             objectName: "ph:" + modelData
             visible: Hud.layoutEdit && (!echt || !echt.visible
-                                        || echt.width < 4 || echt.height < 4)
+                                        || root.fbW(echt) < 4 || root.fbH(echt) < 4)
             // ⚠ In die Szene zwingen. Ein Baustein, der nichts anzeigt, ist
             // 0 px gross - seine unten verankerte Lage ist damit buendig mit der
             // Unterkante, und ein 210 px hoher Platzhalter haengt zu drei
@@ -373,10 +461,14 @@ Item {
             // keine Groesse hat. Hat er eine (er zeigt nur nichts an, ist aber
             // ausgemessen), gilt seine - sonst faengt man den Platzhalter in
             // einer Groesse an, in der der Baustein nachher nie gezeichnet wird.
-            width: (echt && echt.width > 4) ? echt.width
-                                            : root.teilGroessen[modelData][0]
-            height: (echt && echt.height > 4) ? echt.height
-                                              : root.teilGroessen[modelData][1]
+            // Auch hier die sichtbare Flaeche - ein vergroesserter Baustein soll
+            // seinen Platzhalter in genau der Groesse hinterlassen.
+            width: (echt && root.fbW(echt) > 4) ? root.fbW(echt)
+                                                : root.teilGroessen[modelData][0]
+                                                  * root.ls(modelData)
+            height: (echt && root.fbH(echt) > 4) ? root.fbH(echt)
+                                                 : root.teilGroessen[modelData][1]
+                                                   * root.ls(modelData)
             z: echt ? echt.z : 40
 
             Rectangle {
@@ -435,19 +527,55 @@ Item {
         property real letztX: 0         // zuletzt gesetzte Lage - die wird gespeichert
         property real letztY: 0
 
-        function karte(name, e, dx, dy, z) {
+        // ── Groesse ziehen ──────────────────────────────────────────────────
+        readonly property int anfasser: 16   // Kantenlaenge der Ecken-Quadrate
+        property string modus: "lage"        // "lage" = verschieben, "groesse"
+        property real startFaktor: 1
+        property real letztFaktor: 1
+        property real festDx: 0              // Lage bleibt beim Groessenziehen fest
+        property real festDy: 0
+        property int richtungX: 1            // +1 = nach rechts groesser
+        property int richtungY: 1
+
+        /** Liegt der Punkt auf einem Ecken-Anfasser des Bausteins?
+         *  Rueckgabe: null oder die Zugrichtung, in der "groesser" liegt. */
+        function anfasserUnter(t, px, py) {
+            if (!t) return null;
+            const w = root.fbW(t), h = root.fbH(t), a = layoutEditor.anfasser;
+            const y0 = root.lageY(t);
+            const links = px <= t.x + a, rechts = px >= t.x + w - a;
+            const oben = py <= y0 + a, unten = py >= y0 + h - a;
+            if (!(links || rechts) || !(oben || unten)) return null;
+            return { x: links ? -1 : 1, y: oben ? -1 : 1 };
+        }
+
+        // ⚠ Der Eintrag wird ERSETZT, nicht ergaenzt. Alles, was nicht hier
+        // steht, ist danach weg - deshalb muss `groesse` mit. Ohne diese Zeile
+        // haette ein Verschieben die eingestellte Groesse stillschweigend auf 1
+        // zurueckgesetzt, und zwar ohne Fehlermeldung irgendwo.
+        function karte(name, e, dx, dy, z, groesse) {
             const neu = {};
             const alt = Kers.settings.layout || {};
             for (const k in alt) neu[k] = alt[k];
-            neu[name] = { ecke: e, dx: dx, dy: dy, z: Math.round(z) };
+            neu[name] = { ecke: e, dx: dx, dy: dy, z: Math.round(z),
+                          groesse: (groesse === undefined) ? root.ls(name)
+                                                           : groesse };
             return neu;
         }
 
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
-            cursorShape: layoutEditor.griff ? Qt.ClosedHandCursor
-                       : (layoutEditor.unterMaus ? Qt.OpenHandCursor : Qt.ArrowCursor)
+            cursorShape: {
+                if (layoutEditor.griff)
+                    return layoutEditor.modus === "groesse" ? Qt.SizeFDiagCursor
+                                                            : Qt.ClosedHandCursor;
+                if (!layoutEditor.unterMaus) return Qt.ArrowCursor;
+                const a = layoutEditor.anfasserUnter(layoutEditor.unterMaus,
+                                                     mouseX, mouseY);
+                if (!a) return Qt.OpenHandCursor;
+                return a.x === a.y ? Qt.SizeFDiagCursor : Qt.SizeBDiagCursor;
+            }
 
             onPositionChanged: (m) => {
                 if (!layoutEditor.griff) {
@@ -455,6 +583,29 @@ Item {
                     return;
                 }
                 const t = layoutEditor.griff;
+
+                // ── Groesse ziehen ──────────────────────────────────────────
+                // Die LAGE bleibt fest (festDx/festDy). Das reicht: x und y
+                // werden aus Ankerpunkt und Flaeche gerechnet, der Baustein
+                // waechst dadurch von selbst VON seiner Ankerecke weg statt
+                // ueber sie hinaus. Nachgemessen: unten links verankert bleibt
+                // 24/28 px zur Ecke, egal welcher Faktor.
+                if (layoutEditor.modus === "groesse") {
+                    const dw = (m.x - layoutEditor.pressX) * layoutEditor.richtungX;
+                    const dh = (m.y - layoutEditor.pressY) * layoutEditor.richtungY;
+                    // Mittel aus beiden Achsen, jede an der eigenen Kantenlaenge
+                    // gemessen - so zieht sich ein flacher Balken nicht anders an
+                    // als ein hoher Kasten.
+                    const rel = ((layoutEditor.griffW > 0 ? dw / layoutEditor.griffW : 0)
+                               + (layoutEditor.griffH > 0 ? dh / layoutEditor.griffH : 0)) / 2;
+                    layoutEditor.letztFaktor = Math.max(
+                        0.5, Math.min(2, layoutEditor.startFaktor * (1 + rel)));
+                    Kers.layoutLive(layoutEditor.karte(
+                        root.schluessel(t), layoutEditor.ecke,
+                        layoutEditor.festDx, layoutEditor.festDy, t.z,
+                        layoutEditor.letztFaktor));
+                    return;
+                }
                 // Reine Verschiebung ab dem Packpunkt. In der Szene halten -
                 // sonst zieht man einen Baustein aus dem Bild und kommt ohne die
                 // Regler in /settings nicht mehr heran.
@@ -486,8 +637,11 @@ Item {
                 layoutEditor.startY = root.lageY(t);
                 layoutEditor.pressX = m.x;
                 layoutEditor.pressY = m.y;
-                layoutEditor.griffW = t.width;
-                layoutEditor.griffH = t.height;
+                // ⚠ Die SICHTBARE Flaeche einfrieren, nicht die Geometrie -
+                // sonst begrenzt der Rand beim Ziehen auf die unskalierte
+                // Breite und ein vergroesserter Baustein haengt rechts raus.
+                layoutEditor.griffW = root.fbW(t);
+                layoutEditor.griffH = root.fbH(t);
                 layoutEditor.letztX = layoutEditor.startX;
                 layoutEditor.letztY = layoutEditor.startY;
                 // Wer schon einen Ankerpunkt hat, behaelt ihn - sonst spraenge die
@@ -507,13 +661,35 @@ Item {
                     layoutEditor.ecke = "tl";
                 } else {
                     layoutEditor.ecke = root.eckeNah(t.x, root.lageY(t),
-                                                     t.width, t.height);
+                                                     root.fbW(t), root.fbH(t));
+                }
+
+                // Anfasser gepackt? Dann Groesse statt Lage. Die Lage wird JETZT
+                // eingefroren - mit der Flaeche von jetzt, denn danach aendert
+                // sie sich ja gerade.
+                const a = layoutEditor.anfasserUnter(t, m.x, m.y);
+                layoutEditor.modus = a ? "groesse" : "lage";
+                if (a) {
+                    layoutEditor.richtungX = a.x;
+                    layoutEditor.richtungY = a.y;
+                    layoutEditor.startFaktor = root.ls(root.schluessel(t));
+                    layoutEditor.letztFaktor = layoutEditor.startFaktor;
+                    layoutEditor.festDx = root.dxAus(layoutEditor.ecke,
+                                                     t.x, layoutEditor.griffW);
+                    layoutEditor.festDy = root.dyAus(layoutEditor.ecke,
+                                                     root.lageY(t),
+                                                     layoutEditor.griffH);
                 }
             }
 
             onReleased: {
                 const t = layoutEditor.griff;
-                if (t) {
+                if (t && layoutEditor.modus === "groesse") {
+                    Kers.layoutSpeichern(layoutEditor.karte(
+                        root.schluessel(t), layoutEditor.ecke,
+                        layoutEditor.festDx, layoutEditor.festDy, t.z,
+                        layoutEditor.letztFaktor));
+                } else if (t) {
                     // Dieselbe Rechnung wie beim Ziehen - so liegt der
                     // gespeicherte Platz genau dort, wo der Baustein zuletzt stand.
                     const g = root.zielGroesse(t);
@@ -524,6 +700,7 @@ Item {
                         t.z));
                 }
                 layoutEditor.griff = null;
+                layoutEditor.modus = "lage";
             }
         }
 
@@ -547,7 +724,8 @@ Item {
                 // Dieselbe Wahl wie in teilUnter(): die Marke soll zeigen, was
                 // man trifft.
                 readonly property var ziel:
-                    (echt && echt.visible && echt.width > 4 && echt.height > 4)
+                    (echt && echt.visible
+                     && root.fbW(echt) > 4 && root.fbH(echt) > 4)
                     ? echt : ((platz && platz.visible) ? platz : null)
 
                 // Liegt die Maus auf diesem Baustein? Dann ist die Marke selbst
@@ -563,8 +741,8 @@ Item {
                 // (Fuer die Ziehen-Rechnung gilt weiter lageY - siehe dort.)
                 x: ziel ? ziel.x : 0
                 y: ziel ? ziel.y : 0
-                width: ziel ? ziel.width : 0
-                height: ziel ? ziel.height : 0
+                width: root.fbW(ziel)
+                height: root.fbH(ziel)
 
                 Rectangle {
                     anchors.fill: parent
@@ -578,10 +756,31 @@ Item {
                     }
                 }
 
+                // Ecken-Anfasser - nur am Baustein unter der Maus, sonst waeren
+                // 52 Quadrate gleichzeitig im Bild.
+                Repeater {
+                    model: marke.dran ? ["tl", "tr", "bl", "br"] : []
+
+                    Rectangle {
+                        required property string modelData
+                        width: layoutEditor.anfasser
+                        height: layoutEditor.anfasser
+                        color: Theme.accent
+                        border { width: 1; color: "#ffffff" }
+                        x: modelData.indexOf("l") >= 0
+                           ? 0 : marke.width - layoutEditor.anfasser
+                        y: modelData.indexOf("t") >= 0
+                           ? 0 : marke.height - layoutEditor.anfasser
+                    }
+                }
+
                 // Beschriftung INNEN oben links - ausserhalb waere sie bei einem
                 // Baustein am oberen Rand (Meldungs-Banner sitzt auf y=22) weg.
                 Rectangle {
-                    anchors { left: parent.left; top: parent.top; margins: 3 }
+                    // Rueckt zur Seite, sobald die Anfasser da sind - sonst
+                    // liegt das Schild unter dem Quadrat oben links.
+                    anchors { left: parent.left; top: parent.top; margins: 3
+                              leftMargin: marke.dran ? layoutEditor.anfasser + 5 : 3 }
                     width: markeText.implicitWidth + 10
                     height: markeText.implicitHeight + 4
                     radius: 3

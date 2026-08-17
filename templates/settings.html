@@ -622,6 +622,8 @@ function renderLayout(){
         + `<input type="range" min="0" max="1200" step="2" data-lay="${key}:dy"><span class="val" data-lval="${key}:dy"></span></div></div>`
         + `<div class="row"><label>Ebene<small>Höher liegt weiter vorn</small></label><div class="ctl">`
         + `<input type="range" min="0" max="100" step="1" data-lay="${key}:z"><span class="val" data-lval="${key}:z"></span></div></div>`
+        + `<div class="row"><label>Größe<small>1 = wie eingebaut</small></label><div class="ctl">`
+        + `<input type="range" min="0.5" max="2" step="0.02" data-lay="${key}:groesse"><span class="val" data-lval="${key}:groesse"></span></div></div>`
         + `<div class="row"><label>&nbsp;</label><div class="ctl">`
         + `<button type="button" class="mini" data-lreset="${key}">Auf Standard zurück</button></div></div>`
         + `</div></div>`;
@@ -629,14 +631,23 @@ function renderLayout(){
     layoutGebaut = true;
   }
   // Werte auffrischen - ohne Neubau, sonst verlieren die Regler beim Ziehen den Fokus.
+  // ⚠ groesse fehlt in Einträgen aus 0.2.0 — dort gilt 1. Ohne diesen Rückfall
+  // stünde im Regler `undefined`, und er spränge beim ersten Anfassen auf seine
+  // Mitte statt auf den Wert, der wirklich gilt.
+  const layFeld = (key, feld) => {
+    const v = layWert(key)[feld];
+    if(feld === "groesse") return (v === undefined || v === null) ? 1 : v;
+    return v;
+  };
   box.querySelectorAll("[data-lay]").forEach(el=>{
     if(document.activeElement===el) return;
     const [key,feld] = el.dataset.lay.split(":");
-    el.value = layWert(key)[feld];
+    el.value = layFeld(key, feld);
   });
   box.querySelectorAll(".val[data-lval]").forEach(el=>{
     const [key,feld] = el.dataset.lval.split(":");
-    el.textContent = layWert(key)[feld];
+    const v = layFeld(key, feld);
+    el.textContent = feld === "groesse" ? Number(v).toFixed(2) : v;
   });
   box.querySelectorAll("[data-lstate]").forEach(el=>{
     const key = el.dataset.lstate;
@@ -716,7 +727,12 @@ document.addEventListener("input", e=>{
   if(cc && e.target.classList.contains("cpick")){ save({[cc.dataset.color]: e.target.value}); return; }
   const sk=e.target.dataset && e.target.dataset.str; if(sk){ save({[sk]: e.target.value}); return; }   // A2: Text/Farbe
   const lay=e.target.dataset && e.target.dataset.lay;   // Layout-Regler
-  if(lay){ const [key,feld]=lay.split(":"); laySetze(key, feld, parseInt(e.target.value,10)); return; }
+  // ⚠ groesse ist ein Kommawert. parseInt hätte aus 1,25 eine 1 gemacht, und der
+  // Regler wäre auf drei Stufen zusammengeschrumpft, ohne dass man den Fehler sieht.
+  if(lay){ const [key,feld]=lay.split(":");
+           laySetze(key, feld, feld === "groesse" ? parseFloat(e.target.value)
+                                                  : parseInt(e.target.value,10));
+           return; }
   const k=e.target.dataset && e.target.dataset.k; if(!k) return;
   const wert = parseFloat(e.target.value);
   // Der Regler ersetzt den frueheren Schalter "battles". Den liest aber das

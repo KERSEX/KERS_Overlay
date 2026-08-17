@@ -12,11 +12,16 @@ Item {
 
     readonly property var src: Kers.lowerThird
     property real baseY: 0
+    // Faktor aus dem freien Layout.
+    property real groesse: 1
 
-    width: box.width * scale
-    height: box.height * scale
-    transformOrigin: Item.BottomLeft
-    scale: 1.14
+    // ⚠ Die Skalierung sitzt am INNEREN `box`, nicht am Item selbst - genau wie
+    // beim Tower. Am Item waere sie doppelt gezaehlt: die Breite rechnet sie
+    // schon ein, und die Aussenwelt multipliziert nochmal mit `scale`
+    // (root.fbW in Overlay.qml). Gemessen: aus Faktor 1,4 wurden 1,96.
+    // Deshalb bleibt `scale` des Item auf 1 und die Aussenmasse stimmen.
+    width: box.width * box.scale
+    height: box.height * box.scale
 
     opacity: src.isVisible ? 1 : 0
     y: baseY + (src.isVisible ? 0 : 14)
@@ -32,6 +37,11 @@ Item {
     Row {
         id: box
         spacing: 0
+        // Grundvergroesserung des Lower-Third (frueher am Item), mal dem Faktor
+        // aus dem Layout. TopLeft wie bei allen anderen Bausteinen, damit x/y
+        // die obere linke Ecke des SICHTBAREN Kastens meinen.
+        transformOrigin: Item.TopLeft
+        scale: 1.14 * lt.groesse
 
         // Position, in Teamfarbe hinterlegt
         Rectangle {

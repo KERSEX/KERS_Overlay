@@ -146,20 +146,25 @@ LAYOUT_TEILE = [
 # je nach sichtbarem Onboard, Trackmap über mapcorner). Ein fester Wert würde die
 # Rechnerei ersetzen und damit verschlechtern. Solange kein Eintrag existiert,
 # gilt im Overlay weiter der bisherige Ausdruck.
+#
+# `groesse` ist der Faktor auf die Bausteingröße, 1 = wie einprogrammiert. Er
+# steht hier überall auf 1 und wird — wie die anderen Werte auch — erst
+# geschrieben, wenn man den Baustein anfasst. ⚠ Ein FEHLENDES `groesse` in einer
+# älteren Einstellungsdatei gilt als 1; deshalb braucht es keine Umstellung.
 LAYOUT_STANDARD = {
-    "tower":      {"ecke": "tl", "dx": 48,  "dy": 10,  "z": 30},
-    "trackmap":   {"ecke": "tr", "dx": 12,  "dy": 12,  "z": 42},
-    "racemsg":    {"ecke": "tc", "dx": 0,   "dy": 22,  "z": 46},
-    "flbanner":   {"ecke": "tc", "dx": 0,   "dy": 84,  "z": 47},
-    "lights":     {"ecke": "tc", "dx": 0,   "dy": 170, "z": 80},
-    "battles":    {"ecke": "bc", "dx": 0,   "dy": 28,  "z": 40},
-    "hotlaps":    {"ecke": "bc", "dx": 0,   "dy": 28,  "z": 40},
-    "lowerthird": {"ecke": "bc", "dx": 0,   "dy": 380, "z": 41},
-    "danger":     {"ecke": "bc", "dx": 0,   "dy": 40,  "z": 46},
-    "onboard":    {"ecke": "bl", "dx": 24,  "dy": 28,  "z": 44},
-    "pitproj":    {"ecke": "bl", "dx": 24,  "dy": 24,  "z": 44},
-    "pitcards":   {"ecke": "br", "dx": 24,  "dy": 28,  "z": 45},
-    "champ":      {"ecke": "br", "dx": 24,  "dy": 40,  "z": 45},
+    "tower":      {"ecke": "tl", "dx": 48,  "dy": 10,  "z": 30, "groesse": 1.0},
+    "trackmap":   {"ecke": "tr", "dx": 12,  "dy": 12,  "z": 42, "groesse": 1.0},
+    "racemsg":    {"ecke": "tc", "dx": 0,   "dy": 22,  "z": 46, "groesse": 1.0},
+    "flbanner":   {"ecke": "tc", "dx": 0,   "dy": 84,  "z": 47, "groesse": 1.0},
+    "lights":     {"ecke": "tc", "dx": 0,   "dy": 170, "z": 80, "groesse": 1.0},
+    "battles":    {"ecke": "bc", "dx": 0,   "dy": 28,  "z": 40, "groesse": 1.0},
+    "hotlaps":    {"ecke": "bc", "dx": 0,   "dy": 28,  "z": 40, "groesse": 1.0},
+    "lowerthird": {"ecke": "bc", "dx": 0,   "dy": 380, "z": 41, "groesse": 1.0},
+    "danger":     {"ecke": "bc", "dx": 0,   "dy": 40,  "z": 46, "groesse": 1.0},
+    "onboard":    {"ecke": "bl", "dx": 24,  "dy": 28,  "z": 44, "groesse": 1.0},
+    "pitproj":    {"ecke": "bl", "dx": 24,  "dy": 24,  "z": 44, "groesse": 1.0},
+    "pitcards":   {"ecke": "br", "dx": 24,  "dy": 28,  "z": 45, "groesse": 1.0},
+    "champ":      {"ecke": "br", "dx": 24,  "dy": 40,  "z": 45, "groesse": 1.0},
 }
 DEFAULT_SETTINGS = {
     # Sichtbarkeit der Komponenten
@@ -1565,6 +1570,14 @@ def api_settings():
                                 "dx": max(-4000, min(4000, int(wert.get("dx", 0)))),
                                 "dy": max(-4000, min(4000, int(wert.get("dy", 0)))),
                                 "z": max(0, min(100, int(wert.get("z", 40)))),
+                                # Größenfaktor. Grenzen wie beim Regler in
+                                # /settings; unter 0,5 wäre ein Baustein kaum
+                                # noch zu treffen, über 2 sprengt er das Bild.
+                                # Auf zwei Stellen gerundet: das Ziehen an der
+                                # Ecke liefert sonst 1.3417023882424983, und das
+                                # steht dann so in der Einstellungsdatei.
+                                "groesse": round(max(0.5, min(2.0, float(
+                                    wert.get("groesse", 1.0)))), 2),
                             }
                         except (TypeError, ValueError):
                             continue

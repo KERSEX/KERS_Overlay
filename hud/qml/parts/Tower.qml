@@ -65,6 +65,13 @@ Item {
     // 1:1 die Rechnung am Ende von renderTower(): der Tower soll gut 80 % der
     // Buehnenhoehe fuellen, TOWER_BASE ist die Grundvergroesserung, und
     // Kers.settings.scale ist ein Faktor RELATIV dazu (0 = automatisch).
+    // Faktor aus dem freien Layout. ⚠ Bewusst NICHT ueber die `scale` des
+    // Item wie bei den anderen Bausteinen: der Tower rechnet seine Breite und
+    // Hoehe schon selbst aus panel.scale. Kaeme der Faktor zusaetzlich als
+    // Item-Skalierung dazu, ginge er doppelt ein. So bleibt `scale` auf 1 und
+    // die Aussenmasse stimmen weiter mit dem, was man sieht.
+    property real groesse: 1
+
     readonly property real towerBase: 1.12
     readonly property real autoFit: {
         var refH = headerBlock.height + colHead.height + towerRows * Theme.rowHeight;
@@ -96,6 +103,7 @@ Item {
         height: headerBlock.height + colHead.height + body.height
         transformOrigin: Item.TopLeft
         scale: tower.autoFit * (Kers.settings.scale > 0 ? Kers.settings.scale : 1)
+               * tower.groesse
 
         // Rahmen und Ecken. Der Rahmen wechselt bei Safety Car, VSC und roter
         // Flagge Farbe und Dicke - .sc-active / .vsc-active / .rf-active.

@@ -247,6 +247,10 @@ class OverlayBridge(QObject):
         # Vor dem Start, damit ein sofort eintreffender echter Stand nicht gleich
         # wieder weggeraeumt wird.
         if not on:
+            # Die Ueberschreibung aus dem Bearbeiten aufgeben: ab jetzt liefert
+            # wieder der Server die Settings, und der kennt den gespeicherten
+            # Stand. Gegenstueck zu _layout_gesendet.
+            self._cfg.set_override("layout", None)
             self._szene_leeren()
         self._feed.start()
 
@@ -344,7 +348,22 @@ class OverlayBridge(QObject):
             return
         finally:
             reply.deleteLater()
-        self._cfg.set_override("layout", None)     # ab jetzt gilt der Server
+        # ⚠ Die Ueberschreibung darf NICHT aufgegeben werden, solange die
+        # Vorschau laeuft - und beim Layout-Bearbeiten laeuft sie immer.
+        #
+        # Der Grund liegt im Demo-Feed: der liest overlay_settings.json genau
+        # EINMAL beim Erzeugen (_real_settings in demo.py) und schickt diesen
+        # Schnappschuss dann in jedem Takt als "settings" mit. Gibt man hier die
+        # Ueberschreibung auf, gilt 33 ms spaeter wieder der Stand von vor dem
+        # Bearbeiten - der Baustein sprang beim Loslassen zurueck, obwohl er
+        # richtig gespeichert war. In der Datei stand der neue Wert, im Bild der
+        # alte. Beim Verlassen der Vorschau wird sie in set_vorschau aufgegeben,
+        # dann ist wieder der Server die Wahrheit.
+        if self._demo_an:
+            self._cfg.set_override("layout", dict(
+                (antwort.get("layout") or {})))
+        else:
+            self._cfg.set_override("layout", None)   # ab jetzt gilt der Server
         self._cfg.apply(antwort)
         self._settings.apply(self._cfg)
 

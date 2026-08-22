@@ -191,6 +191,8 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
       </div></div>
     <div class="row"><label>Deckkraft<small>Wie undurchsichtig die Panels sind. 1.00 = wie bisher, kleiner = mehr Gameplay scheint durch, ab 1.25 komplett deckend. Gilt für Tower, Boxen, Onboard usw.</small></label>
       <div class="ctl"><input type="range" min="0.4" max="1.25" step="0.05" data-k="opacity"><span class="val" data-v="opacity"></span></div></div>
+    <div class="row"><label>Schrift-Kontur<small>Dunkler Rand um jedes Zeichen. 0 = aus wie bisher. Die Schrift selbst ist immer voll deckend — unlesbar wird sie bei niedriger Deckkraft nur, weil der dunkle Grund dahinter verschwindet. Genau dagegen ist dieser Regler.</small></label>
+      <div class="ctl"><input type="range" min="0" max="1" step="0.05" data-k="text_outline"><span class="val" data-v="text_outline"></span></div></div>
     <div class="row"><label>Zeilen (Top-N)<small>0 = alle Fahrer anzeigen</small></label>
       <div class="ctl"><input type="number" min="0" max="24" step="1" data-k="rows"></div></div>
     <div class="row"><label>Ergebnis halten<small>Sekunden, die das letzte Q/R-Ergebnis nach Session-Ende stehen bleibt</small></label>

@@ -280,8 +280,8 @@ Item {
                         visible: !row.podium
                         color: row.elimZone ? "#ff9090" : Theme.textMain
                         font { family: Theme.display; pixelSize: 27; weight: Font.Bold }
-                        style: Text.Raised
-                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                        style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                        styleColor: Theme.textStyleColor
                     }
 
                     MedalText {
@@ -308,6 +308,8 @@ Item {
                     color: row.changeDir === "up" ? "#00ff88"
                          : row.changeDir === "down" ? "#ff3333" : "transparent"
                     font { family: Theme.sans; pixelSize: 13; weight: Font.Bold }
+                    style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                    styleColor: Theme.textStyleColor
                     Behavior on color { ColorAnimation { duration: 300 } }
                 }
             }
@@ -376,8 +378,8 @@ Item {
                     elide: Text.ElideRight
                     font { family: Theme.sans; pixelSize: 17; weight: Font.DemiBold
                            capitalization: Font.AllUppercase }
-                    style: Text.Raised
-                    styleColor: Qt.rgba(0, 0, 0, 0.7)
+                    style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                    styleColor: Theme.textStyleColor
                 }
 
                 Row {
@@ -387,9 +389,18 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: row.team
-                        color: row.elimZone ? "#d9a0a0" : "#c2c2ce"
+                        // ⚠ Eigene, gedaempfte Farben - nicht Theme.textMuted.
+                        // Mit steigender Kontur werden sie mit aufgehellt, sonst
+                        // bleibt der Teamname auch mit Rand schwer zu lesen.
+                        color: {
+                            const b = row.elimZone ? "#d9a0a0" : "#c2c2ce";
+                            return Theme.textOutline > 0
+                                   ? Qt.lighter(b, 1 + 0.25 * Theme.textOutline) : b;
+                        }
                         font { family: Theme.sans; pixelSize: 14; weight: Font.Bold
                                letterSpacing: 0.5 }
+                        style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                        styleColor: Theme.textStyleColor
                     }
 
                     // Comeback: Plaetze seit dem Start (nur im Rennen).
@@ -399,6 +410,8 @@ Item {
                         text: (row.comeback > 0 ? "▲" : "▼") + Math.abs(row.comeback)
                         color: row.comeback > 0 ? "#00e676" : "#ff5a5a"
                         font { family: Theme.display; pixelSize: 13; weight: Font.Bold }
+                        style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                        styleColor: Theme.textStyleColor
                     }
 
                     // Schaden an Front- und Heckfluegel.
@@ -459,8 +472,8 @@ Item {
                     capitalization: row.isLeader ? Font.AllUppercase : Font.MixedCase
                     features: ({ "tnum": 1 })
                 }
-                style: Text.Raised
-                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                styleColor: Theme.textStyleColor
             }
         }
 
@@ -480,8 +493,8 @@ Item {
                     weight: Font.Bold
                     features: ({ "tnum": 1 })
                 }
-                style: Text.Raised
-                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                styleColor: Theme.textStyleColor
             }
         }
 
@@ -532,8 +545,8 @@ Item {
                     color: Theme.textMain
                     font { family: Theme.sans; pixelSize: 15; weight: Font.Bold
                            features: ({ "tnum": 1 }) }
-                    style: Text.Raised
-                    styleColor: Qt.rgba(0, 0, 0, 0.7)
+                    style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                    styleColor: Theme.textStyleColor
                 }
             }
         }
@@ -561,16 +574,16 @@ Item {
                             color: row.lapInvalid ? "#ff6b6b" : "#dcdce4"
                             font { family: Theme.sans; pixelSize: 15
                                    features: ({ "tnum": 1 }) }
-                            style: Text.Raised
-                            styleColor: Qt.rgba(0, 0, 0, 0.7)
+                            style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                            styleColor: Theme.textStyleColor
                         }
                         Text {
                             text: Fmt.time(row.sectors[index]) || "—"
                             color: Fmt.sectorColor(row.sectorClasses[index], row.lapInvalid)
                             font { family: Theme.sans; pixelSize: 15; weight: Font.Bold
                                    features: ({ "tnum": 1 }) }
-                            style: Text.Raised
-                            styleColor: Qt.rgba(0, 0, 0, 0.7)
+                            style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                            styleColor: Theme.textStyleColor
                         }
                     }
                 }
@@ -605,8 +618,8 @@ Item {
                         weight: Font.ExtraBold
                         letterSpacing: row.quali ? 0.7 : 0.2
                     }
-                    style: Text.Raised
-                    styleColor: Qt.rgba(0, 0, 0, 0.6)
+                    style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                    styleColor: Theme.textStyleColor
                 }
 
                 // 2026er Overtake Mode: blauer Komet laeuft am Rand der Pille entlang.

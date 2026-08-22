@@ -137,6 +137,7 @@ class ObsWindow(QQuickView):
         self.bridge.settings.headerColorChanged.connect(self._sync_theme)
         self.bridge.settings.rowColorChanged.connect(self._sync_theme)
         self.bridge.settings.uiAlphaChanged.connect(self._sync_theme)
+        self.bridge.settings.textOutlineChanged.connect(self._sync_theme)
         self._sync_theme()
 
         ctx = self.engine().rootContext()

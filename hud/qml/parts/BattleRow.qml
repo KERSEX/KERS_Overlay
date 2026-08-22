@@ -132,8 +132,8 @@ Item {
             elide: Text.ElideRight
             font { family: Theme.sans; pixelSize: 15; weight: Font.DemiBold
                    letterSpacing: 0.3; capitalization: Font.AllUppercase }
-            style: Text.Raised
-            styleColor: Qt.rgba(0, 0, 0, 0.7)
+            style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+            styleColor: Theme.textStyleColor
         }
 
         Row {

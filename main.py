@@ -189,6 +189,14 @@ DEFAULT_SETTINGS = {
     # 1.0 = wie bisher, kleiner = durchsichtiger, ab ~1.25 komplett deckend.
     # ⚠ Ebenfalls float (s. Kommentar bei "scale") — sonst frisst int() die Nachkommastellen.
     "opacity": 1.0,
+    # Staerke der dunklen Kontur um die Schrift, 0 = aus (wie bisher), 1 = voll.
+    # ⚠ Gegen ein Missverstaendnis: die Deckkraft oben faerbt NUR die Flaechen
+    # ein, die Textfarben sind konstant deckend. Unlesbar wird die Schrift bei
+    # niedriger Deckkraft nicht, weil sie blasser wird, sondern weil der dunkle
+    # Grund hinter ihr verschwindet und das Gameplay durchscheint. Dagegen hilft
+    # nur ein Rand um die Zeichen - deshalb dieser Regler und kein zweiter
+    # Deckkraft-Regler fuer Text.
+    "text_outline": 0.0,
     "rows": 0,             # nur Top-N Zeilen (0 = alle)
     "mapsize": 400,        # Trackmap-Kantenlänge in px
     "maprot": 110,         # Trackmap-Drehung in Grad
@@ -1591,6 +1599,12 @@ def api_settings():
                     continue
                 if k == "penside":
                     overlay_settings[k] = "right" if str(v) == "right" else "left"
+                    continue
+                if k == "text_outline":
+                    try:
+                        overlay_settings[k] = round(max(0.0, min(1.0, float(v))), 2)
+                    except (TypeError, ValueError):
+                        pass
                     continue
                 if k in ("battleboxes", "hotlapboxes"):
                     try:

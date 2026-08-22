@@ -13,6 +13,10 @@ hud/hud_state.json
 # Diagnose-Mitschrift zur Vordergrund-Lage (qml_overlay._diagnose_lage)
 hud_topmost.log
 hud/hud_topmost.log
+# Absturz-Mitschrift des HUD. Entstand beim Testen und waere um ein Haar
+# mitgewandert - sie enthaelt lokale Pfade und gehoert nicht ins Repo.
+hud_error.log
+hud/hud_error.log
 
 # Persoenliche Einstellungen - seit 0.1.1 bewusst weder in der EXE noch im Repo:
 # Branding, Logo, Skalierung. main.py legt fehlende beim ersten Lauf selbst an.

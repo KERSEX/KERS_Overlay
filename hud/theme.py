@@ -85,6 +85,7 @@ class Theme(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._ui_alpha = 1.0
+        self._text_outline = 0.0
         self._opaque = False
         self._accent = self._ACCENT_DEFAULT
         self._header_accent = ""      # leer = Akzentfarbe verwenden
@@ -110,13 +111,16 @@ class Theme(QObject):
     # ── Von der Bruecke gesetzt (Gegenstueck zu applyBrand in core.js) ───────
     def apply_settings(self, settings) -> None:
         alpha = float(settings.uiAlpha)
+        kontur = float(settings.textOutline)
         accent = settings.brandAccent or self._ACCENT_DEFAULT
         header = settings.headerColor or ""
         row = settings.rowColor or ""
-        if (alpha, accent, header, row) == (self._ui_alpha, self._accent,
-                                            self._header_accent, self._row_override):
+        if (alpha, kontur, accent, header, row) == (
+                self._ui_alpha, self._text_outline, self._accent,
+                self._header_accent, self._row_override):
             return
         self._ui_alpha = alpha
+        self._text_outline = kontur
         self._accent = accent if QColor(accent).isValid() else self._ACCENT_DEFAULT
         self._header_accent = header if QColor(header).isValid() else ""
         self._row_override = row if QColor(row).isValid() else ""
@@ -144,13 +148,49 @@ class Theme(QObject):
         """--header-accent: eigene Farbe fuer den Streifen unter dem Kopf, sonst Akzent."""
         return QColor(self._header_accent or self._accent)
 
-    @Property(QColor, constant=True)
+    # ── Schrift-Kontur ───────────────────────────────────────────────────────
+    # ⚠ Die Deckkraft (uiAlpha) faerbt NUR die Flaechen weiter unten ein. Die
+    # Textfarben hier sind voll deckend und bleiben es - gemessen, nicht
+    # vermutet. Unlesbar wird die Schrift bei niedriger Deckkraft also nicht,
+    # weil sie blasser wuerde, sondern weil der dunkle Grund hinter ihr
+    # verschwindet. Dagegen hilft nur ein Rand um die Zeichen.
+    @Property(float, notify=changed)
+    def textOutline(self):
+        """0 = aus (dann gilt der bisherige Ein-Pixel-Schatten), 1 = voll."""
+        return self._text_outline
+
+    @Property(QColor, notify=changed)
+    def textStyleColor(self):
+        """Farbe fuer Schatten bzw. Kontur der Schrift.
+
+        Bei 0 bleibt es bei den 0,7 Schwarz, die vorher fest im QML standen -
+        das Aussehen aendert sich ohne Regler also nicht. Darueber wird sie
+        dichter, damit die Kontur auch ueber hellem Gameplay traegt.
+        """
+        # Hoechstens 0,95 und nicht 1,0: reines Schwarz wirkt hart, und ein
+        # Rest Durchsicht laesst die Kontur weicher auf dem Gameplay sitzen.
+        return _rgba(0, 0, 0, 0.7 + 0.25 * self._text_outline)
+
+    @Property(QColor, notify=changed)
     def textMain(self):
         return QColor(self._TEXT_MAIN)
 
-    @Property(QColor, constant=True)
+    @Property(QColor, notify=changed)
     def textMuted(self):
-        return QColor(self._TEXT_MUTED)
+        """Gedaempft (#a6a6b4) - und damit das erste, was ueber Gameplay untergeht.
+
+        ⚠ Frueher constant. Mit steigender Kontur wird die Farbe Richtung Weiss
+        aufgehellt: der Teamname unter dem Fahrernamen war sonst auch mit Rand
+        noch schwer zu lesen.
+        """
+        if self._text_outline <= 0:
+            return QColor(self._TEXT_MUTED)
+        ziel, jetzt = QColor(self._TEXT_MAIN), QColor(self._TEXT_MUTED)
+        t = self._text_outline
+        return QColor(
+            round(jetzt.red() + (ziel.red() - jetzt.red()) * t),
+            round(jetzt.green() + (ziel.green() - jetzt.green()) * t),
+            round(jetzt.blue() + (ziel.blue() - jetzt.blue()) * t))
 
     # ── Flaechen (alle haengen an --ui-alpha) ────────────────────────────────
     @Property(QColor, notify=changed)

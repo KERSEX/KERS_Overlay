@@ -395,6 +395,9 @@ class SettingsState(_StateBase):
     towerLogoPosChanged, towerLogoPos = _prop("towerLogoPos", str, "left")
     towerLogoHChanged, towerLogoH = _prop("towerLogoH", int, 34)
     uiAlphaChanged, uiAlpha = _prop("uiAlpha", float, 1.0)
+    # Staerke der Schrift-Kontur (0..1). Gegenstueck zu uiAlpha: die faerbt die
+    # Flaechen ein, diese hier macht die Schrift davon unabhaengig lesbar.
+    textOutlineChanged, textOutline = _prop("textOutline", float, 0.0)
     scaleChanged, scale = _prop("scale", float, 0.0)
     rowsChanged, rows = _prop("rows", int, 0)
     showTowerChanged, showTower = _prop("showTower", bool, True)
@@ -427,6 +430,7 @@ class SettingsState(_StateBase):
             # Grenzen wie in applyBrand() in core.js: nach unten 0.2, nach oben 1.25
             # (darueber ist ohnehin alles deckend).
             "uiAlpha": max(0.2, min(1.25, float(opacity))),
+            "textOutline": max(0.0, min(1.0, float(cfg["text_outline"] or 0))),
             "scale": float(cfg["scale"] or 0),
             "rows": int(cfg["rows"] or 0),
             "showTower": bool(cfg["tower"]),

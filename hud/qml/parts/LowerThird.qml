@@ -57,8 +57,8 @@ Item {
                 text: "P" + lt.src.position
                 color: Theme.textMain
                 font { family: Theme.display; pixelSize: 30; weight: Font.Bold }
-                style: Text.Raised
-                styleColor: Qt.rgba(0, 0, 0, 0.55)
+                style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                styleColor: Theme.textStyleColor
             }
         }
 

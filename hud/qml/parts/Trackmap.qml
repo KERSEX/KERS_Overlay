@@ -153,7 +153,7 @@ Item {
                        pixelSize: Math.max(1, Math.round(modelData.r * 1.15 * map.unit))
                        weight: Font.Black }
                 style: Text.Outline
-                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                styleColor: Theme.textStyleColor
             }
         }
     }

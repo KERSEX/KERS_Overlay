@@ -19,6 +19,22 @@ import "Fmt.js" as Fmt
 Item {
     id: medal
 
+    /** Wie fein die beiden Ebenen gerastert werden, bevor sie gestaucht werden.
+     *
+     *  ⚠ Der Grund: der Tower wird an die Bildhoehe eingepasst und dabei fast
+     *  immer verkleinert - bei voller Fahrerliste auf 0,717. P4 und tiefer sind
+     *  echter Text und werden dabei sauber neu gerastert. P1 bis P3 nicht: die
+     *  Ziffer wird hier zur Maske fuer einen Metallverlauf, und dafuer muessen
+     *  Verlauf und Maske erst in eine Textur gezeichnet werden. Eine Textur wird
+     *  beim Stauchen ABGETASTET, nicht neu gezeichnet - deshalb wirkten die drei
+     *  Podiumszahlen matschiger und dadurch kleiner als die darunter.
+     *
+     *  Mit der dreifachen Texturgroesse wird ueberabgetastet: gezeichnet wird
+     *  gross, verkleinert wird danach. Kostet bei einer 27-px-Ziffer in drei
+     *  Zeilen praktisch nichts.
+     */
+    readonly property int schaerfe: 3
+
     property string text: ""
     property int rank: 1
     property alias font: mask.font
@@ -35,6 +51,9 @@ Item {
         visible: false
         clip: true                 // der Glanzstreifen ragt sonst neben die Ziffer
         layer.enabled: true
+        layer.smooth: true
+        layer.textureSize: Qt.size(Math.ceil(width * medal.schaerfe),
+                                   Math.ceil(height * medal.schaerfe))
 
         // Der 180deg-Verlauf aus tower.css (.rank-1/-2/-3, zweite Ebene).
         Rectangle {
@@ -88,6 +107,9 @@ Item {
         text: medal.text
         visible: false
         layer.enabled: true
+        layer.smooth: true
+        layer.textureSize: Qt.size(Math.ceil(width * medal.schaerfe),
+                                   Math.ceil(height * medal.schaerfe))
         verticalAlignment: Text.AlignVCenter
     }
 

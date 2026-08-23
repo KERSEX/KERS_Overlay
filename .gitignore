@@ -22,6 +22,9 @@ hud/hud_error.log
 # Branding, Logo, Skalierung. main.py legt fehlende beim ersten Lauf selbst an.
 overlay_settings.json
 presets.json
+# Gespeicherte Layouts (Stufe 4). Gleiche Begruendung wie presets.json daneben:
+# Laufzeit-Zustand des Benutzers, kein Quelltext.
+layouts.json
 
 # Aufzeichnungen und Mitschnitte (koennen sehr gross werden)
 sessions/

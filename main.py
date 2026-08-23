@@ -105,12 +105,21 @@ CHAMP_FILE = os.path.join(BASE_DIR, "championship.json")   # A3: WM-Stand (manue
 PRESETS_FILE = os.path.join(BASE_DIR, "presets.json")
 PRESETS_MAX = 12      # mehr wird in der Settings-Oberfläche unübersichtlich
 PRESET_NAME_MAX = 30
+# Gespeicherte Layouts: NUR der Layout-Block, kein kompletter Settings-Schnappschuss.
+# Bewusst getrennt von den Presets — ein Layout soll man über verschiedene Presets
+# legen können ("Rennen kompakt" und "Quali" mit derselben Bausteinanordnung), und
+# umgekehrt Farben/Deckkraft ändern, ohne dass die Anordnung mitwandert.
+# Gleiche Ablage wie die Presets: neben der .exe, sonst wäre es nach jedem Build weg.
+LAYOUTS_FILE = os.path.join(BASE_DIR, "layouts.json")
+LAYOUTS_MAX = 12
+LAYOUT_NAME_MAX = 30
 
 # WM-Stand: nicht nur championship.json, sondern JEDE .json neben der .exe darf als
 # Quelle dienen — z.B. eine Datei pro Saison oder Liga. Welche gerade gilt, steht in
 # den Settings unter "champ_file" (leer = championship.json). Diese drei sind vom
 # Programm selbst und tauchen in der Auswahl deshalb nicht auf.
-CHAMP_HIDDEN_FILES = {"overlay_settings.json", "presets.json", "hud_state.json"}
+CHAMP_HIDDEN_FILES = {"overlay_settings.json", "presets.json", "layouts.json",
+                      "hud_state.json"}
 CHAMP_DEFAULT_NAME = "championship.json"
 
 # Wohin die Trackmap darf. "tl" (oben links) und "lc" (links mitte) sind bewusst
@@ -166,6 +175,58 @@ LAYOUT_STANDARD = {
     "pitcards":   {"ecke": "br", "dx": 24,  "dy": 28,  "z": 45, "groesse": 1.0},
     "champ":      {"ecke": "br", "dx": 24,  "dy": 40,  "z": 45, "groesse": 1.0},
 }
+
+# Ein Layout-Eintrag darf UNVOLLSTAENDIG sein: {"z": 55} ohne dx/dy ist gültig und
+# heißt "Ebene eigen, Position weiter wie eingebaut".
+# ⚠ Das braucht die Ebenen-Liste in /settings. Sie sortiert nur die Reihenfolge um
+# und darf dabei die vier beweglichen Bausteine nicht auf feste Zahlen nageln
+# (Tower je nach penside, Ampel bei 12 % der Höhe, Pit-Projektion je nach
+# sichtbarem Onboard, Trackmap über mapcorner — siehe Kommentar bei
+# LAYOUT_STANDARD). Overlay.qml fällt deshalb FELDWEISE zurück statt nur dann,
+# wenn ein Baustein gar keinen Eintrag hat.
+def _layout_pruefen(v):
+    """Roh-Layout aus einem Request in einen sauberen Layout-Block umwandeln.
+
+    Gibt None zurück, wenn `v` gar kein Layout ist — der Aufrufer lässt den
+    alten Stand dann stehen. Geprüft wird streng: nur bekannte Bausteine, nur
+    bekannte Ankerpunkte, Zahlen begrenzt. Ein Eintrag, der nichts taugt, wird
+    übersprungen statt die ganze Änderung abzulehnen — sonst verliert man beim
+    Ziehen eines Bausteins die anderen mit. Felder, die NICHT im Eintrag stehen,
+    werden auch nicht ergänzt (siehe oben).
+    """
+    if not isinstance(v, dict):
+        return None
+    sauber = {}
+    for teil, wert in v.items():
+        if teil not in LAYOUT_STANDARD or not isinstance(wert, dict):
+            continue
+        eintrag = {}
+        try:
+            if "ecke" in wert:
+                ecke = str(wert.get("ecke"))
+                eintrag["ecke"] = ecke if ecke in LAYOUT_ECKEN else "tl"
+            # 4000 statt "Fensterbreite": der Server kennt die Fenstergröße
+            # nicht. Reicht für 4K und hält Unsinn wie 1e9 draußen.
+            if "dx" in wert:
+                eintrag["dx"] = max(-4000, min(4000, int(wert["dx"])))
+            if "dy" in wert:
+                eintrag["dy"] = max(-4000, min(4000, int(wert["dy"])))
+            if "z" in wert:
+                eintrag["z"] = max(0, min(100, int(wert["z"])))
+            # Größenfaktor. Grenzen wie beim Regler in /settings; unter 0,5 wäre
+            # ein Baustein kaum noch zu treffen, über 2 sprengt er das Bild. Auf
+            # zwei Stellen gerundet: das Ziehen an der Ecke liefert sonst
+            # 1.3417023882424983, und das stünde dann so in der Datei.
+            if "groesse" in wert:
+                eintrag["groesse"] = round(
+                    max(0.5, min(2.0, float(wert["groesse"]))), 2)
+        except (TypeError, ValueError):
+            continue
+        # ⚠ Ein Eintrag ohne ein einziges gültiges Feld sagt nichts aus, würde im
+        # Overlay aber trotzdem als "eigene Werte" zählen. Weg damit.
+        if eintrag:
+            sauber[teil] = eintrag
+    return sauber
 DEFAULT_SETTINGS = {
     # Sichtbarkeit der Komponenten
     "tower": True, "battles": True, "map": True, "onboard": True,
@@ -326,6 +387,37 @@ def _save_user_presets():
         print(f"[PRESETS] Speichern fehlgeschlagen: {e}")
 
 user_presets = _load_user_presets()
+
+# ── Gespeicherte Layouts ──────────────────────────────────────────────────────
+# {name: {baustein: {ecke, dx, dy, z, groesse}}}. Beim Laden läuft alles durch
+# dieselbe Prüfung wie ein Layout aus dem Request — eine von Hand verbogene
+# layouts.json kann also nichts ins Overlay tragen, was über /api/settings nicht
+# auch ginge. Unbekannte Bausteine fallen dabei weg; ein Layout aus einer älteren
+# Version bleibt benutzbar.
+def _load_user_layouts():
+    try:
+        with open(LAYOUTS_FILE, encoding="utf-8") as f:
+            raw = json.load(f)
+        if not isinstance(raw, dict):
+            return {}
+        out = {}
+        for name, vals in list(raw.items())[:LAYOUTS_MAX]:
+            sauber = _layout_pruefen(vals)
+            if sauber is None:
+                continue
+            out[str(name)[:LAYOUT_NAME_MAX]] = sauber
+        return out
+    except Exception:
+        return {}
+
+def _save_user_layouts():
+    try:
+        with open(LAYOUTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(user_layouts, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"[LAYOUTS] Speichern fehlgeschlagen: {e}")
+
+user_layouts = _load_user_layouts()
 
 # Regie-Zustand: manuelle Einblendungen, gesteuert über /regie (zweites Gerät/Handy). Kommt im
 # Payload mit; das Overlay spiegelt ihn (Verlaufs-Charts, Strategie, WM-Stand).
@@ -1557,38 +1649,12 @@ def api_settings():
                 # Layout: verschachtelt, deshalb ein eigener Zweig.
                 # ⚠ Ohne ihn liefe es in den else-Zweig ganz unten und käme als
                 # STRING im Speicher an ("{'tower': ...}"), weil dort str(v) steht.
-                # Geprüft wird streng: nur bekannte Bausteine, nur bekannte
-                # Ankerpunkte, Zahlen begrenzt. Ein Eintrag, der nichts taugt,
-                # wird übersprungen statt die ganze Änderung abzulehnen — sonst
-                # verliert man beim Ziehen eines Bausteins die anderen mit.
+                # Die Prüfung selbst steht in _layout_pruefen — /api/layouts
+                # braucht sie genauso, und doppelt gepflegt liefe sie auseinander.
                 if k == "layout":
-                    if not isinstance(v, dict):
+                    sauber = _layout_pruefen(v)
+                    if sauber is None:
                         continue
-                    sauber = {}
-                    for teil, wert in v.items():
-                        if teil not in LAYOUT_STANDARD or not isinstance(wert, dict):
-                            continue
-                        ecke = str(wert.get("ecke", "tl"))
-                        try:
-                            sauber[teil] = {
-                                "ecke": ecke if ecke in LAYOUT_ECKEN else "tl",
-                                # 4000 statt "Fensterbreite": der Server kennt die
-                                # Fenstergröße nicht. Reicht für 4K und hält
-                                # Unsinn wie 1e9 draußen.
-                                "dx": max(-4000, min(4000, int(wert.get("dx", 0)))),
-                                "dy": max(-4000, min(4000, int(wert.get("dy", 0)))),
-                                "z": max(0, min(100, int(wert.get("z", 40)))),
-                                # Größenfaktor. Grenzen wie beim Regler in
-                                # /settings; unter 0,5 wäre ein Baustein kaum
-                                # noch zu treffen, über 2 sprengt er das Bild.
-                                # Auf zwei Stellen gerundet: das Ziehen an der
-                                # Ecke liefert sonst 1.3417023882424983, und das
-                                # steht dann so in der Einstellungsdatei.
-                                "groesse": round(max(0.5, min(2.0, float(
-                                    wert.get("groesse", 1.0)))), 2),
-                            }
-                        except (TypeError, ValueError):
-                            continue
                     overlay_settings[k] = sauber
                     continue
                 # Nur die angebotenen Werte zulassen — der allgemeine str()-Zweig
@@ -1704,6 +1770,48 @@ def api_presets():
             return jsonify({"presets": dict(user_presets)})
     with state_lock:
         return jsonify({"presets": dict(user_presets)})
+
+@app.route("/api/layouts", methods=["GET", "POST"])
+def api_layouts():
+    """Gespeicherte Layouts: nur der Layout-Block unter einem Namen.
+
+    ⚠ Nicht mit /api/layout (Einzahl) verwechseln — das liefert die Bausteinliste
+    und die Startwerte, hier geht es um die gesicherten Anordnungen.
+
+    POST {"name": "Rennen"}                 -> aktuelles Layout unter dem Namen sichern
+                                               (gleicher Name = überschreiben)
+    POST {"name": "Rennen", "delete": true} -> löschen
+    Geladen wird NICHT hier, sondern von der Settings-Seite über /api/settings mit
+    dem Layout im Rumpf — genau wie bei den Presets. So gibt es weiterhin einen
+    einzigen Weg, auf dem ein Layout ins Overlay kommt, samt seiner Prüfung.
+
+    Der Schnappschuss kommt bewusst vom SERVER (nicht aus dem Request-Body): so
+    kann eine Settings-Seite kein Layout anlegen, das nie durch die Prüfung lief.
+    """
+    global user_layouts
+    if request.method == "POST":
+        d = request.get_json(silent=True) or {}
+        name = str(d.get("name") or "").strip()[:LAYOUT_NAME_MAX]
+        if not name:
+            return jsonify({"error": "name fehlt", "layouts": user_layouts}), 400
+        with state_lock:
+            if d.get("delete"):
+                user_layouts.pop(name, None)
+            else:
+                if name not in user_layouts and len(user_layouts) >= LAYOUTS_MAX:
+                    return jsonify({"error": f"maximal {LAYOUTS_MAX} Layouts",
+                                    "layouts": user_layouts}), 400
+                # Ein LEERES Layout ist ausdrücklich erlaubt: "alles auf Standard"
+                # ist eine Anordnung wie jede andere und soll sich sichern lassen.
+                # Verschachtelt kopieren (zwei Ebenen, mehr gibt es nicht):
+                # ein flaches dict() liesse die Eintraege im gespeicherten Layout
+                # dieselben Objekte bleiben wie im laufenden Stand.
+                user_layouts[name] = {t: dict(w) for t, w
+                                      in (overlay_settings.get("layout") or {}).items()}
+            _save_user_layouts()
+            return jsonify({"layouts": user_layouts})
+    with state_lock:
+        return jsonify({"layouts": user_layouts})
 
 @app.route("/api/settings/reset", methods=["POST"])
 def api_settings_reset():

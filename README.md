@@ -62,17 +62,33 @@ Seit 0.2.0 bestimmst du selbst, wo jeder der 13 Bausteine sitzt.
 
 **Mit der Maus:** im Schaltbrett auf **Layout bearbeiten**. Das HUD entsperrt sich
 dabei selbst, alle Bausteine bekommen einen Rahmen mit Namen, und du ziehst sie an
-ihren Platz. Was gerade nichts anzeigt (die Hotlap-Boxen laufen nur in der Quali)
-bekommt einen beschrifteten Platzhalter, damit es trotzdem greifbar ist. Beendet
-wird oben mit **Fertig** oder mit **Esc** — nicht im Schaltbrett, denn das liegt
-währenddessen unter der bildschirmgroßen Klickfläche des HUD.
+ihren Platz. An den Ecken ziehst du sie größer und kleiner. Was gerade nichts
+anzeigt (die Hotlap-Boxen laufen nur in der Quali) bekommt einen beschrifteten
+Platzhalter, damit es trotzdem greifbar ist. Beendet wird oben mit **Fertig** oder
+mit **Esc** — nicht im Schaltbrett, denn das liegt währenddessen unter der
+bildschirmgroßen Klickfläche des HUD.
 
 **Auf den Pixel genau:** in `/settings` gibt es zu jedem Baustein Regler für
-Ankerpunkt, Versatz und Ebene.
+Ankerpunkt, Versatz, Ebene und Größe.
+
+**Was liegt vorn:** unter den Bausteinen steht die Liste **Ebenen** — oben liegt
+vorn, mit den Pfeilen sortierst du um. Das ändert wirklich nur die Ebene: ein
+Baustein, der noch auf *Standard* steht, behält seinen eingebauten Platz und
+rechnet weiter mit (der Tower folgt der Strafen-Seite, die Trackmap ihrer
+Position, die Pit-Projektion weicht dem Onboard aus).
+
+**Mehrere Anordnungen:** unter **Eigene Layouts** sicherst du die aktuelle
+Anordnung unter einem Namen und holst sie mit einem Klick zurück — z.B. eine fürs
+Rennen und eine für die Quali. Gesichert wird nur das Layout: Ankerpunkt, Versatz,
+Ebene und Größe je Baustein. Farben, Deckkraft und Schalter bleiben unberührt,
+dafür sind die *Presets* ganz oben da. Die Layouts liegen auf dem Server
+(`layouts.json` neben der .exe), sind also auch vom Handy aus da.
 
 **Zurück auf Anfang:** der Knopf **Standard Layout** neben *Layout bearbeiten*
 stellt alle Bausteine wieder an ihren eingebauten Platz. Das betrifft nur die
-Positionen — Branding, Farben und der Rest bleiben.
+Positionen — Branding, Farben und der Rest bleiben. Nur die Ebenen zurücksetzen
+geht in `/settings` mit **Ebenen auf Standard**; Positionen und Größen bleiben
+dabei stehen.
 
 Ein Baustein hängt dabei nicht an festen Koordinaten, sondern an einem von neun
 Ankerpunkten plus Versatz. Was du unten rechts platzierst, bleibt unten rechts,

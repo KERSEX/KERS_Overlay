@@ -39,7 +39,9 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
 .ctl .val{font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;min-width:52px;text-align:right}
 .ctl input[type=number]{width:70px;background:#101016;border:1px solid var(--line);border-radius:6px;color:#fff;padding:5px 8px;font-size:13px;text-align:right}
 .ctl select.sel{background:#101016;border:1px solid var(--line);border-radius:6px;color:#fff;padding:6px 9px;font-size:13px;cursor:pointer}
-.ctl .mini{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:6px;color:var(--muted);
+/* ⚠ .ebfoot mitnehmen: der Knopf unter der Ebenen-Liste steht NICHT in einer
+   .ctl-Zeile und waere sonst ein nackter Browser-Knopf. */
+.ctl .mini,.ebfoot .mini{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:6px;color:var(--muted);
            padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
 .ctl .mini.on{background:var(--green);border-color:var(--green);color:#053}
 /* K18: Farbwähler mit „Standard"-Zustand (leer = Fallback auf Akzent/Team-Farbe) */
@@ -91,6 +93,24 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
 .lay .ctl .val{min-width:46px}
 .lay .lstd{font-size:11px;color:var(--muted);padding:2px 0 6px}
 .lay .lstd.eigen{color:var(--yellow)}
+/* Ebenen-Liste: eine Zeile je Baustein, vorn oben */
+.ebenen{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.erow{display:flex;align-items:center;gap:8px;padding:7px 10px;background:rgba(255,255,255,.02);
+      border-bottom:1px solid rgba(255,255,255,.05)}
+.erow:last-child{border-bottom:none}
+.erow .enum{min-width:22px;text-align:right;flex-shrink:0;font-size:11px;color:var(--muted);
+            font-variant-numeric:tabular-nums;font-family:ui-monospace,Consolas,monospace}
+.erow .ename{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;
+             text-overflow:ellipsis;white-space:nowrap}
+.erow .ez{flex-shrink:0;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;
+          font-family:ui-monospace,Consolas,monospace}
+.erow .ez.eigen{color:var(--yellow)}
+/* Knopf gross genug fuers Handy — die Liste wird auch vom Telefon aus sortiert */
+.ebtn{width:32px;height:32px;flex-shrink:0;border-radius:8px;border:1px solid var(--line);
+      background:rgba(255,255,255,.05);color:var(--txt);font-size:12px;line-height:1;cursor:pointer}
+.ebtn:disabled{opacity:.25;cursor:default}
+.ebtn:active:not(:disabled){transform:scale(.94)}
+.ebfoot{margin-top:10px}
 /* Presets */
 .presets{display:flex;gap:10px;flex-wrap:wrap}
 .pbtn{flex:1;min-width:110px;padding:12px;border-radius:10px;border:2px solid var(--line);background:rgba(255,255,255,.03);
@@ -174,12 +194,25 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
 
   <div class="grp">
     <h2>Layout</h2>
+
     <p class="lhint">Jeder Baustein hängt an einem Ankerpunkt und bekommt von dort einen Versatz —
       so bleibt er beim Wechsel der Fenstergröße an seiner Ecke. Solange „Standard“ dasteht, gilt
       die eingebaute Position; sie ist bei manchen Bausteinen beweglich (der Tower folgt der
       Strafen-Seite, die Trackmap der Trackmap-Position, die Pit-Projektion weicht dem Onboard aus).
       Sobald du etwas verstellst, gilt dein Wert.</p>
     <div id="layout"></div>
+
+    <h3 class="psub">Ebenen<small>Wer weiter oben steht, liegt im Bild vorn. Das Umsortieren ändert NUR die Ebene — Ankerpunkt, Versatz und Größe bleiben, wie sie sind, auch bei den Bausteinen, die noch auf „Standard“ stehen.</small></h3>
+    <div id="ebenen" class="ebenen"></div>
+    <div class="ebfoot"><button type="button" class="mini" id="ebReset">Ebenen auf Standard</button></div>
+
+    <h3 class="psub">Eigene Layouts<small>Sichert nur die Anordnung: Ankerpunkt, Versatz, Ebene und Größe je Baustein. Farben, Deckkraft und Schalter bleiben unberührt — dafür sind die Presets ganz oben da. Liegt auf dem Server, ist also auch vom Handy aus da.</small></h3>
+    <div class="presets" id="userLayouts"></div>
+    <div class="psave">
+      <input type="text" id="layoutName" maxlength="30" placeholder="Name, z.B. „Rennen 16:9“" autocomplete="off">
+      <button type="button" id="layoutSave">Aktuelles Layout sichern</button>
+    </div>
+    <div class="pnote" id="layoutErr"></div>
   </div>
 
   <div class="grp">
@@ -581,17 +614,36 @@ async function ladeLayoutListe(){
   }
 }
 
-/** Aktueller Eintrag oder der Startwert vom Server (ohne ihn zu speichern). */
+/** Aktueller Eintrag über dem Startwert vom Server (ohne ihn zu speichern).
+ *
+ *  ⚠ Zusammenlegen statt ersetzen: ein Eintrag darf unvollständig sein — die
+ *  Ebenen-Liste schreibt nur `z`. Ohne den Startwert darunter stünde in den
+ *  Reglern für Versatz und Größe nichts, und sie sprängen beim ersten Anfassen
+ *  auf ihre Mitte statt auf den Wert, der wirklich gilt. */
 function layWert(key){
+  const std = LAY.standard[key] || { ecke:"tl", dx:0, dy:0, z:40, groesse:1 };
   const eig = (S.layout || {})[key];
-  return eig || LAY.standard[key] || { ecke:"tl", dx:0, dy:0, z:40 };
+  return eig ? { ...std, ...eig } : std;
 }
-function layEigen(key){ return !!(S.layout || {})[key]; }
+/** Steht der Baustein auf einer EIGENEN Position? Ein Eintrag, der nur die Ebene
+ *  trägt, zählt nicht — seine Position ist weiter die eingebaute. */
+function layEigen(key){
+  const e = (S.layout || {})[key];
+  return !!e && (e.dx !== undefined || e.dy !== undefined);
+}
 
-/** Einen Wert setzen — legt den Eintrag beim ersten Anfassen aus dem Startwert an. */
+/** Einen Wert setzen — legt den Eintrag beim ersten Anfassen aus dem Startwert an.
+ *
+ *  ⚠ `z` ist die Ausnahme und wird ALLEIN geschrieben, ohne Ankerpunkt, Versatz
+ *  und Größe mitzunehmen. Sonst nagelte schon das Verschieben dieses Reglers die
+ *  vier beweglichen Bausteine auf feste Zahlen (Tower je nach Strafen-Seite,
+ *  Ampel, Pit-Projektion, Trackmap) — und die Ebenen-Liste unten tut dasselbe,
+ *  nur für mehrere auf einmal. Die übrigen Felder hängen dagegen zusammen: wer
+ *  den Versatz verstellt, meint eine feste Position. */
 function laySetze(key, feld, wert){
   const alt = S.layout || {};
-  const eintrag = { ...layWert(key), [feld]: wert };
+  const eintrag = feld === "z" ? { ...(alt[key] || {}), z: wert }
+                               : { ...layWert(key), [feld]: wert };
   save({ layout: { ...alt, [key]: eintrag } }, false, 60);
 }
 function layZurueck(key){
@@ -658,6 +710,140 @@ function renderLayout(){
   });
 }
 
+// ── Ebenen ────────────────────────────────────────────────────────────────
+// Eine Liste statt dreizehn Zahlenreglern: welcher Baustein vor welchem liegt,
+// sieht man so auf einen Blick. Die z-Werte fallen dabei ab, sie sind nicht der
+// Bedienweg.
+// ⚠ Geschrieben wird NUR `z` — nie Ankerpunkt, Versatz oder Größe. Begründung
+// steht bei laySetze() und in Overlay.qml (Funktion `hat`).
+const EB_OBEN = 80, EB_SCHRITT = 4;    // 13 Bausteine: 80 … 32, wie die Startwerte
+
+/** Ebene, die gerade wirklich gilt: eigener Wert, sonst der Startwert vom Server. */
+function ebZ(key){
+  const e = (S.layout || {})[key];
+  if(e && e.z !== undefined && e.z !== null) return e.z;
+  const std = LAY.standard[key];
+  return (std && std.z !== undefined) ? std.z : 40;
+}
+function ebEigen(key){
+  const e = (S.layout || {})[key];
+  return !!e && e.z !== undefined && e.z !== null;
+}
+/** Bausteine von vorn nach hinten.
+ *  ⚠ Bei Gleichstand entscheidet die Reihenfolge aus LAY.teile. Ohne diesen
+ *  zweiten Schlüssel tauschten `battles` und `hotlaps` (beide auf 40) bei jedem
+ *  Neuzeichnen die Plätze, und die Liste zappelte im 3-Sekunden-Takt. */
+function ebReihe(){
+  return LAY.teile.map((t,i)=>({ key:t.key, label:t.label, z:ebZ(t.key), i }))
+                  .sort((a,b)=> b.z - a.z || a.i - b.i);
+}
+/** Einen Baustein eine Stelle nach vorn (-1) oder nach hinten (+1) schieben. */
+function ebSchiebe(key, richtung){
+  const reihe = ebReihe();
+  const i = reihe.findIndex(t => t.key === key);
+  const j = i + richtung;
+  if(i < 0 || j < 0 || j >= reihe.length) return;
+  reihe.splice(j, 0, reihe.splice(i, 1)[0]);
+  // Danach die Ebenen neu VERTEILEN statt nur zu tauschen: zwischen zwei
+  // gleichen Werten (battles und hotlaps liegen beide auf 40) gibt es keine
+  // Zahl, die dazwischen passt — ein Tausch bliebe wirkungslos.
+  const alt = S.layout || {}, neu = {};
+  for(const k in alt) neu[k] = { ...alt[k] };
+  reihe.forEach((t,n)=>{ neu[t.key] = { ...(neu[t.key] || {}), z: EB_OBEN - n * EB_SCHRITT }; });
+  save({ layout: neu });
+}
+/** Nur die Ebenen aufgeben. Positionen und Größen bleiben stehen — deshalb wird
+ *  hier `z` aus den Einträgen entfernt statt die Einträge zu löschen. */
+function ebZurueck(){
+  const alt = S.layout || {}, neu = {};
+  for(const k in alt){
+    const e = { ...alt[k] };
+    delete e.z;
+    if(Object.keys(e).length) neu[k] = e;   // ein leerer Eintrag ist kein Eintrag
+  }
+  save({ layout: neu });
+}
+function renderEbenen(){
+  if(!LAY) return;
+  const box = document.getElementById("ebenen");
+  if(!box) return;
+  const reihe = ebReihe();
+  box.innerHTML = reihe.map((t,n)=>
+    `<div class="erow">`
+    + `<span class="enum">${n+1}</span>`
+    + `<span class="ename">${esc(t.label)}</span>`
+    + `<span class="ez${ebEigen(t.key)?" eigen":""}" title="Ebene ${t.z}">${t.z}</span>`
+    + `<button type="button" class="ebtn" data-eb="${t.key}:-1"${n===0?" disabled":""} title="Weiter nach vorn">▲</button>`
+    + `<button type="button" class="ebtn" data-eb="${t.key}:1"${n===reihe.length-1?" disabled":""} title="Weiter nach hinten">▼</button>`
+    + `</div>`).join("");
+}
+
+// ── Eigene Layouts ────────────────────────────────────────────────────────
+// Wie die eigenen Presets, aber nur der Layout-Block. Serverseitig (layouts.json),
+// damit PC und Handy dieselben Layouts sehen.
+let UL = {};   // {name: {baustein: {ecke,dx,dy,z,groesse}}}
+
+async function loadLayouts(){
+  try{ UL = (await (await fetch("/api/layouts")).json()).layouts || {}; }catch(e){ UL = {}; }
+}
+/** Vergleichbare Form eines Layout-Blocks.
+ *  ⚠ Nicht einfach JSON.stringify: das Ergebnis hängt an der Reihenfolge, in der
+ *  die Bausteine ins Objekt kamen. Zwei inhaltsgleiche Layouts sähen dann
+ *  verschieden aus, und der Knopf wäre nie markiert. */
+function layNorm(L){
+  return JSON.stringify(Object.keys(L || {}).sort().map(k=>{
+    const e = L[k] || {};
+    return [k, Object.keys(e).sort().map(f => [f, e[f]])];
+  }));
+}
+function matchedLayout(){
+  const jetzt = layNorm(S.layout);
+  for(const n of Object.keys(UL)) if(layNorm(UL[n]) === jetzt) return n;
+  return "";
+}
+function layoutErr(msg){
+  const el = document.getElementById("layoutErr");
+  if(el) el.textContent = msg || "";
+}
+async function saveLayout(name){
+  layoutErr("");
+  name = (name || "").trim();
+  if(!name){ layoutErr("Bitte einen Namen eingeben."); return; }
+  try{
+    const r = await fetch("/api/layouts",{method:"POST",headers:{"Content-Type":"application/json"},
+                                          body:JSON.stringify({name})});
+    const j = await r.json();
+    UL = j.layouts || {};
+    if(j.error){ layoutErr(j.error); return; }
+    document.getElementById("layoutName").value = "";
+    flash();
+  }catch(e){ layoutErr("Speichern fehlgeschlagen."); }
+  renderAll();
+}
+async function deleteLayout(name){
+  try{
+    const r = await fetch("/api/layouts",{method:"POST",headers:{"Content-Type":"application/json"},
+                                          body:JSON.stringify({name, delete:true})});
+    UL = (await r.json()).layouts || {};
+    flash();
+  }catch(e){ layoutErr("Löschen fehlgeschlagen."); }
+  renderAll();
+}
+function renderUserLayouts(){
+  const box = document.getElementById("userLayouts");
+  if(!box) return;
+  const cur = matchedLayout();
+  const namen = Object.keys(UL);
+  box.innerHTML = namen.length ? namen.map(n=>{
+    const L = UL[n] || {};
+    const eigen = Object.values(L).filter(e => e && (e.dx !== undefined || e.dy !== undefined)).length;
+    const gesamt = LAY ? LAY.teile.length : 13;
+    return `<button type="button" class="upbtn${cur === n ? " active" : ""}" data-ul="${esc(n)}">`
+         + `${esc(n)}<small>${eigen} von ${gesamt} Bausteinen eigen platziert</small>`
+         + `<span class="updel" data-ldel="${esc(n)}" title="Layout löschen">✕</span></button>`;
+  }).join("") : `<div class="pempty">Noch keine eigenen Layouts — unten einen Namen eingeben und sichern.</div>`;
+}
+
 function renderPresets(){
   const cur = matchedPreset();   // K17: aus den echten Werten, nicht aus dem gespeicherten Feld
   document.getElementById("presets").innerHTML = Object.entries(PRESETS).map(([id,p])=>
@@ -677,30 +863,47 @@ function renderColorCombos(){   // K18: Farbwähler mit leer-Zustand (leer = Fal
 }
 // renderChampUI zuletzt: renderInputs setzt die <select>-Werte, die Einträge des
 // WM-Dropdowns entstehen aber erst hier — sonst stünde beim ersten Durchlauf nichts drin.
-function renderAll(){ renderToggles(); renderInputs(); renderLayout(); renderPresets(); renderUserPresets(); renderColorCombos(); renderLogoUI(); renderChampUI(); }
+function renderAll(){ renderToggles(); renderInputs(); renderLayout(); renderEbenen(); renderUserLayouts(); renderPresets(); renderUserPresets(); renderColorCombos(); renderLogoUI(); renderChampUI(); }
 
 let delArmed = null, delArmTimer = null;   // Löschen: zwei Klicks statt confirm()-Dialog
 
 document.addEventListener("click", e=>{
   if(e.target.id==="scaleAuto"){ save({scale: 0}); return; }   // 0 = automatisch einpassen
   if(e.target.id==="presetSave"){ savePreset(document.getElementById("presetName").value); return; }
-  // Eigenes Preset löschen: erster Klick "schärft" (Knopf wird rot), zweiter löscht.
+  if(e.target.id==="layoutSave"){ saveLayout(document.getElementById("layoutName").value); return; }
+  if(e.target.id==="ebReset"){ ebZurueck(); return; }
+  // Ebenen-Liste: eine Stelle nach vorn (-1) oder nach hinten (+1).
+  const eb = e.target.closest("[data-eb]");
+  if(eb){ const [key,ri] = eb.dataset.eb.split(":"); ebSchiebe(key, parseInt(ri,10)); return; }
+  // Eigenes Preset/Layout löschen: erster Klick "schärft" (Knopf wird rot), zweiter löscht.
   // Bewusst kein confirm() — in der Android-WebView sind Dialoge unzuverlässig (vgl. K12/K20).
+  // ⚠ Presets und Layouts teilen sich diesen Zweig, unterschieden am data-Attribut.
+  // Der gemerkte Name allein reichte dafür nicht: ein Preset und ein Layout dürfen
+  // gleich heißen, und der zweite Klick hätte dann das Falsche gelöscht.
   const del = e.target.closest(".updel");
   if(del){
-    const n = del.dataset.del;
-    if(delArmed === n){ clearTimeout(delArmTimer); delArmed = null; deletePreset(n); }
+    const layout = del.dataset.ldel !== undefined;
+    const n = layout ? del.dataset.ldel : del.dataset.del;
+    const marke = (layout ? "l:" : "p:") + n;
+    const titel = layout ? "Layout löschen" : "Preset löschen";
+    if(delArmed === marke){ clearTimeout(delArmTimer); delArmed = null;
+                            if(layout) deleteLayout(n); else deletePreset(n); }
     else {
-      delArmed = n;
+      delArmed = marke;
       document.querySelectorAll(".updel").forEach(x => x.classList.remove("arm"));
       del.classList.add("arm"); del.title = "Nochmal tippen zum Löschen";
       clearTimeout(delArmTimer);
-      delArmTimer = setTimeout(()=>{ delArmed = null; del.classList.remove("arm"); del.title = "Preset löschen"; }, 3000);
+      delArmTimer = setTimeout(()=>{ delArmed = null; del.classList.remove("arm"); del.title = titel; }, 3000);
     }
     return;
   }
   const up = e.target.closest(".upbtn");
-  if(up){ const set = UP[up.dataset.up]; if(set) save({...set, preset:"u:"+up.dataset.up}, true); return; }
+  if(up){
+    // ⚠ Layout-Knöpfe tragen dieselbe Klasse. Ohne diesen Zweig liefe der Klick
+    // in die Preset-Zeile darunter, fände dort nichts und kehrte still um.
+    if(up.dataset.ul !== undefined){ const L = UL[up.dataset.ul]; if(L) save({layout: L}); return; }
+    const set = UP[up.dataset.up]; if(set) save({...set, preset:"u:"+up.dataset.up}, true); return;
+  }
   const sh=e.target.closest(".subhead");   // K17: Gruppe auf-/zuklappen (nur lokal gemerkt)
   if(sh){
     const sub=sh.closest(".sub");
@@ -860,9 +1063,10 @@ document.addEventListener("keydown", e=>{
   if(e.key==="Escape") closeLogoPicker();
   // Enter im Namensfeld speichert — sonst muss man auf dem Handy erst die Tastatur wegklappen.
   if(e.key==="Enter" && e.target.id==="presetName"){ e.preventDefault(); savePreset(e.target.value); }
+  if(e.key==="Enter" && e.target.id==="layoutName"){ e.preventDefault(); saveLayout(e.target.value); }
 });
 
-(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); S = await (await fetch("/api/settings")).json(); await ladeLayoutListe(); renderAll(); loadVersions(); })();
+(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); await loadLayouts(); S = await (await fetch("/api/settings")).json(); await ladeLayoutListe(); renderAll(); loadVersions(); })();
 // Versionen nachziehen: erkennt, wenn eine Datei zwischendurch bearbeitet wurde (Hash/Datum)
 // oder wenn main.py neu gestartet und der "Neustart nötig"-Hinweis damit hinfällig ist.
 setInterval(loadVersions, 20000);
@@ -870,7 +1074,8 @@ setInterval(loadVersions, 20000);
 setInterval(async ()=>{ if(saveTimer) return; const r=await fetch("/api/settings"); S=await r.json(); renderAll(); }, 3000);
 // Eigene Presets seltener nachziehen — sie ändern sich nur beim Speichern/Löschen.
 // Nötig, damit ein am PC gesichertes Preset auch auf dem Handy auftaucht (und umgekehrt).
-setInterval(async ()=>{ if(saveTimer) return; await loadPresets(); renderUserPresets(); }, 10000);
+setInterval(async ()=>{ if(saveTimer) return; await loadPresets(); renderUserPresets();
+                        await loadLayouts(); renderUserLayouts(); }, 10000);
 // Neu abgelegte Logos auftauchen lassen, ohne die Seite neu zu laden (langsamer Takt reicht).
 setInterval(async ()=>{
   await loadLogos();

@@ -413,8 +413,11 @@ class SettingsState(_StateBase):
     penSideChanged, penSide = _prop("penSide", str, "left")
     penHideFinishChanged, penHideFinish = _prop("penHideFinish", bool, True)
 
-    # Freies Layout, je Baustein {ecke, dx, dy, z}. Leerer Eintrag = der Baustein
-    # bleibt an seinem einprogrammierten Platz (siehe Overlay.qml).
+    # Freies Layout, je Baustein {ecke, dx, dy, z, groesse}. Leerer Eintrag = der
+    # Baustein bleibt an seinem einprogrammierten Platz. Einzelne Felder duerfen
+    # fehlen und fallen dann ebenfalls auf den eingebauten Wert zurueck - ein
+    # Eintrag nur mit `z` kommt aus der Ebenen-Liste in /settings (siehe
+    # Overlay.qml, Funktion `hat`).
     layoutChanged, layout = _prop("layout", "QVariantMap", {})
 
     def apply(self, cfg) -> None:

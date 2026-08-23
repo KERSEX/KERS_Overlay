@@ -30,13 +30,25 @@ Item {
     // Pit-Projektion je nach sichtbarem Onboard, die Trackmap ueber mapcorner.
     // Ein fester Zahlenwert waere dort ein Rueckschritt. Erst wenn man einen
     // Baustein wirklich anfasst, entsteht sein Eintrag und gewinnt.
+    //
+    // ⚠ Der Rueckfall gilt FELDWEISE, nicht nur fuer den ganzen Eintrag. Ein
+    // Eintrag darf unvollstaendig sein: {"z": 55} ohne dx/dy heisst "Ebene
+    // eigen, Position weiter wie eingebaut". Genau das schreibt die
+    // Ebenen-Liste in /settings - sie sortiert nur die Reihenfolge um, und
+    // wuerde sie dabei dx/dy mitschreiben, waeren die vier beweglichen
+    // Bausteine mit einem Klick auf feste Zahlen genagelt.
     function teil(name) {
         const L = Kers.settings.layout;
         return (L && L[name]) ? L[name] : null;
     }
+    /** Ist das Feld im Eintrag wirklich gesetzt? `undefined` und `null` heissen
+     *  beide "nicht gesetzt" - aus JSON kommt null, aus QML/JS undefined. */
+    function hat(t, feld) {
+        return !!t && t[feld] !== undefined && t[feld] !== null;
+    }
     function lx(name, w, standard) {
         const t = teil(name);
-        if (!t) return standard;
+        if (!root.hat(t, "dx")) return standard;
         const e = t.ecke || "tl";
         if (e === "tl" || e === "lc" || e === "bl") return t.dx;
         if (e === "tr" || e === "rc" || e === "br") return root.width - w - t.dx;
@@ -44,7 +56,7 @@ Item {
     }
     function ly(name, h, standard) {
         const t = teil(name);
-        if (!t) return standard;
+        if (!root.hat(t, "dy")) return standard;
         const e = t.ecke || "tl";
         if (e === "tl" || e === "tc" || e === "tr") return t.dy;
         if (e === "bl" || e === "bc" || e === "br") return root.height - h - t.dy;
@@ -52,7 +64,7 @@ Item {
     }
     function lz(name, standard) {
         const t = teil(name);
-        return (t && t.z !== undefined) ? t.z : standard;
+        return root.hat(t, "z") ? t.z : standard;
     }
     /** Groessenfaktor eines Bausteins. 1 = wie einprogrammiert.
      *
@@ -675,9 +687,14 @@ Item {
                 // Wer schon einen Ankerpunkt hat, behaelt ihn - sonst spraenge die
                 // Bezugsecke beim kleinsten Ziehen um. Nur beim ERSTEN Verschieben
                 // wird der naechstgelegene genommen.
+                // ⚠ Gefragt ist der ANKERPUNKT, nicht "gibt es einen Eintrag":
+                // ein Baustein, den nur die Ebenen-Liste angefasst hat, traegt
+                // bloss ein `z`. Der wurde hier sonst als "hat schon eine Ecke"
+                // gelesen und landete stumm auf "tl", statt sich den
+                // naechstgelegenen Ankerpunkt zu suchen.
                 const vorhanden = root.teil(root.schluessel(t));
-                if (vorhanden) {
-                    layoutEditor.ecke = vorhanden.ecke || "tl";
+                if (root.hat(vorhanden, "ecke")) {
+                    layoutEditor.ecke = vorhanden.ecke;
                 } else if (!root.hatGroesse(t)) {
                     // ⚠ Baustein ohne eigene Groesse (zeigt nichts an, man hat
                     // seinen Platzhalter gepackt): jede Ecke ausser oben links

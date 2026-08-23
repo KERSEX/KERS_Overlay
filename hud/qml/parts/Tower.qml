@@ -42,9 +42,20 @@ Item {
                 w += cols[i] + 4;         // gap: 0 4px
         return w - 4;
     }
-    // Im CSS sind 628 bzw. 732 px fest gesetzt; die Spalten fuellen davon etwas
-    // weniger. Das Maximum uebernimmt beides, ohne dass etwas abgeschnitten wird.
-    readonly property real panelWidth: Math.max(quali ? 732 : 628, contentWidth)
+    // Untergrenze aus tower.css; die Spalten fuellen davon etwas weniger. Das
+    // Maximum uebernimmt beides, ohne dass etwas abgeschnitten wird.
+    //
+    // ⚠ Der QUALI-Boden von 732 ist raus. Er stammt aus tower.css, und dort hat
+    // die Quali bis heute eine Sektoren-Spalte (.quali-mode, 150 px). Im QML
+    // steht die auf 0 - die Sektorzeiten stehen unten in den Hotlap-Boxen -, der
+    // Boden blieb aber stehen. Gemessen: 657 px Inhalt in einem 732 px breiten
+    // Panel, also 75 px tote Flaeche rechts neben der Status-Spalte. Jetzt
+    // bestimmt in der Quali der Inhalt die Breite.
+    //
+    // Der Rennen-Boden von 628 BLEIBT: dort fuellen die Spalten 615 px, und die
+    // 13 px Rest sind die Aufteilung, die so aussehen soll. Im Web-Overlay
+    // bleibt 732 ebenfalls richtig - dort gibt es die Sektoren noch.
+    readonly property real panelWidth: Math.max(628, contentWidth)
 
     readonly property int rowCount: Kers.drivers.count
     property int maxRowsSeen: 0

@@ -77,6 +77,10 @@ Baustein, der noch auf *Standard* steht, behält seinen eingebauten Platz und
 rechnet weiter mit (der Tower folgt der Strafen-Seite, die Trackmap ihrer
 Position, die Pit-Projektion weicht dem Onboard aus).
 
+**Bausteine** und **Ebenen** sind je ein Klappblock — einmal zugeklappt, bleibt es
+zugeklappt, auch nach dem Neuladen. Im Kopf steht trotzdem, wie viele Bausteine
+nicht mehr auf Standard stehen und ob die Reihenfolge eine eigene ist.
+
 **Mehrere Anordnungen:** unter **Eigene Layouts** sicherst du die aktuelle
 Anordnung unter einem Namen und holst sie mit einem Klick zurück — z.B. eine fürs
 Rennen und eine für die Quali. Gesichert wird nur das Layout: Ankerpunkt, Versatz,

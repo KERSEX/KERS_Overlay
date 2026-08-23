@@ -91,8 +91,17 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
 .lhint{color:var(--muted);font-size:12px;line-height:1.6;margin:-4px 0 12px}
 .lay .ctl input[type=range]{width:120px}
 .lay .ctl .val{min-width:46px}
-.lay .lstd{font-size:11px;color:var(--muted);padding:2px 0 6px}
-.lay .lstd.eigen{color:var(--yellow)}
+/* ⚠ Die Marke "eigene Position" sitzt am .cnt im Kopf des Bausteins. Hier stand
+   frueher eine Regel fuer ein .lstd, das es im Markup gar nicht mehr gibt - die
+   Marke blieb deshalb immer grau. */
+.subhead .cnt.eigen{color:var(--yellow)}
+/* Die beiden langen Listen sind eigene Klappgruppen. Ohne sie ist der
+   Layout-Abschnitt 13 Bausteinkoepfe plus 13 Ebenenzeilen lang, und man scrollt
+   an allem darunter vorbei. Etwas kraeftiger als die Koepfe DARIN, damit die
+   Verschachtelung zu sehen ist. */
+.laygrp > .subhead{background:rgba(255,255,255,.07)}
+.laygrp > .subbody{padding:10px 2px 2px}
+.laygrp > .subbody > .lhint{margin:0 0 12px}
 /* Ebenen-Liste: eine Zeile je Baustein, vorn oben */
 .ebenen{border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .erow{display:flex;align-items:center;gap:8px;padding:7px 10px;background:rgba(255,255,255,.02);
@@ -195,16 +204,28 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
   <div class="grp">
     <h2>Layout</h2>
 
-    <p class="lhint">Jeder Baustein hängt an einem Ankerpunkt und bekommt von dort einen Versatz —
-      so bleibt er beim Wechsel der Fenstergröße an seiner Ecke. Solange „Standard“ dasteht, gilt
-      die eingebaute Position; sie ist bei manchen Bausteinen beweglich (der Tower folgt der
-      Strafen-Seite, die Trackmap der Trackmap-Position, die Pit-Projektion weicht dem Onboard aus).
-      Sobald du etwas verstellst, gilt dein Wert.</p>
-    <div id="layout"></div>
+    <div class="sub laygrp" data-g="laygrp:teile">
+      <button class="subhead" type="button"><span class="arrow">▾</span>Bausteine<span class="cnt" id="layCnt"></span></button>
+      <div class="subbody">
+        <p class="lhint">Jeder Baustein hängt an einem Ankerpunkt und bekommt von dort einen Versatz —
+          so bleibt er beim Wechsel der Fenstergröße an seiner Ecke. Solange „Standard“ dasteht, gilt
+          die eingebaute Position; sie ist bei manchen Bausteinen beweglich (der Tower folgt der
+          Strafen-Seite, die Trackmap der Trackmap-Position, die Pit-Projektion weicht dem Onboard aus).
+          Sobald du etwas verstellst, gilt dein Wert.</p>
+        <div id="layout"></div>
+      </div>
+    </div>
 
-    <h3 class="psub">Ebenen<small>Wer weiter oben steht, liegt im Bild vorn. Das Umsortieren ändert NUR die Ebene — Ankerpunkt, Versatz und Größe bleiben, wie sie sind, auch bei den Bausteinen, die noch auf „Standard“ stehen.</small></h3>
-    <div id="ebenen" class="ebenen"></div>
-    <div class="ebfoot"><button type="button" class="mini" id="ebReset">Ebenen auf Standard</button></div>
+    <div class="sub laygrp" data-g="laygrp:ebenen">
+      <button class="subhead" type="button"><span class="arrow">▾</span>Ebenen<span class="cnt" id="ebCnt"></span></button>
+      <div class="subbody">
+        <p class="lhint">Wer weiter oben steht, liegt im Bild vorn. Das Umsortieren ändert NUR die Ebene —
+          Ankerpunkt, Versatz und Größe bleiben, wie sie sind, auch bei den Bausteinen, die noch auf
+          „Standard“ stehen.</p>
+        <div id="ebenen" class="ebenen"></div>
+        <div class="ebfoot"><button type="button" class="mini" id="ebReset">Ebenen auf Standard</button></div>
+      </div>
+    </div>
 
     <h3 class="psub">Eigene Layouts<small>Sichert nur die Anordnung: Ankerpunkt, Versatz, Ebene und Größe je Baustein. Farben, Deckkraft und Schalter bleiben unberührt — dafür sind die Presets ganz oben da. Liegt auf dem Server, ist also auch vom Handy aus da.</small></h3>
     <div class="presets" id="userLayouts"></div>
@@ -652,6 +673,19 @@ function layZurueck(key){
   save({ layout: neu });
 }
 
+/** Klappzustand auf die Gruppen anwenden, die FEST im Markup stehen.
+ *
+ *  ⚠ Nur auf die: die Komponenten-Gruppen und die 13 Bausteine baut das Skript
+ *  selbst und setzt die Klasse dabei schon mit. Liefe das hier auch ueber sie,
+ *  waere es doppelt gemacht und liefe beim naechsten Umbau still auseinander.
+ *  Vorgabe ist AUFGEKLAPPT; wer zuklappt, findet es beim naechsten Mal
+ *  zugeklappt wieder - gleicher localStorage-Schluessel wie ueberall sonst. */
+function klappgruppenAusMarkup(){
+  document.querySelectorAll(".laygrp[data-g]").forEach(sub=>{
+    sub.classList.toggle("closed", !!closedGrp[sub.dataset.g]);
+  });
+}
+
 let layoutGebaut = false;
 function renderLayout(){
   if(!LAY) return;
@@ -708,6 +742,14 @@ function renderLayout(){
     el.textContent = layEigen(key) ? "eigene Position" : "Standard";
     el.classList.toggle("eigen", layEigen(key));
   });
+  // Kopf der Klappgruppe: zugeklappt soll man trotzdem sehen, ob etwas ansteht.
+  const kopf = document.getElementById("layCnt");
+  if(kopf){
+    const eigen = LAY.teile.filter(t=>layEigen(t.key)).length;
+    kopf.textContent = eigen ? `${eigen} von ${LAY.teile.length} eigen platziert`
+                             : "alle auf Standard";
+    kopf.classList.toggle("eigen", eigen > 0);
+  }
 }
 
 // ── Ebenen ────────────────────────────────────────────────────────────────
@@ -776,6 +818,12 @@ function renderEbenen(){
     + `<button type="button" class="ebtn" data-eb="${t.key}:-1"${n===0?" disabled":""} title="Weiter nach vorn">▲</button>`
     + `<button type="button" class="ebtn" data-eb="${t.key}:1"${n===reihe.length-1?" disabled":""} title="Weiter nach hinten">▼</button>`
     + `</div>`).join("");
+  const kopf = document.getElementById("ebCnt");
+  if(kopf){
+    const eigen = LAY.teile.filter(t=>ebEigen(t.key)).length;
+    kopf.textContent = eigen ? "eigene Reihenfolge" : "Standard-Reihenfolge";
+    kopf.classList.toggle("eigen", eigen > 0);
+  }
 }
 
 // ── Eigene Layouts ────────────────────────────────────────────────────────
@@ -1066,7 +1114,7 @@ document.addEventListener("keydown", e=>{
   if(e.key==="Enter" && e.target.id==="layoutName"){ e.preventDefault(); saveLayout(e.target.value); }
 });
 
-(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); await loadLayouts(); S = await (await fetch("/api/settings")).json(); await ladeLayoutListe(); renderAll(); loadVersions(); })();
+(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); await loadLayouts(); S = await (await fetch("/api/settings")).json(); await ladeLayoutListe(); klappgruppenAusMarkup(); renderAll(); loadVersions(); })();
 // Versionen nachziehen: erkennt, wenn eine Datei zwischendurch bearbeitet wurde (Hash/Datum)
 // oder wenn main.py neu gestartet und der "Neustart nötig"-Hinweis damit hinfällig ist.
 setInterval(loadVersions, 20000);

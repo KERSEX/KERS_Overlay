@@ -24,6 +24,10 @@ Item {
 
     // ── Von der Tabelle gesetzt ─────────────────────────────────────────────
     property var cols: []              // Spaltenbreiten, siehe Tower.qml
+    // Mit welchem Faktor die Zeile am Ende auf dem Schirm landet (panel.scale in
+    // Tower.qml). Braucht nur die Podiumszahl - sie zeichnet sich in eine Textur
+    // und muss die Endgroesse kennen, siehe MedalText.qml.
+    property real bildFaktor: 1
     property bool quali: false
     property real poleTime: 0
     property int lastSlot: 0           // unterste Zeile rundet die Panelecken ab
@@ -289,6 +293,7 @@ Item {
                         visible: row.podium
                         text: row.position
                         rank: row.position
+                        bildFaktor: row.bildFaktor
                         font { family: Theme.display; pixelSize: 27; weight: Font.Bold }
                     }
 

@@ -19,21 +19,39 @@ import "Fmt.js" as Fmt
 Item {
     id: medal
 
-    /** Wie fein die beiden Ebenen gerastert werden, bevor sie gestaucht werden.
+    /** Mit welchem Faktor diese Ziffer am Ende auf dem Schirm landet.
      *
-     *  ⚠ Der Grund: der Tower wird an die Bildhoehe eingepasst und dabei fast
-     *  immer verkleinert - bei voller Fahrerliste auf 0,717. P4 und tiefer sind
-     *  echter Text und werden dabei sauber neu gerastert. P1 bis P3 nicht: die
-     *  Ziffer wird hier zur Maske fuer einen Metallverlauf, und dafuer muessen
-     *  Verlauf und Maske erst in eine Textur gezeichnet werden. Eine Textur wird
-     *  beim Stauchen ABGETASTET, nicht neu gezeichnet - deshalb wirkten die drei
-     *  Podiumszahlen matschiger und dadurch kleiner als die darunter.
+     *  Der Tower wird als Ganzes gestaucht - bei voller Fahrerliste auf 0,717,
+     *  dazu kommen der Regler "Skalierung" und der Groessenfaktor aus dem freien
+     *  Layout. P4 und tiefer sind schlichter Text: den rastert Qt in der
+     *  Endgroesse. P1 bis P3 nicht - dort wird die Ziffer zur Maske fuer einen
+     *  Metallverlauf, und dafuer muessen Verlauf und Maske erst in je eine
+     *  Textur. Eine Textur wird beim Stauchen ABGETASTET, nicht neu gezeichnet.
      *
-     *  Mit der dreifachen Texturgroesse wird ueberabgetastet: gezeichnet wird
-     *  gross, verkleinert wird danach. Kostet bei einer 27-px-Ziffer in drei
-     *  Zeilen praktisch nichts.
+     *  Deshalb wird die Textur gleich in der ENDGROESSE angelegt: dann zeichnet
+     *  Qt die Ziffer genau so gross, wie sie zu sehen ist, und es bleibt nichts
+     *  zu verkleinern. Wird der Faktor nicht gesetzt, gilt 1 - dann ist es die
+     *  Ausgangsgroesse wie vor 0.2.2.
+     *
+     *  ⚠ Hier hat 0.2.2 danebengegriffen: dreifache Texturgroesse, in der
+     *  Annahme "gross zeichnen, klein anzeigen sei besser". Das Gegenteil ist der
+     *  Fall - die Verkleinerung war damit 3/0,717 = 4,2:1 statt 1,4:1, und die
+     *  bilineare Filterung liest nur 2x2 Texel. Aus der 2 und der 3 wurden
+     *  Klumpen; die 1 ueberstand es, weil ein senkrechter Balken in der Hoehe
+     *  nichts zu verlieren hat. Genau die Falle, die bei den Team-Logos schon
+     *  einmal zugeschlagen hat - siehe den mipmap-Kommentar in parts/TowerRow.qml.
      */
-    readonly property int schaerfe: 3
+    property real bildFaktor: 1
+
+    /** Texturgroesse in echten Bildpunkten. devicePixelRatio muss hier von Hand
+     *  hinein: sobald layer.textureSize gesetzt ist, rechnet Qt ihn nicht mehr
+     *  selbst dazu, und auf einem skalierten Bildschirm waere die Ziffer sonst
+     *  halb so fein wie alles andere. */
+    readonly property real texFaktor: Math.max(0.25, bildFaktor * Screen.devicePixelRatio)
+    function texGroesse(w, h) {
+        return Qt.size(Math.max(1, Math.ceil(w * medal.texFaktor)),
+                       Math.max(1, Math.ceil(h * medal.texFaktor)));
+    }
 
     property string text: ""
     property int rank: 1
@@ -52,8 +70,12 @@ Item {
         clip: true                 // der Glanzstreifen ragt sonst neben die Ziffer
         layer.enabled: true
         layer.smooth: true
-        layer.textureSize: Qt.size(Math.ceil(width * medal.schaerfe),
-                                   Math.ceil(height * medal.schaerfe))
+        // ⚠ mipmap ist kein Feinschliff, sondern das Auffangnetz: bleibt trotz
+        // texGroesse() eine Verkleinerung uebrig (Aufpoppen beim Positionswechsel,
+        // krumme Faktoren, Rundung), greift die bilineare Filterung daneben.
+        // Gleiche Begruendung wie bei den Team-Logos in parts/TowerRow.qml.
+        layer.mipmap: true
+        layer.textureSize: medal.texGroesse(width, height)
 
         // Der 180deg-Verlauf aus tower.css (.rank-1/-2/-3, zweite Ebene).
         Rectangle {
@@ -108,8 +130,8 @@ Item {
         visible: false
         layer.enabled: true
         layer.smooth: true
-        layer.textureSize: Qt.size(Math.ceil(width * medal.schaerfe),
-                                   Math.ceil(height * medal.schaerfe))
+        layer.mipmap: true
+        layer.textureSize: medal.texGroesse(width, height)
         verticalAlignment: Text.AlignVCenter
     }
 

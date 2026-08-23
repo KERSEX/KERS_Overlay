@@ -481,6 +481,10 @@ Item {
                 delegate: TowerRow {
                     width: body.width
                     cols: tower.cols
+                    // Der Stauchfaktor des ganzen Towers. Nur die Podiumszahl
+                    // braucht ihn - sie zeichnet sich in eine Textur und legt
+                    // sie damit gleich in Endgroesse an (siehe MedalText.qml).
+                    bildFaktor: panel.scale
                     quali: tower.quali
                     poleTime: Kers.session.poleTime
                     lastSlot: tower.rowCount - 1

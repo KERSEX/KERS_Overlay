@@ -49,6 +49,10 @@ class OverlayBridge(QObject):
     # zu beobachten.
     tickChanged = Signal()
 
+    # Geht an, wenn eine Layout-Aenderung den Server nicht erreicht hat und noch
+    # darauf wartet, nachgereicht zu werden.
+    layoutOffenChanged = Signal(bool)
+
     def __init__(self, base_url: str, hz: int = 30, overrides: dict | None = None,
                  demo: str = "", parent=None):
         super().__init__(parent)
@@ -87,6 +91,9 @@ class OverlayBridge(QObject):
         # Ergebnis stehen lassen (tower.js: everConn / lastConnTs)
         self._ever_connected = False
         self._last_conn_ms = 0.0
+        # Layout-Aenderung, die den Server nicht erreicht hat - sie wird
+        # nachgereicht, sobald wieder Kontakt besteht. Siehe _layout_gesendet.
+        self._layout_offen = None
         # Rote Flagge: eigene Sichtung des race_control-Feeds (tower.js rfLastRcId)
         self._red_flag_until = 0.0
         self._rf_last_rc_id = 0
@@ -213,6 +220,15 @@ class OverlayBridge(QObject):
         self._cfg.set_override(key, value)
         self._settings.apply(self._cfg)
 
+    @Property(bool, notify=layoutOffenChanged)
+    def layoutOffen(self):
+        """Wartet eine Layout-Aenderung noch darauf, zum Server zu kommen?
+
+        Der Hinweisbalken im Layout-Editor haengt daran: ohne ihn zieht man
+        Bausteine, es sieht richtig aus, und man erfaehrt nie, dass gerade kein
+        Server laeuft."""
+        return self._layout_offen is not None
+
     # ── Vorschau-Daten fuers Layout-Bearbeiten ───────────────────────────────
     def set_vorschau(self, on: bool) -> None:
         """Waehrend des Layout-Bearbeitens erfundene Daten einspeisen.
@@ -250,7 +266,15 @@ class OverlayBridge(QObject):
             # Die Ueberschreibung aus dem Bearbeiten aufgeben: ab jetzt liefert
             # wieder der Server die Settings, und der kennt den gespeicherten
             # Stand. Gegenstueck zu _layout_gesendet.
-            self._cfg.set_override("layout", None)
+            #
+            # ⚠ NUR, wenn wirklich gespeichert wurde. Lief kein Server, kennt er
+            # den Stand eben NICHT. Frueher fiel die Ueberschreibung hier
+            # trotzdem, und beim Start des Servers gewann dessen alte
+            # overlay_settings.json - das ganze Bearbeiten war weg. Solange
+            # etwas offen ist, bleibt die Ueberschreibung stehen, bis
+            # _on_link sie nachgereicht hat.
+            if self._layout_offen is None:
+                self._cfg.set_override("layout", None)
             self._szene_leeren()
         self._feed.start()
 
@@ -333,14 +357,36 @@ class OverlayBridge(QObject):
         req.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader,
                       "application/json")
         reply = self._nam.post(req, json.dumps({"layout": daten}).encode("utf-8"))
-        reply.finished.connect(lambda: self._layout_gesendet(reply))
+        reply.finished.connect(lambda: self._layout_gesendet(reply, daten))
 
-    def _layout_gesendet(self, reply) -> None:
+    def _layout_merken(self, daten) -> None:
+        """Eine nicht angekommene Layout-Aenderung vormerken."""
+        vorher = self._layout_offen is not None
+        self._layout_offen = daten
+        if not vorher:
+            self.layoutOffenChanged.emit(True)
+
+    def _layout_erledigt(self) -> None:
+        """Vormerkung aufloesen - der Server hat den Stand jetzt."""
+        if self._layout_offen is not None:
+            self._layout_offen = None
+            self.layoutOffenChanged.emit(False)
+
+    def _layout_gesendet(self, reply, daten=None) -> None:
         try:
             if reply.error() != QNetworkReply.NetworkError.NoError:
-                # Nicht angekommen: die Ueberschreibung BLEIBT stehen, damit die
-                # Verschiebung wenigstens bis zum Neustart haelt.
+                # Nicht angekommen - der uebliche Fall ist ein Server, der (noch)
+                # nicht laeuft.
+                #
+                # ⚠ Merken statt nur die Ueberschreibung stehen lassen. Genau das
+                # tat es frueher, und set_vorschau gab sie beim "Fertig" wieder
+                # auf: das Layout sprang auf den Stand der alten
+                # overlay_settings.json zurueck, sobald der Server startete.
+                # Jetzt wartet die Aenderung auf den naechsten Kontakt, siehe
+                # _on_link.
                 print(f"[HUD] Layout nicht gespeichert: {reply.errorString()}")
+                if daten is not None:
+                    self._layout_merken(daten)
                 return
             antwort = json.loads(bytes(reply.readAll().data()).decode("utf-8"))
         except (ValueError, UnicodeDecodeError) as exc:
@@ -359,6 +405,7 @@ class OverlayBridge(QObject):
         # richtig gespeichert war. In der Datei stand der neue Wert, im Bild der
         # alte. Beim Verlassen der Vorschau wird sie in set_vorschau aufgegeben,
         # dann ist wieder der Server die Wahrheit.
+        self._layout_erledigt()
         if self._demo_an:
             self._cfg.set_override("layout", dict(
                 (antwort.get("layout") or {})))
@@ -370,6 +417,14 @@ class OverlayBridge(QObject):
     # ── Payload verarbeiten ──────────────────────────────────────────────────
     def _on_link(self, linked: bool) -> None:
         self._session.linked = linked
+        # Wieder Kontakt: eine vorgemerkte Layout-Aenderung jetzt nachreichen.
+        #
+        # ⚠ Der Zeitpunkt ist wichtig. linkChanged kommt, sobald der Feed etwas
+        # gelesen hat - also BEVOR der erste Stand die Settings anwenden kann.
+        # Bis die Antwort da ist, gewinnt weiter die lokale Ueberschreibung, und
+        # danach steht der neue Stand ohnehin beim Server.
+        if linked and self._layout_offen is not None:
+            self.layoutSpeichern(self._layout_offen)
 
     def _on_payload(self, data: dict) -> None:
         now = time.monotonic() * 1000.0

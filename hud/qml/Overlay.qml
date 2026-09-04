@@ -861,8 +861,16 @@ Item {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Layout bearbeiten — Bausteine ziehen."
-                    color: Theme.textMain
+                    // ⚠ Ohne laufenden Server kommt keine Aenderung an. Verloren
+                    // ist sie nicht - die Bruecke reicht sie nach, sobald wieder
+                    // einer da ist -, aber ohne diesen Hinweis zieht man
+                    // Bausteine, es sieht richtig aus, und man erfaehrt es nie.
+                    text: Kers.layoutOffen
+                          ? "Layout bearbeiten — Server läuft nicht. Wird nachgereicht, sobald er da ist."
+                          : "Layout bearbeiten — Bausteine ziehen."
+                    // Warnfarbe wie an den anderen Stellen im HUD von Hand
+                    // gesetzt; Theme hat dafuer keinen eigenen Eintrag.
+                    color: Kers.layoutOffen ? "#ffcc00" : Theme.textMain
                     font { family: Theme.sans; pixelSize: 15; weight: Font.DemiBold }
                 }
 

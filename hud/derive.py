@@ -122,6 +122,12 @@ class SharedState:
     """Alles, was mehrere Bausteine gemeinsam lesen. Ein Objekt pro Overlay."""
 
     TOL = 1.4          # Pace-Toleranz in qualiStatus (core.js)
+    # Ab wann ERS als "der greift an" zaehlt. Beide Werte gelten an ZWEI Stellen
+    # in quali_status: als Entlastung gegen ein falsches inlap (2a) und als
+    # Beweis, wenn es noch gar keine Sektoren gibt (4). Deshalb hier und nicht
+    # zweimal als Zahl im Code.
+    ERS_MODE_AN = 2    # m_ersDeployMode: 0=keins, 1=mittel, 2=Hotlap, 3=Overtake
+    ERS_PCT_AN = 40
     SEC_EPS = 0.005    # Toleranz beim Sektor-Vergleich (tower.js colorSectors)
 
     def __init__(self, cfg: Config):
@@ -259,14 +265,35 @@ class SharedState:
                 if ok and clt > cum + self.TOL:
                     too_slow = True
 
+        # (2a) ERS ENTLASTET. Wer gerade deployt oder noch ordentlich Ladung hat,
+        # faehrt keine Auslaufrunde - dann bleibt es beim Hotlap, auch wenn die
+        # Pace (noch) nicht passt.
+        #
+        # ⚠ Warum das noetig ist: verglichen wird gegen die SUMME der
+        # persoenlichen Bestsektoren, und die stammen aus verschiedenen Runden.
+        # Diese theoretische Bestzeit faehrt niemand je - jede echte Runde liegt
+        # systematisch darueber, auch eine sehr gute. Deshalb konnte sogar eine
+        # Runde, mit der sich der Fahrer VERBESSERT, ueber die Toleranz rutschen
+        # und als "abgebrochen" gelten. Genau das war gemeldet.
+        #
+        # Umgekehrt gilt weiter: wenig ERS allein heisst NIE inlap. Dafuer gibt
+        # es hier keinen Zweig - Fall (4) schickt solche Fahrer nach "out".
+        if too_slow and self._greift_an(d):
+            too_slow = False
+
         if too_slow:
             return "inlap"                                  # (2) klar zu langsam
         if on_pace:
             return "track"                                  # (3) bewiesen schnell
         # (4) Frischer Start ohne Sektor-Beweis: fliegende Runde / am Deployen / genug ERS.
-        if ds == 1 or (d.get("ers_mode") or 0) >= 2 or (d.get("ers_pct") or 0) >= 40:
+        if ds == 1 or self._greift_an(d):
             return "track"
         return "out"
+
+    def _greift_an(self, d: dict) -> bool:
+        """Deployt der Fahrer gerade oder haelt er noch ordentlich Ladung?"""
+        return ((d.get("ers_mode") or 0) >= self.ERS_MODE_AN
+                or (d.get("ers_pct") or 0) >= self.ERS_PCT_AN)
 
     # ── Sektor-Buchhaltung ───────────────────────────────────────────────────
     def _pb(self, idx: int) -> list:

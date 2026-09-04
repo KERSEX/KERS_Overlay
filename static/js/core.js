@@ -187,6 +187,8 @@ function absorbSectors(idx, secs) {
 // STABIL gehalten (kein Flackern -> Fahrer/Delta bleiben in der Hotlap-Box):
 //   (1) Ungueltige Runde (Track Limits) -> NIE Hotlap.
 //   (2) Klar zu langsam (verbummelte/abgebrochene Runde) -> inlap, raus aus den Boxen.
+//  (2a) ERS ENTLASTET: wer deployt oder noch Ladung hat, faehrt keine Auslaufrunde.
+//       Wenig ERS heisst dagegen NIE inlap - das entscheidet allein das Delta.
 //   (3) Nachweislich auf Bestpace (fertiger Sektor nahe Bestsektor) -> Hotlap.
 //   (4) Frischer Rundenstart (S1 noch nicht gepostet, kein Beweis): fliegende Runde laut
 //       Spiel (ds=1) ODER aktives ERS-Deploy (Modus Hotlap/Overtake) ODER >=40 % ERS -> er
@@ -220,11 +222,28 @@ function qualiStatus(d) {
     }
   }
 
+  // (2a) ERS entlastet. Verglichen wird gegen die SUMME der persoenlichen
+  // Bestsektoren, und die stammen aus verschiedenen Runden - diese theoretische
+  // Bestzeit faehrt niemand je. Jede echte Runde liegt systematisch darueber,
+  // auch eine sehr gute; deshalb konnte sogar eine Runde, mit der sich der
+  // Fahrer VERBESSERT, ueber die Toleranz rutschen und als abgebrochen gelten.
+  // ⚠ Muss zu quali_status in hud/derive.py passen - die Datei ist die
+  // Portierung dieser Funktion, und zwei auseinandergelaufene Fassungen zeigen
+  // im HUD etwas anderes an als in OBS.
+  if (tooSlow && greiftAn(d)) tooSlow = false;
+
   if (tooSlow) return "inlap";                         // (2) klar zu langsam
   if (onPace)  return "track";                         // (3) bewiesen schnell
   // (4) Frischer Start ohne Sektor-Beweis: fliegende Runde / am Deployen / genug ERS -> Hotlap.
-  if (ds === 1 || (d.ers_mode || 0) >= 2 || (d.ers_pct || 0) >= 40) return "track";
+  if (ds === 1 || greiftAn(d)) return "track";
   return "out";
+}
+
+// Deployt der Fahrer gerade oder haelt er noch ordentlich Ladung?
+// m_ersDeployMode: 0=keins, 1=mittel, 2=Hotlap, 3=Overtake.
+const ERS_MODE_AN = 2, ERS_PCT_AN = 40;
+function greiftAn(d) {
+  return (d.ers_mode || 0) >= ERS_MODE_AN || (d.ers_pct || 0) >= ERS_PCT_AN;
 }
 
 // Stint-Laengen mitschreiben: aktueller Reifen = tyre_age; bei Compound-Wechsel den vorigen

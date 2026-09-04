@@ -58,6 +58,7 @@ DEFAULT_CFG = {
     "battledir": "row",
     "penside": "left",
     "penhidefinish": True,
+    "podiumstil": "flat",
     "layout": {},
 }
 

@@ -70,11 +70,12 @@ Item {
         clip: true                 // der Glanzstreifen ragt sonst neben die Ziffer
         layer.enabled: true
         layer.smooth: true
-        // ⚠ mipmap ist kein Feinschliff, sondern das Auffangnetz: bleibt trotz
-        // texGroesse() eine Verkleinerung uebrig (Aufpoppen beim Positionswechsel,
-        // krumme Faktoren, Rundung), greift die bilineare Filterung daneben.
-        // Gleiche Begruendung wie bei den Team-Logos in parts/TowerRow.qml.
-        layer.mipmap: true
+        // ⚠ KEIN layer.mipmap. Als "Auffangnetz" gedacht, war es vermutlich Teil
+        // des Problems: die Mipmap-Stufe waehlt die GPU aus den Ableitungen der
+        // Texturkoordinaten, und greift sie bei einer 20x20-Maske eine Stufe zu
+        // hoch, sind das 10x10 - dann ist die Ziffer Matsch. Auf einer MASKE
+        // kostet ein falscher Grad die Form, nicht nur Schaerfe. Bei den
+        // Team-Logos ist mipmap richtig, dort wird wirklich stark verkleinert.
         layer.textureSize: medal.texGroesse(width, height)
 
         // Der 180deg-Verlauf aus tower.css (.rank-1/-2/-3, zweite Ebene).
@@ -130,7 +131,6 @@ Item {
         visible: false
         layer.enabled: true
         layer.smooth: true
-        layer.mipmap: true
         layer.textureSize: medal.texGroesse(width, height)
         verticalAlignment: Text.AlignVCenter
     }

@@ -76,6 +76,10 @@ Item {
 
     readonly property bool isLeader: position === 1 && !quali && !dnf && !dsq
     readonly property bool podium: position >= 1 && position <= 3
+    /** Metallverlauf auf den Podiumszahlen? Umschaltbar in /settings; die
+     *  Vorgabe ist AUS, weil der Verlauf bei dieser Ziffernhoehe Lesbarkeit
+     *  kostet (siehe Kommentar bei rankPlain). */
+    readonly property bool medaille: Kers.settings.podiumStil === "metal"
 
     height: Theme.rowHeight
     y: slot * Theme.rowHeight
@@ -278,11 +282,20 @@ Item {
 
                     // Ausserhalb des Podiums: schlichter Text. Der Metallverlauf ist
                     // teuer und waere hier ohnehin unsichtbar.
+                    //
+                    // ⚠ Bei "flat" bekommen AUCH P1-3 diesen Text, nur in der
+                    // Medaillenfarbe. Der Verlauf braucht zwei Texturen und einen
+                    // Maskenschritt; bei rund 19 Bildpunkten Ziffernhoehe geht
+                    // dabei so viel Kante verloren, dass 2 und 3 unleserlich
+                    // werden. Schlichter Text wird direkt gerastert - genau so
+                    // scharf wie P4 abwaerts, wo es nie ein Problem gab.
                     Text {
                         id: rankPlain
                         text: row.position
-                        visible: !row.podium
-                        color: row.elimZone ? "#ff9090" : Theme.textMain
+                        visible: !row.podium || !row.medaille
+                        color: row.elimZone ? "#ff9090"
+                             : (row.podium ? Fmt.medalStops(row.position)[1]
+                                           : Theme.textMain)
                         font { family: Theme.display; pixelSize: 27; weight: Font.Bold }
                         style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
                         styleColor: Theme.textStyleColor
@@ -290,7 +303,7 @@ Item {
 
                     MedalText {
                         anchors.fill: parent
-                        visible: row.podium
+                        visible: row.podium && row.medaille
                         text: row.position
                         rank: row.position
                         bildFaktor: row.bildFaktor

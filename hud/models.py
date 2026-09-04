@@ -412,6 +412,9 @@ class SettingsState(_StateBase):
     # Seite der Strafen-Pillen und ob sie bei der Zielflagge weichen.
     penSideChanged, penSide = _prop("penSide", str, "left")
     penHideFinishChanged, penHideFinish = _prop("penHideFinish", bool, True)
+    # Positionszahlen 1-3: "flat" (schlichter Text) oder "metal" (Verlauf als
+    # Maske). Begruendung fuer die Vorgabe steht in main.py bei DEFAULT_SETTINGS.
+    podiumStilChanged, podiumStil = _prop("podiumStil", str, "flat")
 
     # Freies Layout, je Baustein {ecke, dx, dy, z, groesse}. Leerer Eintrag = der
     # Baustein bleibt an seinem einprogrammierten Platz. Einzelne Felder duerfen
@@ -443,6 +446,7 @@ class SettingsState(_StateBase):
             "battleDir": "column" if str(cfg["battledir"]) == "column" else "row",
             "penSide": "right" if str(cfg["penside"]) == "right" else "left",
             "penHideFinish": bool(cfg["penhidefinish"]),
+            "podiumStil": "metal" if str(cfg["podiumstil"]) == "metal" else "flat",
             "layout": dict(cfg["layout"] or {}),
         })
 

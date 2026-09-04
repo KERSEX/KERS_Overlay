@@ -280,6 +280,16 @@ DEFAULT_SETTINGS = {
     # ⚠ Rechts sitzt auch die Zielflagge — deshalb der zweite Schalter.
     "penside": "left",     # left | right
     "penhidefinish": True,  # Pillen ausblenden, sobald die Zielflagge steht
+    # Wie die Positionszahlen 1-3 gezeichnet werden.
+    #   "flat"  = schlichter Text in Gold/Silber/Bronze, genau wie P4 abwaerts
+    #   "metal" = Metallverlauf mit Glanz, die Ziffer dient als Maske
+    # ⚠ Vorgabe ist "flat", und das ist kein Geschmacksurteil: der Verlauf braucht
+    # zwei Texturen und einen Maskenschritt, und der Tower wird auf 0,717
+    # gestaucht. Bei einer Ziffer von rund 19 Bildpunkten geht dabei so viel
+    # Kante verloren, dass 2 und 3 unleserlich werden - gemeldet nach zwei
+    # Anlaeufen, das ueber die Texturgroesse zu retten. Schlichter Text wird
+    # direkt gerastert und ist so scharf wie der Rest der Spalte.
+    "podiumstil": "flat",  # flat | metal
     # Freies Layout, je Baustein {ecke, dx, dy, z}. LEER heißt "alles wie gehabt";
     # ein Baustein ohne Eintrag behält seine einprogrammierte Lage (siehe
     # LAYOUT_STANDARD oben).
@@ -1665,6 +1675,9 @@ def api_settings():
                     continue
                 if k == "penside":
                     overlay_settings[k] = "right" if str(v) == "right" else "left"
+                    continue
+                if k == "podiumstil":
+                    overlay_settings[k] = "metal" if str(v) == "metal" else "flat"
                     continue
                 if k == "text_outline":
                     try:

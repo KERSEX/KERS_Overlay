@@ -680,7 +680,16 @@ def _tracks_pruefen(roh) -> dict:
                 sauber = []
                 break
         if sauber:
-            raus[tid] = {"len": laenge, "pts": sauber}
+            eintrag_neu = {"len": laenge, "pts": sauber}
+            # Ausrichtung ist freiwillig - fehlt sie, gilt die allgemeine.
+            try:
+                if "rot" in eintrag:
+                    eintrag_neu["rot"] = max(0, min(359, int(eintrag["rot"])))
+                if "flip" in eintrag:
+                    eintrag_neu["flip"] = bool(eintrag["flip"])
+            except (TypeError, ValueError):
+                pass
+            raus[tid] = eintrag_neu
     return raus
 
 def _tracks_lesen(pfad) -> dict:
@@ -697,6 +706,8 @@ def _tracks_speichern() -> None:
         raus = {"fmt": TRACKS_FMT}
         for tid, e in user_tracks.items():
             raus[str(tid)] = {"len": e["len"],
+                              **({"rot": e["rot"]} if isinstance(e.get("rot"), int) else {}),
+                              **({"flip": e["flip"]} if isinstance(e.get("flip"), bool) else {}),
                               # Auf eine Nachkommastelle: das sind 10 cm auf der
                               # Strecke und halbiert die Datei.
                               "pts": [[round(p[0], 1), round(p[1], 1),
@@ -729,7 +740,49 @@ def _track_laden(track_id, track_length) -> bool:
     track_outline["pts"] = [list(p) for p in e["pts"]]
     track_outline["done"] = True
     track_outline["ver"] += 1
+    # Ausrichtung je Strecke: einmal zurechtgedreht, ab dann richtig.
+    # ⚠ Laeuft im UDP-Faden, aber handle_session haelt state_lock - dieselbe
+    # Sperre wie /api/settings, hier wird also nichts nebeneinander geschrieben.
+    _track_ausrichtung_anwenden(e)
     return True
+
+def _track_ausrichtung_anwenden(eintrag) -> None:
+    """Gespeicherte Drehung/Spiegelung dieser Strecke uebernehmen."""
+    aenderung = False
+    if isinstance(eintrag.get("rot"), int) and eintrag["rot"] != overlay_settings.get("maprot"):
+        overlay_settings["maprot"] = eintrag["rot"]
+        aenderung = True
+    if isinstance(eintrag.get("flip"), bool) and eintrag["flip"] != overlay_settings.get("mapflip"):
+        overlay_settings["mapflip"] = eintrag["flip"]
+        aenderung = True
+    if aenderung:
+        _save_settings()
+
+def _track_ausrichtung_merken() -> None:
+    """Die aktuelle Drehung/Spiegelung bei der laufenden Strecke hinterlegen.
+
+    ⚠ Nur bei einer BEKANNTEN Strecke. Fuer eine, die noch gelernt wird, gibt es
+    keinen Eintrag - und einen anzulegen, der nur die Drehung enthaelt, waere
+    eine Kontur ohne Punkte und wuerde beim Laden durch die Pruefung fallen.
+    """
+    tid = session_info.get("track_id")
+    if tid is None:
+        return
+    e = user_tracks.get(tid)
+    if e is None:
+        # Nur mitgeliefert? Dann eine eigene Kopie anlegen - die mitgelieferte
+        # steckt in der EXE und laesst sich nicht aendern.
+        vorlage = builtin_tracks.get(tid)
+        if vorlage is None:
+            return
+        e = user_tracks[tid] = {"len": vorlage["len"],
+                                "pts": [list(p) for p in vorlage["pts"]]}
+    rot = int(overlay_settings.get("maprot") or 0)
+    flip = bool(overlay_settings.get("mapflip"))
+    if e.get("rot") == rot and e.get("flip") == flip:
+        return
+    e["rot"], e["flip"] = rot, flip
+    _tracks_speichern()
 
 def _strecke_gewechselt(track_id, track_length) -> bool:
     """Auf eine andere Strecke gewechselt: Kontur neu bestimmen.
@@ -1937,6 +1990,7 @@ def api_tracks():
             raus.append({"id": tid, "name": name, "land": land,
                          "colors": list(farben), "len": e["len"],
                          "pts": len(e["pts"]),
+                         "rot": e.get("rot"), "flip": e.get("flip"),
                          "quelle": "eigen" if eigen else "mitgeliefert",
                          "aktiv": tid == aktuell})
         return jsonify({"tracks": raus, "aktuell": aktuell,
@@ -2123,6 +2177,11 @@ def api_settings():
                         overlay_settings[k] = str(v)
                 except (TypeError, ValueError):
                     pass
+            # Drehung oder Spiegelung verstellt? Dann gehoert das zur LAUFENDEN
+            # Strecke - beim naechsten Mal steht die Karte gleich richtig, statt
+            # dass man sie bei jedem Streckenwechsel neu zurechtdreht.
+            if "maprot" in data or "mapflip" in data:
+                _track_ausrichtung_merken()
             _save_settings()
     with state_lock:
         return jsonify(dict(overlay_settings))

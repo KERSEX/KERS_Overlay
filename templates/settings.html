@@ -276,9 +276,9 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
     <div class="row"><label>Trackmap anzeigen<small>Master-Schalter für die Minimap</small></label><div class="tgl" data-k="map"></div></div>
     <div class="row"><label>Größe (px)</label>
       <div class="ctl"><input type="range" min="200" max="640" step="10" data-k="mapsize"><span class="val" data-v="mapsize"></span></div></div>
-    <div class="row"><label>Drehung (°)</label>
+    <div class="row"><label>Drehung (°)<small id="mapRotHint">Wird bei der laufenden Strecke hinterlegt — beim nächsten Mal steht die Karte gleich richtig.</small></label>
       <div class="ctl"><input type="range" min="0" max="359" step="1" data-k="maprot"><span class="val" data-v="maprot"></span></div></div>
-    <div class="row"><label>Horizontal spiegeln</label><div class="tgl" data-k="mapflip"></div></div>
+    <div class="row"><label>Horizontal spiegeln<small>Wird ebenfalls je Strecke gemerkt.</small></label><div class="tgl" data-k="mapflip"></div></div>
     <div class="row"><label>Position</label>
       <!-- "oben links" und "links mitte" fehlen bewusst: dort steht der Tower,
            die Trackmap wuerde ihn verdecken. -->
@@ -964,6 +964,15 @@ async function deleteTrack(id){
   renderTracks();
 }
 function renderTracks(){
+  // ⚠ Sagen, WELCHE Strecke gerade gemeint ist. Ohne das aendert sich die
+  // Drehung beim Streckenwechsel scheinbar von selbst, und niemand versteht warum.
+  const hint = document.getElementById("mapRotHint");
+  if(hint){
+    const aktiv = TRK.find(t => t.aktiv);
+    hint.textContent = aktiv
+      ? `Gilt für ${aktiv.name} — einmal zurechtgedreht, ab dann richtig. Andere Strecken behalten ihre eigene Drehung.`
+      : "Wird bei der laufenden Strecke hinterlegt, sobald eine erkannt ist — beim nächsten Mal steht die Karte gleich richtig.";
+  }
   const box = document.getElementById("tracks");
   if(!box) return;
   if(!TRK.length){
@@ -982,7 +991,9 @@ function renderTracks(){
     return `<div class="trk${t.aktiv?" aktiv":""}">`
       + `<span class="tkfarbe" style="background:${bg}"></span>`
       + `<span class="tkname">${esc(t.name)}`
-      + `<small>${t.pts} Punkte · ${t.len} m${t.land?" · "+esc(t.land):""}${t.aktiv?" · läuft gerade":""}</small></span>`
+      + `<small>${t.pts} Punkte · ${t.len} m${t.land?" · "+esc(t.land):""}`
+      + `${t.rot!=null?" · "+t.rot+"°":""}${t.flip?" · gespiegelt":""}`
+      + `${t.aktiv?" · läuft gerade":""}</small></span>`
       + `<span class="tkq${eigen?" eigen":""}">${eigen?"selbst gelernt":"mitgeliefert"}</span>`
       + `<button type="button" class="tkdel" data-tkdel="${t.id}"${eigen?"":" disabled"} `
       + `title="${eigen?"Gelernte Kontur löschen":"Mitgeliefert — steckt in der EXE und lässt sich nicht löschen"}">✕</button>`

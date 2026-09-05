@@ -135,6 +135,21 @@
   .brow + .brow { box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
   .brow .bp { font-family:monospace; color: #9aa0aa; }
   .brow .bg { margin-left: auto; font-variant-numeric: tabular-nums; color: #ffcc00; }
+  /* Kamera-Panel: ein Knopf je Position, gross genug fuer den Daumen */
+  .camgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+             gap: 8px; padding: 10px 12px; }
+  /* ⚠ flex:none gegen die allgemeine button-Regel (flex:1, min-width:120px) -
+     ohne das sprengt jeder Knopf die Rasterspalte. */
+  .cambtn { flex: none; min-width: 0; padding: 8px 4px; display: flex; flex-direction: column;
+            align-items: center; gap: 2px; line-height: 1.1; }
+  .cambtn .cp { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .cambtn .cn { font-size: 10px; font-weight: 600; color: #9aa0aa; max-width: 100%;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cambtn.flash { background: #e10600; border-color: #e10600; }
+  .cambtn:disabled { opacity: .35; cursor: default; }
+  .cambtn.tipp { border-color: rgba(225,6,0,0.7); box-shadow: 0 0 10px rgba(225,6,0,0.25); }
+  #camNote { padding: 0 12px 10px; font-size: 11.5px; color: #8e8e9e; min-height: 14px; }
+  #camNote.err { color: #ff8a80; }
   .empty { padding: 10px 12px; color: #8e8e9e; font-size: 12px; }
   /* Datenlage: macht sichtbar, wenn Werte fehlen (statt still falsche Daten zu zeigen) */
   #dq { padding: 4px 0; }
@@ -286,6 +301,14 @@
 
 <div class="card" id="deCard"><h2>Director's Eye — Kamera-Tipp<span id="camNow">🎥 —</span></h2>
   <div id="deList"><div class="empty">warte auf Daten…</div></div>
+</div>
+
+<!-- Antippen setzt die Spectator-Kamera im Spiel auf diesen Platz. Sitzt bewusst
+     direkt unter dem Kamera-Tipp: dort steht, auf WEN man schauen sollte, hier
+     kommt man mit einem Tipp hin. -->
+<div class="card" id="camCard"><h2>Kamera setzen<span id="camState"></span></h2>
+  <div class="camgrid" id="camGrid"></div>
+  <div id="camNote"></div>
 </div>
 
 <!-- I17: Live-Projektion Quali — blendet sich nur in der Quali ein -->
@@ -1216,6 +1239,108 @@ async function pullLive() {   // K14: Polling-Fallback, wenn SSE nicht läuft
   catch (e) { setStatus("keine Verbindung zum Overlay-Server", "err"); return; }
   renderLive(d);
 }
+// ── Kamera setzen ───────────────────────────────────────────────────────────
+// Ein Knopf je Position. Der Server schlaegt die Tasten selbst nach - hierher
+// geht NUR die Nummer, nie eine Taste (siehe api_cam in main.py).
+const CAM_MAX = 22;
+let camBusy = false;
+
+// ⚠ Der Live-Stand laeuft mehrmals pro Sekunde durch renderKamera. Ohne diese
+// Sperre uebermalt der stehende Hinweis ("P21/P22 brauchen ...") die Rueckmeldung
+// auf einen Tipp, bevor man sie lesen kann.
+let camNoteBis = 0;
+function camNote(text, fehler, halten) {
+  const el = document.getElementById("camNote");
+  if (!el) return;
+  const jetzt = Date.now();
+  if (!halten && jetzt < camNoteBis) return;      // frische Rueckmeldung stehen lassen
+  el.textContent = text || "";
+  el.classList.toggle("err", !!fehler);
+  camNoteBis = halten ? jetzt + 2500 : 0;
+}
+
+async function camSetzen(pos, btn) {
+  if (camBusy) return;                 // Doppeltipp soll nicht zwei Spruenge ausloesen
+  camBusy = true;
+  btn.classList.add("flash");
+  try {
+    const r = await fetch("/api/cam", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({pos})
+    });
+    const j = await r.json().catch(() => ({}));
+    // ⚠ fetch wirft bei 4xx/5xx NICHT - ohne diese Zeile meldet die Seite Erfolg,
+    // obwohl der Server abgelehnt hat.
+    if (!r.ok) camNote(j.error || ("Server meldet " + r.status), true, true);
+    else camNote("P" + pos + " gesetzt (" + (j.keys || []).join(", ") + ")", false, true);
+  } catch (e) {
+    camNote("keine Verbindung zum Server", true, true);
+  } finally {
+    setTimeout(() => btn.classList.remove("flash"), 150);
+    camBusy = false;
+  }
+}
+
+/** Position, die der Kamera-Tipp gerade empfiehlt - 0, wenn keiner ansteht.
+ *
+ *  ⚠ Ein Tipp traegt KEINE Position. Er hat `ids` (Fahrer-Index) und `who` als
+ *  fertigen Anzeigetext ("P4 NAME"). Ueber den Index nachschlagen ist stabiler
+ *  als aus `who` zu parsen - der Text ist zum Anzeigen da und darf sich aendern. */
+function camTippPos(drivers, tips) {
+  if (!tips || !tips.length || !tips[0].ids || !tips[0].ids.length) return 0;
+  const d = drivers.find(x => x.index === tips[0].ids[0]);
+  return d ? d.position : 0;
+}
+
+let camGebaut = 0;
+function renderKamera(drivers, settings, tipIdx) {
+  const grid = document.getElementById("camGrid");
+  const state = document.getElementById("camState");
+  if (!grid) return;
+  const s = settings || {};
+  const an = s.camkeys !== false;
+  const weiter = (s.camnextkey || "").trim();
+  state.textContent = an ? "" : "aus";
+
+  const plaetze = drivers.filter(x => x.position >= 1 && x.position <= CAM_MAX);
+  // Nur neu bauen, wenn sich die Besetzung wirklich aendert - sonst verliert ein
+  // gerade gedrueckter Knopf bei jedem Stand sein Aufblitzen.
+  const sig = plaetze.map(x => x.position + ":" + (x.name || "")).join("|");
+  if (sig !== camGebaut) {
+    camGebaut = sig;
+    grid.innerHTML = plaetze.map(x =>
+      `<button class="cambtn" data-cam="${x.position}">`
+      + `<span class="cp">${x.position}</span>`
+      + `<span class="cn">${esc((x.name || "").split(" ").pop())}</span></button>`).join("")
+      || `<div class="empty">warte auf Daten…</div>`;
+  }
+  // Zustand bei JEDEM Stand nachziehen - er haengt an den Einstellungen, nicht
+  // am Feld, und die koennen sich ohne Fahrerwechsel aendern.
+  grid.querySelectorAll("[data-cam]").forEach(b => {
+    const pos = parseInt(b.dataset.cam, 10);
+    const brauchtWeiter = pos > 20;
+    const geht = an && (!brauchtWeiter || !!weiter);
+    b.disabled = !geht;
+    b.classList.toggle("tipp", pos === tipIdx);
+    b.title = !an ? "Kamera-Tasten sind in den Einstellungen aus"
+            : (brauchtWeiter && !weiter)
+              ? "P21/P22 brauchen die Taste „nächster Fahrer“ in den Einstellungen"
+              : "Kamera auf P" + pos;
+  });
+  // ⚠ Der else-Zweig muss sein. Ohne ihn bleibt ein Hinweis stehen, nachdem die
+  // Ursache behoben ist - man schaltet die Kamera-Tasten wieder ein und liest
+  // weiter "In den Einstellungen abgeschaltet".
+  if (!an) camNote("In den Einstellungen abgeschaltet.");
+  else if (!weiter && plaetze.some(x => x.position > 20))
+    camNote("P21 und P22 brauchen die Taste „nächster Fahrer“ in den Einstellungen.");
+  else camNote("");
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-cam]");
+  if (b && !b.disabled) camSetzen(parseInt(b.dataset.cam, 10), b);
+});
+
 function renderLive(d) {
   setStatus(d.connected ? "verbunden" : "kein Spiel-Signal", d.connected ? "ok" : "err");
   const drivers = (d.drivers || []).slice().sort((a, b) => a.position - b.position);
@@ -1242,6 +1367,8 @@ function renderLive(d) {
   renderSessInfo(d.session || {}, quali, chq,
                  { done: running.filter(x => x.finished).length, total: running.length });
   renderDataQuality(d, drivers);
+  // Der Kamera-Tipp markiert den empfohlenen Platz im Panel mit.
+  renderKamera(drivers, d.settings, camTippPos(drivers, tips));
   if (quali) trackQuali(drivers, d.session || {});
   else if (d.connected) trackPace(drivers, d.session || {});
   renderProjection(drivers, quali, d.connected, chq);   // I17

@@ -290,6 +290,19 @@ DEFAULT_SETTINGS = {
     # Anlaeufen, das ueber die Texturgroesse zu retten. Schlichter Text wird
     # direkt gerastert und ist so scharf wie der Rest der Spalte.
     "podiumstil": "flat",  # flat | metal
+    # Kamera-Tasten aus der Regie: ein Tipp auf eine Position schickt dem Spiel
+    # den Tastendruck der Spectator-Fahrerauswahl (1-0 fuer P1-P10, Shift+1-0
+    # fuer P11-P20).
+    # ⚠ Der Server hoert auf 0.0.0.0 - das ist eine Tuer ins laufende Spiel.
+    # Deshalb abschaltbar (und die Wahl wird gespeichert), und der Endpunkt nimmt
+    # NUR Positionsnummern entgegen, nie eine Taste aus dem Request.
+    "camkeys": True,
+    # Taste fuer "naechster Fahrer" im Spiel. P21 und P22 haben keine eigene
+    # Taste - sie werden erreicht, indem auf P20 gesprungen und dann ein- bzw.
+    # zweimal weitergeschaltet wird.
+    # F8 ist die Belegung, die KERS nutzt. Aenderbar in /settings; LEER schaltet
+    # die beiden Knoepfe ab, statt eine falsche Taste ins Spiel zu schicken.
+    "camnextkey": "f8",
     # Freies Layout, je Baustein {ecke, dx, dy, z}. LEER heißt "alles wie gehabt";
     # ein Baustein ohne Eintrag behält seine einprogrammierte Lage (siehe
     # LAYOUT_STANDARD oben).
@@ -299,6 +312,67 @@ DEFAULT_SETTINGS = {
     "champ_file": "",
     "preset": "voll",
 }
+
+# ── Kamera-Tasten ─────────────────────────────────────────────────────────────
+# Die Spectator-Fahrerauswahl im Spiel liegt auf 1-0 (P1-P10) und Shift+1-0
+# (P11-P20). Mehr Plaetze sieht sie nicht vor - fuer P21/P22 wird deshalb auf P20
+# gesprungen und danach mit der "naechster Fahrer"-Taste weitergeschaltet.
+#
+# ⚠ Die Tabelle steht HIER und nicht im Browser. Der Endpunkt bekommt nur eine
+# Positionsnummer und schlaegt die Tasten selbst nach - so kann von aussen keine
+# beliebige Taste ins Spiel geschickt werden, auch nicht aus dem eigenen Netz.
+CAM_KEYS = {}
+for _p in range(1, 11):
+    CAM_KEYS[_p] = [str(_p % 10)]                      # 1..9, und 10 -> "0"
+for _p in range(11, 21):
+    CAM_KEYS[_p] = ["shift+" + str((_p - 10) % 10)]    # 11..19, und 20 -> shift+0
+CAM_MAX = 22
+CAM_MODS = ("shift", "ctrl", "alt")
+# Was als "naechster Fahrer" erlaubt ist. Bewusst eine Liste statt "irgendein
+# Text": der Wert landet in einem Tastendruck auf dem Rechner, auf dem das Spiel
+# laeuft.
+CAM_TASTEN = (tuple("abcdefghijklmnopqrstuvwxyz0123456789")
+              + tuple("f%d" % i for i in range(1, 13))
+              + ("left", "right", "up", "down", "tab", "space", "enter",
+                 "pageup", "pagedown", "home", "end", "insert", "delete",
+                 "add", "subtract", "multiply", "divide", "period"))
+
+def _cam_taste_ok(wert: str) -> str:
+    """Eine erlaubte Tastenkombination daraus machen - oder "" (= nicht gesetzt)."""
+    teile = [t.strip().lower() for t in str(wert or "").split("+") if t.strip()]
+    if not teile or len(teile) > 3:
+        return ""
+    taste, mods = teile[-1], teile[:-1]
+    if taste not in CAM_TASTEN or any(m not in CAM_MODS for m in mods):
+        return ""
+    return "+".join(mods + [taste])
+
+# pydirectinput schickt SCANCODES statt virtueller Tastencodes - normale
+# SendInput-Aufrufe ignoriert eine DirectInput-Anwendung wie F1 schlicht.
+# ⚠ Der Import ist abgesichert: fehlt das Paket (aeltere Installation, anderes
+# Betriebssystem), soll der ganze Server trotzdem starten und der Endpunkt einen
+# lesbaren Fehler melden.
+try:
+    import pydirectinput
+    # Ohne das schlaeft jede einzelne Taste 0,1 s (PAUSE) und ein Mauszeiger in
+    # der Bildschirmecke wirft eine Ausnahme (FAILSAFE) - beides ist hier nur
+    # hinderlich, gedrueckt werden ohnehin nur Tasten.
+    pydirectinput.PAUSE = 0
+    pydirectinput.FAILSAFE = False
+except Exception as _e:     # pylint: disable=broad-exception-caught
+    pydirectinput = None
+    print(f"[CAM] pydirectinput nicht verfuegbar: {_e}")
+
+def _cam_druecke(folge) -> None:
+    """Eine Folge von Tastenkombinationen an das Spiel schicken."""
+    for combo in folge:
+        teile = combo.split("+")
+        mods, taste = teile[:-1], teile[-1]
+        for m in mods:
+            pydirectinput.keyDown(m)
+        pydirectinput.press(taste)
+        for m in reversed(mods):
+            pydirectinput.keyUp(m)
 
 # Eigene Logos fürs Overlay: alles, was in static/logos/ liegt, taucht in den Settings auf.
 # Bewusst im static-Ordner, damit Flask die Dateien ohne eigene Route ausliefert.
@@ -1376,6 +1450,49 @@ def api_regie():
     with state_lock:
         return jsonify(dict(regie_state))
 
+@app.route("/api/cam", methods=["POST"])
+def api_cam():
+    """Kamera auf eine Position setzen: {"pos": 1..22}.
+
+    ⚠ Der Rumpf traegt NUR eine Positionsnummer. Welche Tasten das sind, schlaegt
+    der Server in CAM_KEYS nach - eine Taste aus dem Request wird nirgends
+    angenommen. Ohne das waere der Endpunkt eine Fernbedienung fuer die Tastatur
+    des Rechners, auf dem gespielt wird, erreichbar aus dem ganzen Netz.
+
+    Gedrueckt wird dort, wo der SERVER laeuft, und es landet im Fenster, das
+    gerade vorne ist - also im Spiel, solange es den Fokus hat.
+    """
+    d = request.get_json(silent=True) or {}
+    try:
+        pos = int(d.get("pos"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "pos fehlt"}), 400
+    if not 1 <= pos <= CAM_MAX:
+        return jsonify({"error": f"pos muss zwischen 1 und {CAM_MAX} liegen"}), 400
+
+    with state_lock:
+        an = bool(overlay_settings.get("camkeys"))
+        weiter = str(overlay_settings.get("camnextkey") or "")
+    if not an:
+        return jsonify({"error": "Kamera-Tasten sind in den Einstellungen aus"}), 403
+    if pydirectinput is None:
+        return jsonify({"error": "pydirectinput fehlt auf dem Server"}), 500
+
+    folge = list(CAM_KEYS.get(pos) or [])
+    if not folge:
+        # P21/P22: auf P20 springen und von dort weiterschalten.
+        if not weiter:
+            return jsonify({"error": "Fuer P21/P22 fehlt die Taste "
+                                    "'naechster Fahrer' in den Einstellungen"}), 400
+        folge = list(CAM_KEYS[20]) + [weiter] * (pos - 20)
+
+    try:
+        _cam_druecke(folge)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        print(f"[CAM] Tastendruck fehlgeschlagen: {e}")
+        return jsonify({"error": f"Tastendruck fehlgeschlagen: {e}"}), 500
+    return jsonify({"pos": pos, "keys": folge})
+
 def calculate_championship():
     # A3: WM-Stand aus championship.json + Live-Positionen (Logik übernommen aus KERS_WM_Overlay):
     # Gesamtpunkte = base_points + Punkte für die aktuelle Rennposition (nur Top 10). Der Namens-
@@ -1678,6 +1795,11 @@ def api_settings():
                     continue
                 if k == "podiumstil":
                     overlay_settings[k] = "metal" if str(v) == "metal" else "flat"
+                    continue
+                # ⚠ Nur eine Taste aus der erlaubten Liste. Was hier hereinkommt,
+                # wird spaeter auf dem Rechner gedrueckt, auf dem das Spiel laeuft.
+                if k == "camnextkey":
+                    overlay_settings[k] = _cam_taste_ok(v)
                     continue
                 if k == "text_outline":
                     try:

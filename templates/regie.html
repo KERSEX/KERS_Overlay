@@ -135,20 +135,18 @@
   .brow + .brow { box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
   .brow .bp { font-family:monospace; color: #9aa0aa; }
   .brow .bg { margin-left: auto; font-variant-numeric: tabular-nums; color: #ffcc00; }
-  /* Kamera-Panel: ein Knopf je Position, gross genug fuer den Daumen */
-  .camgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-             gap: 8px; padding: 10px 12px; }
-  /* ⚠ flex:none gegen die allgemeine button-Regel (flex:1, min-width:120px) -
-     ohne das sprengt jeder Knopf die Rasterspalte. */
-  .cambtn { flex: none; min-width: 0; padding: 8px 4px; display: flex; flex-direction: column;
-            align-items: center; gap: 2px; line-height: 1.1; }
-  .cambtn .cp { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
-  .cambtn .cn { font-size: 10px; font-weight: 600; color: #9aa0aa; max-width: 100%;
-                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cambtn.flash { background: #e10600; border-color: #e10600; }
-  .cambtn:disabled { opacity: .35; cursor: default; }
-  .cambtn.tipp { border-color: rgba(225,6,0,0.7); box-shadow: 0 0 10px rgba(225,6,0,0.25); }
-  #camNote { padding: 0 12px 10px; font-size: 11.5px; color: #8e8e9e; min-height: 14px; }
+  /* Die Tower-Zeile ist der Knopf: ein Tipp setzt die Kamera auf diesen Fahrer. */
+  .trow[data-cam] { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .trow[data-cam]:hover { background: rgba(255,255,255,0.05); }
+  .trow[data-cam]:active { background: rgba(255,255,255,0.09); }
+  .trow.camflash { background: rgba(225,6,0,0.28); }
+  /* Nicht anklickbar: Kamera-Tasten aus, oder P21/P22 ohne Weiterschalt-Taste.
+     ⚠ Nur der Zeiger und die Klicks gehen weg - die Zeile bleibt voll lesbar,
+     sie ist ja in erster Linie der Leaderboard-Tower und nicht ein Knopf. */
+  #tower.camoff .trow[data-cam], .trow.camno { cursor: default; }
+  #tower.camoff .trow[data-cam]:hover, .trow.camno:hover { background: none; }
+  #camNote { padding: 6px 12px 9px; font-size: 11.5px; color: #8e8e9e; min-height: 14px; }
+  #camNote:empty { display: none; }
   #camNote.err { color: #ff8a80; }
   .empty { padding: 10px 12px; color: #8e8e9e; font-size: 12px; }
   /* Datenlage: macht sichtbar, wenn Werte fehlen (statt still falsche Daten zu zeigen) */
@@ -303,14 +301,6 @@
   <div id="deList"><div class="empty">warte auf Daten…</div></div>
 </div>
 
-<!-- Antippen setzt die Spectator-Kamera im Spiel auf diesen Platz. Sitzt bewusst
-     direkt unter dem Kamera-Tipp: dort steht, auf WEN man schauen sollte, hier
-     kommt man mit einem Tipp hin. -->
-<div class="card" id="camCard"><h2>Kamera setzen<span id="camState"></span></h2>
-  <div class="camgrid" id="camGrid"></div>
-  <div id="camNote"></div>
-</div>
-
 <!-- I17: Live-Projektion Quali — blendet sich nur in der Quali ein -->
 <div class="card" id="pjCard"><h2>Läuft gerade auf …<span id="pjHint"></span></h2>
   <div id="pjList"><div class="empty">—</div></div>
@@ -324,7 +314,8 @@
            man beim Regieführen ohnehin dauernd schaut. -->
       <div id="scBanner"></div>
       <div id="wx"></div>
-      <div id="tower"><div class="empty">warte auf Daten…</div></div></div>
+      <div id="tower"><div class="empty">warte auf Daten…</div></div>
+      <div id="camNote"></div></div>
 		      <div class="card"><h2>Trackmap</h2>
       <div id="mapWrap">
         <svg id="rmap" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"><g id="rmap-track"></g><g id="rmap-flags"></g><g id="rmap-cars"></g></svg>
@@ -1262,7 +1253,7 @@ function camNote(text, fehler, halten) {
 async function camSetzen(pos, btn) {
   if (camBusy) return;                 // Doppeltipp soll nicht zwei Spruenge ausloesen
   camBusy = true;
-  btn.classList.add("flash");
+  btn.classList.add("camflash");
   try {
     const r = await fetch("/api/cam", {
       method: "POST", headers: {"Content-Type": "application/json"},
@@ -1276,69 +1267,41 @@ async function camSetzen(pos, btn) {
   } catch (e) {
     camNote("keine Verbindung zum Server", true, true);
   } finally {
-    setTimeout(() => btn.classList.remove("flash"), 150);
+    setTimeout(() => btn.classList.remove("camflash"), 250);
     camBusy = false;
   }
 }
 
-/** Position, die der Kamera-Tipp gerade empfiehlt - 0, wenn keiner ansteht.
- *
- *  ⚠ Ein Tipp traegt KEINE Position. Er hat `ids` (Fahrer-Index) und `who` als
- *  fertigen Anzeigetext ("P4 NAME"). Ueber den Index nachschlagen ist stabiler
- *  als aus `who` zu parsen - der Text ist zum Anzeigen da und darf sich aendern. */
-function camTippPos(drivers, tips) {
-  if (!tips || !tips.length || !tips[0].ids || !tips[0].ids.length) return 0;
-  const d = drivers.find(x => x.index === tips[0].ids[0]);
-  return d ? d.position : 0;
-}
-
-let camGebaut = 0;
-function renderKamera(drivers, settings, tipIdx) {
-  const grid = document.getElementById("camGrid");
-  const state = document.getElementById("camState");
-  if (!grid) return;
+function renderKamera(drivers, settings) {
   const s = settings || {};
   const an = s.camkeys !== false;
   const weiter = (s.camnextkey || "").trim();
-  state.textContent = an ? "" : "aus";
-
-  const plaetze = drivers.filter(x => x.position >= 1 && x.position <= CAM_MAX);
-  // Nur neu bauen, wenn sich die Besetzung wirklich aendert - sonst verliert ein
-  // gerade gedrueckter Knopf bei jedem Stand sein Aufblitzen.
-  const sig = plaetze.map(x => x.position + ":" + (x.name || "")).join("|");
-  if (sig !== camGebaut) {
-    camGebaut = sig;
-    grid.innerHTML = plaetze.map(x =>
-      `<button class="cambtn" data-cam="${x.position}">`
-      + `<span class="cp">${x.position}</span>`
-      + `<span class="cn">${esc((x.name || "").split(" ").pop())}</span></button>`).join("")
-      || `<div class="empty">warte auf Daten…</div>`;
-  }
-  // Zustand bei JEDEM Stand nachziehen - er haengt an den Einstellungen, nicht
-  // am Feld, und die koennen sich ohne Fahrerwechsel aendern.
-  grid.querySelectorAll("[data-cam]").forEach(b => {
-    const pos = parseInt(b.dataset.cam, 10);
-    const brauchtWeiter = pos > 20;
-    const geht = an && (!brauchtWeiter || !!weiter);
-    b.disabled = !geht;
-    b.classList.toggle("tipp", pos === tipIdx);
-    b.title = !an ? "Kamera-Tasten sind in den Einstellungen aus"
-            : (brauchtWeiter && !weiter)
-              ? "P21/P22 brauchen die Taste „nächster Fahrer“ in den Einstellungen"
-              : "Kamera auf P" + pos;
+  const tower = document.getElementById("tower");
+  if (!tower) return;
+  tower.classList.toggle("camoff", !an);
+  // P21/P22 haben im Spiel keine eigene Taste - ohne die Weiterschalt-Taste
+  // bleiben genau diese beiden Zeilen stumm, der Rest geht weiter.
+  let stumm = false;
+  tower.querySelectorAll(".trow[data-cam]").forEach(r => {
+    const pos = parseInt(r.dataset.cam, 10);
+    const no = !an || (pos > 20 && !weiter);
+    r.classList.toggle("camno", no);
+    if (no && an) stumm = true;
   });
   // ⚠ Der else-Zweig muss sein. Ohne ihn bleibt ein Hinweis stehen, nachdem die
   // Ursache behoben ist - man schaltet die Kamera-Tasten wieder ein und liest
   // weiter "In den Einstellungen abgeschaltet".
-  if (!an) camNote("In den Einstellungen abgeschaltet.");
-  else if (!weiter && plaetze.some(x => x.position > 20))
-    camNote("P21 und P22 brauchen die Taste „nächster Fahrer“ in den Einstellungen.");
+  if (!an) camNote("Kamera-Tasten sind in den Einstellungen aus — Zeilen antippen tut nichts.");
+  else if (stumm) camNote("P21 und P22 brauchen die Taste „nächster Fahrer“ in den Einstellungen.");
   else camNote("");
 }
 
 document.addEventListener("click", e => {
-  const b = e.target.closest && e.target.closest("[data-cam]");
-  if (b && !b.disabled) camSetzen(parseInt(b.dataset.cam, 10), b);
+  const r = e.target.closest && e.target.closest(".trow[data-cam]");
+  // ⚠ camoff sitzt am Behaelter, camno an der einzelnen Zeile - beides pruefen.
+  if (!r || r.classList.contains("camno")) return;
+  if (r.closest("#tower") && r.closest("#tower").classList.contains("camoff")) return;
+  camSetzen(parseInt(r.dataset.cam, 10), r);
 });
 
 function renderLive(d) {
@@ -1367,8 +1330,6 @@ function renderLive(d) {
   renderSessInfo(d.session || {}, quali, chq,
                  { done: running.filter(x => x.finished).length, total: running.length });
   renderDataQuality(d, drivers);
-  // Der Kamera-Tipp markiert den empfohlenen Platz im Panel mit.
-  renderKamera(drivers, d.settings, camTippPos(drivers, tips));
   if (quali) trackQuali(drivers, d.session || {});
   else if (d.connected) trackPace(drivers, d.session || {});
   renderProjection(drivers, quali, d.connected, chq);   // I17
@@ -1404,7 +1365,10 @@ function renderLive(d) {
     const fin = !!dr.finished;                                          // dieser Fahrer ist im Ziel
     const onLap = !!chq && !fin && !dr.dnf && !dr.dsq;                  // Flagge gefallen, fährt noch
     const inPit = !quali && dr.in_pit && !dr.dnf && !dr.dsq;            // steht gerade in der Box
-    return `<div class="trow${quali ? " q" : ""}${cam ? " cam" : ""}${onLap ? " onlap" : ""}${inPit ? " inpit" : ""}" style="--t:${TEAM_COLORS[dr.team] || "#888"}"><span class="tp">${dr.position}</span>`
+    // data-cam macht die ZEILE zum Knopf: ein Tipp setzt die Kamera auf diesen
+    // Fahrer. Bewusst hier und nicht als eigenes Raster daneben - man schaut beim
+    // Regiefuehren ohnehin auf den Tower, und der Platz auf dem Handy ist knapp.
+    return `<div class="trow${quali ? " q" : ""}${cam ? " cam" : ""}${onLap ? " onlap" : ""}${inPit ? " inpit" : ""}" data-cam="${dr.position}" style="--t:${TEAM_COLORS[dr.team] || "#888"}"><span class="tp">${dr.position}</span>`
     // Strafen sitzen wie im Overlay links vom Fahrer — in der Quali aus (dort halten es
     // auch die Overlay-Zeilen so, die Werte sagen da nichts).
     + (quali ? "" : penCells(dr))
@@ -1436,6 +1400,11 @@ function renderLive(d) {
     + `</div>`;
   }).join("")
     : `<div class="empty">keine Fahrer</div>`;
+  // ⚠ ERST HIER, nicht weiter oben. renderKamera setzt Klassen AN den Zeilen -
+  // stuende der Aufruf vor dem innerHTML oben, markierte er Zeilen, die eine
+  // Zeile spaeter weggeworfen werden. Genau so war es: P21 blieb anklickbar,
+  // obwohl die Weiterschalt-Taste fehlte.
+  renderKamera(drivers, d.settings);
   // Gelbe Flaggen + SC-Lage auf die Karte — die Karte soll zeigen, WO etwas los ist.
   rBuildFlags((d.session || {}).marshal_zones);
   const scb = document.getElementById("scBanner");

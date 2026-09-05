@@ -303,6 +303,13 @@ DEFAULT_SETTINGS = {
     # F8 ist die Belegung, die KERS nutzt. Aenderbar in /settings; LEER schaltet
     # die beiden Knoepfe ab, statt eine falsche Taste ins Spiel zu schicken.
     "camnextkey": "f8",
+    # Wie lange eine Taste gehalten wird, in Millisekunden.
+    # ⚠ Das ist keine Feinheit, sondern der Grund, warum die erste Fassung gar
+    # nicht ankam: ein Spiel liest die Tastatur einmal je Bild - bei 60 fps alle
+    # rund 16 ms. Eine Taste, die ohne Haltezeit gedrueckt und sofort losgelassen
+    # wird, liegt nur Mikrosekunden an und faellt zwischen zwei Abfragen durch.
+    # 60 ms sind rund vier Bilder und damit auch bei Rucklern sicher.
+    "camholdms": 60,
     # Freies Layout, je Baustein {ecke, dx, dy, z}. LEER heißt "alles wie gehabt";
     # ein Baustein ohne Eintrag behält seine einprogrammierte Lage (siehe
     # LAYOUT_STANDARD oben).
@@ -354,23 +361,39 @@ def _cam_taste_ok(wert: str) -> str:
 # lesbaren Fehler melden.
 try:
     import pydirectinput
-    # Ohne das schlaeft jede einzelne Taste 0,1 s (PAUSE) und ein Mauszeiger in
-    # der Bildschirmecke wirft eine Ausnahme (FAILSAFE) - beides ist hier nur
-    # hinderlich, gedrueckt werden ohnehin nur Tasten.
+    # PAUSE bleibt auf 0 - die Haltezeit macht _cam_druecke selbst und genauer.
+    # FAILSAFE aus: das wirft eine Ausnahme, sobald der Mauszeiger in einer
+    # Bildschirmecke steht, und hier werden ohnehin nur Tasten gedrueckt.
     pydirectinput.PAUSE = 0
     pydirectinput.FAILSAFE = False
 except Exception as _e:     # pylint: disable=broad-exception-caught
     pydirectinput = None
     print(f"[CAM] pydirectinput nicht verfuegbar: {_e}")
 
-def _cam_druecke(folge) -> None:
-    """Eine Folge von Tastenkombinationen an das Spiel schicken."""
-    for combo in folge:
+def _cam_druecke(folge, halten_ms: int) -> None:
+    """Eine Folge von Tastenkombinationen an das Spiel schicken.
+
+    ⚠ Die Taste wird GEHALTEN, nicht angetippt. Genau daran ist die erste
+    Fassung gescheitert: sie rief pydirectinput.press() bei PAUSE = 0, also
+    keyDown und keyUp ohne jede Pause dazwischen. Ein Spiel liest die Tastatur
+    einmal je Bild - bei 60 fps alle rund 16 ms -, und eine Taste, die nur
+    Mikrosekunden anliegt, faellt zwischen zwei Abfragen durch. Im Spiel kam
+    schlicht nichts an. (Das Original von KERS lief mit pydirectinputs
+    Voreinstellung PAUSE = 0,1 und hatte die Pause dadurch zufaellig.)
+    """
+    halten = max(0.01, min(0.3, (halten_ms or 60) / 1000.0))
+    for i, combo in enumerate(folge):
+        if i:
+            time.sleep(halten)          # Abstand zwischen zwei Tasten der Folge
         teile = combo.split("+")
         mods, taste = teile[:-1], teile[-1]
         for m in mods:
             pydirectinput.keyDown(m)
-        pydirectinput.press(taste)
+        if mods:
+            time.sleep(0.02)            # Modifier muss anliegen, BEVOR die Taste kommt
+        pydirectinput.keyDown(taste)
+        time.sleep(halten)
+        pydirectinput.keyUp(taste)
         for m in reversed(mods):
             pydirectinput.keyUp(m)
 
@@ -1473,6 +1496,7 @@ def api_cam():
     with state_lock:
         an = bool(overlay_settings.get("camkeys"))
         weiter = str(overlay_settings.get("camnextkey") or "")
+        halten = int(overlay_settings.get("camholdms") or 60)
     if not an:
         return jsonify({"error": "Kamera-Tasten sind in den Einstellungen aus"}), 403
     if pydirectinput is None:
@@ -1487,11 +1511,11 @@ def api_cam():
         folge = list(CAM_KEYS[20]) + [weiter] * (pos - 20)
 
     try:
-        _cam_druecke(folge)
+        _cam_druecke(folge, halten)
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"[CAM] Tastendruck fehlgeschlagen: {e}")
         return jsonify({"error": f"Tastendruck fehlgeschlagen: {e}"}), 500
-    return jsonify({"pos": pos, "keys": folge})
+    return jsonify({"pos": pos, "keys": folge, "hold": halten})
 
 def calculate_championship():
     # A3: WM-Stand aus championship.json + Live-Positionen (Logik übernommen aus KERS_WM_Overlay):
@@ -1800,6 +1824,12 @@ def api_settings():
                 # wird spaeter auf dem Rechner gedrueckt, auf dem das Spiel laeuft.
                 if k == "camnextkey":
                     overlay_settings[k] = _cam_taste_ok(v)
+                    continue
+                if k == "camholdms":
+                    try:
+                        overlay_settings[k] = max(10, min(300, int(v)))
+                    except (TypeError, ValueError):
+                        pass
                     continue
                 if k == "text_outline":
                     try:

@@ -331,11 +331,15 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
       Ein Tipp darauf schickt dem Spiel den Tastendruck der Spectator-Fahrerauswahl:
       1–0 für P1–P10, Shift+1–0 für P11–P20. Gedrückt wird auf dem Rechner, auf dem der
       <em>Server</em> läuft, und es landet im Fenster, das gerade vorn ist — das Spiel
-      muss also den Fokus haben.</p>
+      muss also den Fokus haben.<br>
+      Kommt trotzdem nichts an: läuft das Spiel <b>als Administrator</b>, der Server aber nicht,
+      blockt Windows die Eingabe stillschweigend. Dann beide gleich starten.</p>
     <div class="row"><label>Kamera-Tasten erlauben<small>Aus: <code>/api/cam</code> nimmt nichts mehr an. Der Server hört auf allen Netzwerkkarten, und das hier ist eine Tür ins laufende Spiel — deshalb abschaltbar. Die Wahl wird gespeichert.</small></label>
       <div class="tgl" data-k="camkeys"></div></div>
     <div class="row"><label>Taste „nächster Fahrer"<small>P21 und P22 haben im Spiel keine eigene Taste. Sie werden erreicht, indem auf P20 gesprungen und dann ein- bzw. zweimal weitergeschaltet wird. Voreingestellt <code>f8</code>. <b>Leer = beide Knöpfe bleiben aus</b>, statt eine falsche Taste ins laufende Spiel zu schicken. Erlaubt: Buchstaben, Ziffern, F1–F12 und Namen wie <code>right</code>, <code>tab</code>, <code>pagedown</code>, wahlweise mit <code>shift+</code>, <code>ctrl+</code> oder <code>alt+</code>.</small></label>
       <div class="ctl"><input type="text" data-str="camnextkey" placeholder="f8" style="width:120px;padding:6px 8px"></div></div>
+    <div class="row"><label>Taste halten<small>Wie lange die Taste gedrückt bleibt. <b>Nicht bloß Feinschliff:</b> ein Spiel liest die Tastatur einmal je Bild — bei 60 fps alle rund 16 ms. Wird die Taste nur angetippt, fällt sie zwischen zwei Abfragen durch und im Spiel kommt gar nichts an. 60 ms sind rund vier Bilder. Höher stellen, wenn Tipps gelegentlich verpuffen.</small></label>
+      <div class="ctl"><input type="range" min="10" max="200" step="10" data-k="camholdms"><span class="val" data-v="camholdms"></span></div></div>
   </div>
 
   <div class="grp">

@@ -357,6 +357,13 @@ class SessionState(_StateBase):
     headIntervalChanged, headInterval = _prop("headInterval", str, "INTERVAL")
     headRightChanged, headRight = _prop("headRight", str, "DRS")
 
+    # Strecke: Name und Flaggenfarben. Der Name steht im Overlay nur, wenn der
+    # Schalter "trackname" an ist; die Farben zeichnen das Band im Tower-Kopf.
+    # ⚠ Bewusst Farben und kein Flaggen-Emoji - Regional-Indicator-Paare kommen
+    # in Qt je nach Schrift als Buchstabenpaar heraus.
+    trackNameChanged, trackName = _prop("trackName", str, "")
+    trackColorsChanged, trackColors = _prop("trackColors", "QVariantList", [])
+
     # Rahmen-Zustaende
     scStatusChanged, scStatus = _prop("scStatus", str, "none")    # "none" | "sc" | "vsc"
     redFlagChanged, redFlag = _prop("redFlag", bool, False)
@@ -401,6 +408,12 @@ class SettingsState(_StateBase):
     scaleChanged, scale = _prop("scale", float, 0.0)
     rowsChanged, rows = _prop("rows", int, 0)
     showTowerChanged, showTower = _prop("showTower", bool, True)
+    # ⚠ Heisst showTrackName und NICHT trackName: der Name der Strecke sitzt an
+    # SessionState. Zwei gleich heissende Eigenschaften an zwei Objekten waeren
+    # im QML kaum auseinanderzuhalten - und ein Vertipper faellt dort nicht auf,
+    # weil eine unbekannte Eigenschaft still `undefined` ist und die Bindung
+    # danebengeht, statt zu scheitern.
+    showTrackNameChanged, showTrackName = _prop("showTrackName", bool, False)
     showTickerChanged, showTicker = _prop("showTicker", bool, True)
     dmgCritChanged, dmgCrit = _prop("dmgCrit", int, 60)
     # Platz der Trackmap (tc/tr/rc/bl/bc/br). Ohne diese Zeile kam die Auswahl
@@ -440,6 +453,7 @@ class SettingsState(_StateBase):
             "scale": float(cfg["scale"] or 0),
             "rows": int(cfg["rows"] or 0),
             "showTower": bool(cfg["tower"]),
+            "showTrackName": bool(cfg["trackname"]),
             "showTicker": bool(cfg["ticker"]),
             "dmgCrit": int(cfg["dmgcrit"] or 60),
             "mapCorner": str(cfg["mapcorner"] or "tr"),

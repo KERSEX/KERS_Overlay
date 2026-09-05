@@ -120,6 +120,20 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
 .ebtn:disabled{opacity:.25;cursor:default}
 .ebtn:active:not(:disabled){transform:scale(.94)}
 .ebfoot{margin-top:10px}
+/* Streckenliste: je Zeile Name, Herkunft, Groesse und ein Loeschen-Knopf */
+.trk{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.05)}
+.trk:last-child{border-bottom:none}
+.trk .tkfarbe{width:22px;height:14px;border-radius:3px;flex-shrink:0;border:1px solid rgba(255,255,255,.12)}
+.trk .tkname{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trk .tkname small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+.trk .tkq{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+          padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--muted);flex-shrink:0}
+.trk .tkq.eigen{background:rgba(0,213,106,.16);color:#6ff0a8}
+.trk.aktiv{background:rgba(225,6,0,.08)}
+.trk .tkdel{width:24px;height:24px;border-radius:6px;border:0;background:rgba(255,255,255,.06);
+            color:var(--muted);font-size:13px;cursor:pointer;flex-shrink:0}
+.trk .tkdel:hover,.trk .tkdel.arm{background:rgba(225,6,0,.75);color:#fff}
+.trk .tkdel:disabled{opacity:.25;cursor:default}
 /* Presets */
 .presets{display:flex;gap:10px;flex-wrap:wrap}
 .pbtn{flex:1;min-width:110px;padding:12px;border-radius:10px;border:2px solid var(--line);background:rgba(255,255,255,.03);
@@ -339,6 +353,20 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
       <div class="ctl"><input type="text" data-str="camnextkey" placeholder="f8" style="width:120px;padding:6px 8px"></div></div>
     <div class="row"><label>Taste halten<small>Wie lange die Taste gedrückt bleibt. <b>Nicht bloß Feinschliff:</b> ein Spiel liest die Tastatur einmal je Bild — bei 60 fps alle rund 16 ms. Wird die Taste nur angetippt, fällt sie zwischen zwei Abfragen durch und im Spiel kommt gar nichts an. 60 ms sind rund vier Bilder. Höher stellen, wenn Tipps gelegentlich verpuffen.</small></label>
       <div class="ctl"><input type="range" min="10" max="200" step="10" data-k="camholdms"><span class="val" data-v="camholdms"></span></div></div>
+  </div>
+
+  <div class="grp">
+    <h2>Strecken</h2>
+    <p class="lhint">Die Streckenkontur für die Trackmap wird aus einer Runde gelernt — es reicht,
+      dass irgendwer fährt. Einmal gelernt, bleibt sie: beim nächsten Mal steht die Karte sofort,
+      auch nach einem Neustart. Fehlt eine Strecke, fährst du sie einmal und sie ist dauerhaft da.<br>
+      ⚠ Aufgezeichnet wird das <b>bestplatzierte Auto auf der Strecke</b>. Fährt es in die Box,
+      beginnt das Lernen mit einem neuen Auto von vorn — deshalb kann es in unruhigen Sessions
+      dauern, ohne dass etwas kaputt ist.</p>
+    <div class="row"><label>Streckenname im Overlay<small>In der Regie steht er immer. Hier geht es um das Sendebild: Name im Tower-Kopf, mit den Flaggenfarben als flachem Band dahinter.</small></label>
+      <div class="tgl" data-k="trackname"></div></div>
+    <div id="tracks"></div>
+    <div class="pnote" id="trackErr"></div>
   </div>
 
   <div class="grp">
@@ -909,6 +937,59 @@ function renderUserLayouts(){
   }).join("") : `<div class="pempty">Noch keine eigenen Layouts — unten einen Namen eingeben und sichern.</div>`;
 }
 
+// ── Gelernte Strecken ─────────────────────────────────────────────────────
+// Zeigt, was das Programm kennt und woher: mitgeliefert (steckt in der EXE) oder
+// selbst gelernt (liegt neben der .exe). Loeschen geht nur bei den eigenen —
+// danach gilt wieder die mitgelieferte, falls es eine gibt.
+let TRK = [];
+
+async function loadTracks(){
+  try{ TRK = (await (await fetch("/api/tracks")).json()).tracks || []; }
+  catch(e){ TRK = []; }
+}
+function trackErr(msg){
+  const el = document.getElementById("trackErr");
+  if(el) el.textContent = msg || "";
+}
+async function deleteTrack(id){
+  trackErr("");
+  try{
+    const r = await fetch("/api/tracks",{method:"POST",headers:{"Content-Type":"application/json"},
+                                         body:JSON.stringify({id, delete:true})});
+    const j = await r.json();
+    if(!r.ok){ trackErr(j.error || ("Server meldet " + r.status)); return; }
+    TRK = j.tracks || [];
+    flash();
+  }catch(e){ trackErr("Löschen fehlgeschlagen."); }
+  renderTracks();
+}
+function renderTracks(){
+  const box = document.getElementById("tracks");
+  if(!box) return;
+  if(!TRK.length){
+    box.innerHTML = `<div class="pempty">Noch keine Strecke bekannt — sobald eine Runde gefahren ist, steht sie hier.</div>`;
+    return;
+  }
+  box.innerHTML = TRK.map(t=>{
+    // Farbband als kleine Kachel: dieselben Flaggenfarben wie im Tower-Kopf.
+    const farben = (t.colors || []);
+    const bg = farben.length
+      ? `linear-gradient(90deg,${farben.map((c,i)=>{
+            const v = Math.round(i*100/farben.length), b = Math.round((i+1)*100/farben.length);
+            return `${c} ${v}%,${c} ${b}%`; }).join(",")})`
+      : "rgba(255,255,255,.06)";
+    const eigen = t.quelle === "eigen";
+    return `<div class="trk${t.aktiv?" aktiv":""}">`
+      + `<span class="tkfarbe" style="background:${bg}"></span>`
+      + `<span class="tkname">${esc(t.name)}`
+      + `<small>${t.pts} Punkte · ${t.len} m${t.land?" · "+esc(t.land):""}${t.aktiv?" · läuft gerade":""}</small></span>`
+      + `<span class="tkq${eigen?" eigen":""}">${eigen?"selbst gelernt":"mitgeliefert"}</span>`
+      + `<button type="button" class="tkdel" data-tkdel="${t.id}"${eigen?"":" disabled"} `
+      + `title="${eigen?"Gelernte Kontur löschen":"Mitgeliefert — steckt in der EXE und lässt sich nicht löschen"}">✕</button>`
+      + `</div>`;
+  }).join("");
+}
+
 function renderPresets(){
   const cur = matchedPreset();   // K17: aus den echten Werten, nicht aus dem gespeicherten Feld
   document.getElementById("presets").innerHTML = Object.entries(PRESETS).map(([id,p])=>
@@ -928,7 +1009,7 @@ function renderColorCombos(){   // K18: Farbwähler mit leer-Zustand (leer = Fal
 }
 // renderChampUI zuletzt: renderInputs setzt die <select>-Werte, die Einträge des
 // WM-Dropdowns entstehen aber erst hier — sonst stünde beim ersten Durchlauf nichts drin.
-function renderAll(){ renderToggles(); renderInputs(); renderLayout(); renderEbenen(); renderUserLayouts(); renderPresets(); renderUserPresets(); renderColorCombos(); renderLogoUI(); renderChampUI(); }
+function renderAll(){ renderToggles(); renderInputs(); renderLayout(); renderEbenen(); renderUserLayouts(); renderPresets(); renderUserPresets(); renderColorCombos(); renderLogoUI(); renderChampUI(); renderTracks(); }
 
 let delArmed = null, delArmTimer = null;   // Löschen: zwei Klicks statt confirm()-Dialog
 
@@ -945,6 +1026,20 @@ document.addEventListener("click", e=>{
   // ⚠ Presets und Layouts teilen sich diesen Zweig, unterschieden am data-Attribut.
   // Der gemerkte Name allein reichte dafür nicht: ein Preset und ein Layout dürfen
   // gleich heißen, und der zweite Klick hätte dann das Falsche gelöscht.
+  const tkd = e.target.closest(".tkdel");
+  if(tkd && !tkd.disabled){
+    const id = tkd.dataset.tkdel;
+    if(delArmed === "t:" + id){ clearTimeout(delArmTimer); delArmed = null; deleteTrack(parseInt(id,10)); }
+    else {
+      delArmed = "t:" + id;
+      document.querySelectorAll(".tkdel").forEach(x => x.classList.remove("arm"));
+      tkd.classList.add("arm"); tkd.title = "Nochmal tippen zum Löschen";
+      clearTimeout(delArmTimer);
+      delArmTimer = setTimeout(()=>{ delArmed = null; tkd.classList.remove("arm");
+                                     tkd.title = "Gelernte Kontur löschen"; }, 3000);
+    }
+    return;
+  }
   const del = e.target.closest(".updel");
   if(del){
     const layout = del.dataset.ldel !== undefined;
@@ -1131,7 +1226,7 @@ document.addEventListener("keydown", e=>{
   if(e.key==="Enter" && e.target.id==="layoutName"){ e.preventDefault(); saveLayout(e.target.value); }
 });
 
-(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); await loadLayouts(); S = await (await fetch("/api/settings")).json(); await ladeLayoutListe(); klappgruppenAusMarkup(); renderAll(); loadVersions(); })();
+(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); await loadLayouts(); await loadTracks(); S = await (await fetch("/api/settings")).json(); await ladeLayoutListe(); klappgruppenAusMarkup(); renderAll(); loadVersions(); })();
 // Versionen nachziehen: erkennt, wenn eine Datei zwischendurch bearbeitet wurde (Hash/Datum)
 // oder wenn main.py neu gestartet und der "Neustart nötig"-Hinweis damit hinfällig ist.
 setInterval(loadVersions, 20000);
@@ -1140,7 +1235,8 @@ setInterval(async ()=>{ if(saveTimer) return; const r=await fetch("/api/settings
 // Eigene Presets seltener nachziehen — sie ändern sich nur beim Speichern/Löschen.
 // Nötig, damit ein am PC gesichertes Preset auch auf dem Handy auftaucht (und umgekehrt).
 setInterval(async ()=>{ if(saveTimer) return; await loadPresets(); renderUserPresets();
-                        await loadLayouts(); renderUserLayouts(); }, 10000);
+                        await loadLayouts(); renderUserLayouts();
+                        await loadTracks(); renderTracks(); }, 10000);
 // Neu abgelegte Logos auftauchen lassen, ohne die Seite neu zu laden (langsamer Takt reicht).
 setInterval(async ()=>{
   await loadLogos();

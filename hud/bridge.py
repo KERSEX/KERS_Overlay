@@ -519,6 +519,11 @@ class OverlayBridge(QObject):
         st = self._session
         is_quali = bool(session.get("is_quali"))
 
+        # Strecke. Kommt fertig vom Server (TRACK_INFO in main.py) - das HUD
+        # pflegt keine zweite Namensliste, die auseinanderlaufen koennte.
+        st.trackName = str(session.get("track_name") or "")
+        st.trackColors = list(session.get("track_colors") or [])
+
         # F1 26 hat statt DRS den "Overtake Mode" -> Spaltenkopf heisst dann MOM.
         is_f126 = session.get("formula") == 13 or "26" in str(session.get("formula_name") or "")
         boost = "MOM" if is_f126 else "DRS"

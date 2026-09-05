@@ -205,6 +205,51 @@ Item {
                 color: Theme.headerAccent
             }
 
+            // ── Flaggenband der Strecke ─────────────────────────────────────
+            // Gegenstueck zur Akzentlinie unten, nur oben und in den Landesfarben.
+            //
+            // ⚠ Eine Reihe von Rechtecken statt eines Gradient: die Stopps eines
+            // QML-Gradient lassen sich nicht aus einer Liste bauen, deren Laenge
+            // erst zur Laufzeit feststeht (zwei oder drei Farben je Land).
+            //
+            // ⚠ Und ausdruecklich KEINE Flaggen-Emoji: das sind
+            // Regional-Indicator-Paare, die je nach Schrift als Buchstabenpaar
+            // ("IT") herauskommen. Das Overlay nutzt sonst nur Symbolglyphen.
+            // Ein Rechteck kann nicht danebengehen.
+            Row {
+                id: flaggenband
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: sichtbar ? 5 : 0
+                visible: sichtbar
+                readonly property var farben: Kers.session.trackColors
+                readonly property bool sichtbar: Kers.settings.showTrackName
+                                                 && farben && farben.length > 0
+                Repeater {
+                    model: flaggenband.sichtbar ? flaggenband.farben : []
+                    Rectangle {
+                        required property string modelData
+                        required property int index
+                        width: flaggenband.width / Math.max(1, flaggenband.farben.length)
+                        height: flaggenband.height
+                        color: modelData
+                    }
+                }
+            }
+
+            // Streckenname, klein und rechts oben im Innenabstand des Kopfes -
+            // dort ist ohnehin Luft, und die Titelzeile bleibt unberuehrt.
+            Text {
+                anchors { right: parent.right; top: parent.top
+                          rightMargin: 24; topMargin: flaggenband.height + 4 }
+                visible: Kers.settings.showTrackName && text !== ""
+                text: Kers.session.trackName
+                color: Theme.textMuted
+                font { family: Theme.sans; pixelSize: 11; weight: Font.DemiBold
+                       letterSpacing: 1; capitalization: Font.AllUppercase }
+                style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
+                styleColor: Theme.textStyleColor
+            }
+
             Column {
                 id: headerCol
                 anchors { left: parent.left; right: parent.right; top: parent.top

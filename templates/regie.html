@@ -89,6 +89,13 @@
               background: rgba(255,204,0,0.1); border-radius: 5px; padding: 3px 8px; }
   #sessInfo.low { color: #ff5a5a; background: rgba(225,6,0,0.14); }
   #sessInfo.chq { color: #fff; background: rgba(255,255,255,0.14); }
+  /* Streckenname im Tower-Kopf, mit den Flaggenfarben als flachem Band dahinter.
+     Bewusst Farben statt Flaggen-Emoji: die sind Regional-Indicator-Paare und
+     kommen je nach Schrift als "IT" statt als Flagge heraus. */
+  #trackNow { font-size: 11px; font-weight: 700; letter-spacing: .5px; color: #fff;
+              padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+  #trackNow.unbekannt { color: #9aa0aa; }
+  #trackNow .tlern { font-weight: 600; color: #ffcc00; margin-left: 6px; }
   /* Wer ist gerade in der Box — im Tower-Kopf, damit man es auch sieht, wenn die
      Liste weggescrollt ist. Leer = niemand drin, dann nimmt es keinen Platz weg. */
   #pitNow { font-size: 10.5px; font-weight: 700; letter-spacing: .3px; text-transform: none;
@@ -224,6 +231,11 @@
   #rcHead { display: flex; align-items: center; gap: 8px; }
   #rcHead .n { margin-left: auto; font-size: 10px; font-weight: 700; text-transform: none; color: #7c7c8a; }
   #mapEmpty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
+  /* Bestaetigung nach dem Lernen. Sitzt UNTER der Karte, nicht darueber - sonst
+     verdeckt sie genau die Strecke, deren Fertigwerden sie meldet. */
+  #trackNote { padding: 7px 12px; font-size: 12px; font-weight: 600; color: #6ff0a8;
+               background: rgba(0,213,106,0.10); }
+  #trackNote:empty { display: none; }
   #relearnBtn { display: block; width: calc(100% - 20px); margin: 0 10px 12px; padding: 12px 10px; border-radius: 10px;
                 border: 1px solid rgba(255,255,255,0.12); background: rgba(80,150,255,0.12); color: #cfe0ff; font-size: 13px; font-weight: 600; cursor: pointer; }
   #relearnBtn:active { transform: scale(0.98); }
@@ -308,7 +320,7 @@
 
 <div class="wrap">
   <div class="col-tower">
-    <div class="card" id="towerCard"><h2 id="towerHead"><span id="towerHeadTxt">Leaderboard</span><span id="sessInfo"></span><span id="pitNow" title="Fahrer, die gerade in der Box stehen"></span><button id="compactBtn" title="Spalten reduzieren (Handy)">Kompakt</button></h2>
+    <div class="card" id="towerCard"><h2 id="towerHead"><span id="towerHeadTxt">Leaderboard</span><span id="trackNow"></span><span id="sessInfo"></span><span id="pitNow" title="Fahrer, die gerade in der Box stehen"></span><button id="compactBtn" title="Spalten reduzieren (Handy)">Kompakt</button></h2>
       <!-- Safety-Car-Lage: sitzt bewusst HIER am Tower und nicht mehr an der Trackmap.
            Die Karte scrollt auf dem Handy schnell aus dem Bild, der Tower ist das, worauf
            man beim Regieführen ohnehin dauernd schaut. -->
@@ -321,6 +333,7 @@
         <svg id="rmap" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"><g id="rmap-track"></g><g id="rmap-flags"></g><g id="rmap-cars"></g></svg>
         <div id="mapEmpty" class="empty">Strecke wird noch gelernt…</div>
       </div>
+      <div id="trackNote"></div>
       <div id="mapLegend">
         <span><i style="background:transparent;box-shadow:0 0 0 2px #9aa0aa"></i>Kamera (Ring in Teamfarbe)</span>
         <span><i style="background:#ffd000"></i>Gelbe Flagge</span>
@@ -441,6 +454,42 @@ function renderDataQuality(d, drivers) {
 
 /** Kopfzeile des Towers: Quali -> Restzeit, Rennen -> Runde X/Y. Rot, wenn es eng wird.
  *  chq: "final" = Endergebnis liegt vor, "flag" = Zielflagge gefallen, "" = läuft. */
+/** Hex zu rgba - fuer das Farbband hinter dem Streckennamen. */
+function hexRgba(hex, a) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return "rgba(255,255,255," + a + ")";
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+let rLetzteSession = null;
+
+function renderTrack(session) {
+  rLetzteSession = session;
+  const el = document.getElementById("trackNow");
+  if (!el) return;
+  const name = session.track_name || "";
+  const farben = session.track_colors || [];
+  el.textContent = name;
+  el.style.display = name ? "" : "none";
+  // ⚠ track_known kommt vom Server und sagt, ob eine Kontur vorliegt - NICHT ob
+  // die Karte gerade fertig gezeichnet ist. Genau das ist der Unterschied
+  // zwischen "kennen wir schon" und "wird gerade gelernt".
+  el.classList.toggle("unbekannt", !farben.length);
+  if (farben.length) {
+    // Flaches Band: die Farben nebeneinander, gedaempft, damit der Name lesbar
+    // bleibt. Bei zwei Farben halbe/halbe, bei drei Drittel.
+    const n = farben.length, stops = [];
+    farben.forEach((c, i) => {
+      const von = Math.round(i * 100 / n), bis = Math.round((i + 1) * 100 / n);
+      stops.push(`${hexRgba(c, 0.55)} ${von}%`, `${hexRgba(c, 0.55)} ${bis}%`);
+    });
+    el.style.background = `linear-gradient(90deg, ${stops.join(",")})`;
+  } else {
+    el.style.background = "rgba(255,255,255,0.06)";
+  }
+}
+
 function renderSessInfo(session, quali, chq, fin) {
   const el = document.getElementById("sessInfo");
   const tl = session.time_left || 0, lap = session.current_lap || 0, total = session.total_laps || 0;
@@ -563,11 +612,43 @@ function rBuildFlags(zones) {
   });
   g.innerHTML = html;
 }
+// Merkt sich, ob beim letzten Abruf noch gelernt wurde - nur dann ist das
+// Fertigwerden eine Neuigkeit. Ohne das melde die Seite bei jedem Abruf, dass
+// die Strecke da ist, und bei jedem Neuladen nochmal.
+let rTrackLernte = false;
+
+function trackNote(text) {
+  const el = document.getElementById("trackNote");
+  if (!el) return;
+  el.textContent = text || "";
+  clearTimeout(trackNote._t);
+  if (text) trackNote._t = setTimeout(() => { el.textContent = ""; }, 8000);
+}
+
 async function pullTrack() {
   let t; try { t = await (await fetch("/api/track")).json(); } catch (e) { return; }
   const empty = document.getElementById("mapEmpty");
-  if (!t.done || !t.pts || t.pts.length < 20) { if (empty) { empty.style.display = "flex"; empty.textContent = "Strecke wird noch gelernt…"; } return; }
+  if (!t.done || !t.pts || t.pts.length < 20) {
+    // ⚠ Sagen, was zu TUN ist, und ob es vorangeht. "Strecke wird noch gelernt…"
+    // liess beides offen — und weil das Lernen von vorn beginnt, sobald das
+    // Referenzauto in die Box fährt, sah Stillstand genauso aus wie Fortschritt.
+    if (empty) {
+      empty.style.display = "flex";
+      empty.textContent = (t.lernt != null && t.lernt > 0.01)
+        ? `Strecke wird gelernt … ${Math.round(t.lernt * 100)} % der Runde`
+        : "Neue Strecke — eine Runde fahren, dann ist sie gespeichert.";
+    }
+    rTrackLernte = true;
+    return;
+  }
   if (empty) empty.style.display = "none";
+  if (rTrackLernte) {
+    // ⚠ Der Name kommt aus dem Sitzungsstand, nicht aus /api/track - dort steht
+    // nur die Kontur. Fehlt er (unbekannte ID), reicht "Die Strecke".
+    const name = (rLetzteSession && rLetzteSession.track_name) || "Die Strecke";
+    trackNote(`✓ ${name} gelernt und gespeichert — beim nächsten Mal ist die Karte sofort da.`);
+    rTrackLernte = false;
+  }
   if (t.ver !== rTrackVer) {
     rTrackVer = t.ver; rPtsRaw = t.pts;
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -1329,6 +1410,7 @@ function renderLive(d) {
   const running = drivers.filter(x => !x.dnf && !x.dsq);
   renderSessInfo(d.session || {}, quali, chq,
                  { done: running.filter(x => x.finished).length, total: running.length });
+  renderTrack(d.session || {});
   renderDataQuality(d, drivers);
   if (quali) trackQuali(drivers, d.session || {});
   else if (d.connected) trackPace(drivers, d.session || {});

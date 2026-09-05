@@ -114,12 +114,26 @@ LAYOUTS_FILE = os.path.join(BASE_DIR, "layouts.json")
 LAYOUTS_MAX = 12
 LAYOUT_NAME_MAX = 30
 
+# Gelernte Streckenkonturen. ZWEI Quellen, und die Trennung ist der Kern:
+#   TRACKS_FILE    neben der .exe, waechst im Betrieb - jeder kann eine fehlende
+#                  Strecke selbst anlernen, indem er sie einmal faehrt.
+#   TRACKS_BUILTIN in der EXE eingebacken (static/, ueber --add-data), nur lesbar.
+#                  Das, was schon gefahren und in die Auslieferung uebernommen wurde.
+# ⚠ Die SELBST GELERNTE schlaegt die mitgelieferte. Sonst waere eine schlechte
+# mitgelieferte Kontur nur mit einem neuen Build loszuwerden; so reicht einmal
+# "neu lernen".
+TRACKS_FILE = os.path.join(BASE_DIR, "tracks.json")
+TRACKS_BUILTIN = os.path.join(BUNDLE_DIR, "static", "tracks.json")
+TRACKS_FMT = 1              # Formatstand der Datei, faengt spaetere Umbauten ab
+TRACK_PTS_MAX = 4000        # wie das Sicherheitsnetz in _learn_outline
+TRACK_LEN_TOL = 30          # m Abweichung, ab der es eine andere Streckenfuehrung ist
+
 # WM-Stand: nicht nur championship.json, sondern JEDE .json neben der .exe darf als
 # Quelle dienen — z.B. eine Datei pro Saison oder Liga. Welche gerade gilt, steht in
 # den Settings unter "champ_file" (leer = championship.json). Diese drei sind vom
 # Programm selbst und tauchen in der Auswahl deshalb nicht auf.
 CHAMP_HIDDEN_FILES = {"overlay_settings.json", "presets.json", "layouts.json",
-                      "hud_state.json"}
+                      "tracks.json", "hud_state.json"}
 CHAMP_DEFAULT_NAME = "championship.json"
 
 # Wohin die Trackmap darf. "tl" (oben links) und "lc" (links mitte) sind bewusst
@@ -310,6 +324,9 @@ DEFAULT_SETTINGS = {
     # wird, liegt nur Mikrosekunden an und faellt zwischen zwei Abfragen durch.
     # 60 ms sind rund vier Bilder und damit auch bei Rucklern sicher.
     "camholdms": 60,
+    # Streckennamen im OVERLAY zeigen (in der Regie steht er immer). Vorgabe aus:
+    # das Overlay ist das Sendebild, und was dort erscheint, entscheidet KERS.
+    "trackname": False,
     # Freies Layout, je Baustein {ecke, dx, dy, z}. LEER heißt "alles wie gehabt";
     # ein Baustein ohne Eintrag behält seine einprogrammierte Lage (siehe
     # LAYOUT_STANDARD oben).
@@ -620,11 +637,196 @@ start_lights = {"num": 0, "out": False, "t": 0.0}   # STLG/LGOT-Events -> Start-
 track_outline = {"pts": [], "done": False, "ver": 0}
 _outline_ref = {"idx": None, "start_pt": None, "last": None, "dist": 0.0, "start_prog": None}
 
+# ── Gelernte Strecken behalten ────────────────────────────────────────────────
+# Eine Kontur hat rund 800-1400 Punkte (alle 5 m einer auf 4-7 km). Auf eine
+# Nachkommastelle gerundet sind das ~25 KB je Strecke; ein voller Satz bleibt
+# unter 1 MB und faellt neben einer 243-MB-EXE nicht auf.
+
+def _tracks_pruefen(roh) -> dict:
+    """Rohdaten aus einer tracks.json in einen sauberen Satz umwandeln.
+
+    So streng wie _layout_pruefen: eine von Hand verbogene oder halb geschriebene
+    Datei darf den Server nicht stoppen und keine unsinnige Kontur ins Overlay
+    tragen. Was nicht taugt, wird uebersprungen - nicht die ganze Datei verworfen.
+    """
+    if not isinstance(roh, dict):
+        return {}
+    if int(roh.get("fmt") or 0) != TRACKS_FMT:
+        # ⚠ Kein stiller Rueckfall auf "irgendwie lesen": ein spaeteres Format
+        # koennte andere Felder haben, und eine falsch gedeutete Kontur sieht aus
+        # wie eine kaputte Strecke.
+        return {}
+    raus = {}
+    for schluessel, eintrag in roh.items():
+        if schluessel == "fmt" or not isinstance(eintrag, dict):
+            continue
+        try:
+            tid = int(schluessel)
+            laenge = int(eintrag.get("len") or 0)
+        except (TypeError, ValueError):
+            continue
+        pts = eintrag.get("pts")
+        if laenge <= 0 or not isinstance(pts, list) or not (20 <= len(pts) <= TRACK_PTS_MAX):
+            continue
+        sauber = []
+        for pt in pts:
+            if not isinstance(pt, (list, tuple)) or len(pt) != 4:
+                sauber = []
+                break
+            try:
+                sauber.append([float(pt[0]), float(pt[1]),
+                               float(pt[2]), int(pt[3])])
+            except (TypeError, ValueError):
+                sauber = []
+                break
+        if sauber:
+            raus[tid] = {"len": laenge, "pts": sauber}
+    return raus
+
+def _tracks_lesen(pfad) -> dict:
+    try:
+        with open(pfad, encoding="utf-8") as f:
+            return _tracks_pruefen(json.load(f))
+    except Exception:
+        return {}
+
+def _tracks_speichern() -> None:
+    """Nur die SELBST gelernten. Die mitgelieferte Datei liegt in der EXE und ist
+    zur Laufzeit nicht beschreibbar."""
+    try:
+        raus = {"fmt": TRACKS_FMT}
+        for tid, e in user_tracks.items():
+            raus[str(tid)] = {"len": e["len"],
+                              # Auf eine Nachkommastelle: das sind 10 cm auf der
+                              # Strecke und halbiert die Datei.
+                              "pts": [[round(p[0], 1), round(p[1], 1),
+                                       round(p[2], 4), int(p[3])] for p in e["pts"]]}
+        with open(TRACKS_FILE, "w", encoding="utf-8") as f:
+            json.dump(raus, f, ensure_ascii=False, separators=(",", ":"))
+    except Exception as e:
+        print(f"[TRACKS] Speichern fehlgeschlagen: {e}")
+
+builtin_tracks = _tracks_lesen(TRACKS_BUILTIN)   # mitgeliefert, nur lesbar
+user_tracks = _tracks_lesen(TRACKS_FILE)         # selbst gelernt, schlaegt die obige
+
+def _track_eintrag(track_id):
+    """Die geltende Kontur zu einer ID - selbst gelernt vor mitgeliefert."""
+    return user_tracks.get(track_id) or builtin_tracks.get(track_id)
+
+def _track_laden(track_id, track_length) -> bool:
+    """Bekannte Kontur in track_outline setzen. True, wenn eine passte.
+
+    ⚠ Muss die Streckenlaenge pruefen: dieselbe ID mit anderer Laenge ist eine
+    andere Streckenfuehrung, und eine falsche Karte ist schlimmer als keine.
+    """
+    e = _track_eintrag(track_id)
+    if not e:
+        return False
+    if track_length > 0 and abs(e["len"] - track_length) > TRACK_LEN_TOL:
+        print(f"[TRACKS] #{track_id}: gespeichert {e['len']} m, gemeldet "
+              f"{track_length} m - verworfen, wird neu gelernt")
+        return False
+    track_outline["pts"] = [list(p) for p in e["pts"]]
+    track_outline["done"] = True
+    track_outline["ver"] += 1
+    return True
+
+def _strecke_gewechselt(track_id, track_length) -> bool:
+    """Auf eine andere Strecke gewechselt: Kontur neu bestimmen.
+
+    Kennen wir sie schon, steht die Karte sofort - ohne dass jemand erst eine
+    Runde fahren muss. Sonst wird wie bisher geleert und gelernt.
+
+    ⚠ Das greift auch beim ALLERERSTEN Session-Paket: session_info hat dann noch
+    keine track_id, der Vergleich beim Aufrufer ist also wahr. Ein eigener
+    Startpfad ist deshalb nicht noetig.
+
+    Bewusst eine eigene Funktion und nicht inline in handle_session: so laesst
+    sich der Wechsel pruefen, ohne ein Session-Binaerpaket von Hand zu bauen.
+    """
+    _outline_ref.update({"idx": None, "start_pt": None, "last": None,
+                         "dist": 0.0, "start_prog": None})
+    if _track_laden(track_id, track_length):
+        return True
+    track_outline["pts"] = []
+    track_outline["done"] = False
+    track_outline["ver"] += 1
+    return False
+
+def _track_sichern(track_id, track_length) -> None:
+    """Frisch gelernte Kontur behalten - fuer die naechste Session und den
+    naechsten Start."""
+    if track_id is None or track_id < 0 or not track_outline["pts"]:
+        return
+    user_tracks[track_id] = {"len": int(track_length or 0),
+                             "pts": [list(p) for p in track_outline["pts"]]}
+    _tracks_speichern()
+    name = _track_info(track_id)[0]
+    print(f"[TRACKS] {name} gelernt und gespeichert "
+          f"({len(track_outline['pts'])} Punkte, {int(track_length or 0)} m)")
+
 WEATHER = {0: "Klar ☀️", 1: "Leicht bewölkt 🌤️", 2: "Bewölkt ☁️", 3: "Leichter Regen 🌦️", 4: "Starker Regen 🌧️", 5: "Gewitter ⛈️"}
 WEATHER_EMOJI = {0: "☀️", 1: "🌤️", 2: "☁️", 3: "🌦️", 4: "🌧️", 5: "⛈️"}
 SESSION_TYPE = {0: "Unbekannt", 1: "P1", 2: "P2", 3: "P3", 4: "Short P", 5: "Q1", 6: "Q2", 7: "Q3", 8: "Short Q", 9: "OSQ", 10: "SSO1", 11: "SSO2", 12: "SSO3", 13: "Short SSO", 14: "OSSO", 15: "Rennen", 16: "Rennen 2", 17: "Rennen 3", 18: "Zeitrennen", 255: "Unbekannt"}
 QUALI_TYPES = {5, 6, 7, 8, 9}
 FORMULA_NAMES = {0: "F1", 1: "F1 Classic", 2: "F2", 3: "F1 Generic", 4: "Beta", 6: "Esports", 8: "F1W", 9: "F1 Elimination", 13: "F1 26"}
+# Strecken: m_trackId -> (Name, Land, Flaggenfarben).
+#
+# Die Farben ersetzen bewusst eine Flaggen-Grafik oder ein Emoji. Ein Emoji waere
+# im QML-Overlay unsicher - dort laufen bisher nur Symbolglyphen (⚔, ⚡, Δ), und
+# Flaggen sind Regional-Indicator-Paare, die je nach Schrift als "IT" statt als
+# Flagge herauskommen. Ein Farbverlauf ist ein Rectangle und kann nicht scheitern.
+#
+# ⚠ Diese Nummerierung ist die seit Jahren stabile der F1-Reihe (0 = Melbourne bis
+# 32 = Losail). Ob F1 26 Nummern ERGAENZT hat, ist nicht geprueft - eine unbekannte
+# ID faellt in _track_info auf "Strecke #N" ohne Farben zurueck und stoert nichts.
+# Fehlende Eintraege sind je eine Zeile.
+TRACK_INFO = {
+    0:  ("Melbourne",       "Australien",      ("#00008B", "#FFFFFF", "#FF0000")),
+    1:  ("Paul Ricard",     "Frankreich",      ("#002395", "#FFFFFF", "#ED2939")),
+    2:  ("Shanghai",        "China",           ("#DE2910", "#FFDE00")),
+    3:  ("Sakhir",          "Bahrain",         ("#CE1126", "#FFFFFF")),
+    4:  ("Barcelona",       "Spanien",         ("#AA151B", "#F1BF00")),
+    5:  ("Monaco",          "Monaco",          ("#CE1126", "#FFFFFF")),
+    6:  ("Montreal",        "Kanada",          ("#FF0000", "#FFFFFF")),
+    7:  ("Silverstone",     "Grossbritannien", ("#012169", "#FFFFFF", "#C8102E")),
+    8:  ("Hockenheim",      "Deutschland",     ("#000000", "#DD0000", "#FFCE00")),
+    9:  ("Hungaroring",     "Ungarn",          ("#CD2A3E", "#FFFFFF", "#436F4D")),
+    10: ("Spa",             "Belgien",         ("#000000", "#FDDA24", "#EF3340")),
+    11: ("Monza",           "Italien",         ("#008C45", "#F4F5F0", "#CD212A")),
+    12: ("Singapur",        "Singapur",        ("#EF3340", "#FFFFFF")),
+    13: ("Suzuka",          "Japan",           ("#FFFFFF", "#BC002D")),
+    14: ("Abu Dhabi",       "VAE",             ("#00732F", "#FFFFFF", "#CE1126")),
+    15: ("Austin",          "USA",             ("#3C3B6E", "#FFFFFF", "#B22234")),
+    16: ("Interlagos",      "Brasilien",       ("#009C3B", "#FFDF00", "#002776")),
+    17: ("Red Bull Ring",   "Oesterreich",     ("#ED2939", "#FFFFFF")),
+    18: ("Sotschi",         "Russland",        ("#FFFFFF", "#0039A6", "#D52B1E")),
+    19: ("Mexiko-Stadt",    "Mexiko",          ("#006847", "#FFFFFF", "#CE1126")),
+    20: ("Baku",            "Aserbaidschan",   ("#00B5E2", "#EF3340", "#509E2F")),
+    21: ("Sakhir (kurz)",   "Bahrain",         ("#CE1126", "#FFFFFF")),
+    22: ("Silverstone (kurz)", "Grossbritannien", ("#012169", "#FFFFFF", "#C8102E")),
+    23: ("Austin (kurz)",   "USA",             ("#3C3B6E", "#FFFFFF", "#B22234")),
+    24: ("Suzuka (kurz)",   "Japan",           ("#FFFFFF", "#BC002D")),
+    25: ("Hanoi",           "Vietnam",         ("#DA251D", "#FFFF00")),
+    26: ("Zandvoort",       "Niederlande",     ("#AE1C28", "#FFFFFF", "#21468B")),
+    27: ("Imola",           "Italien",         ("#008C45", "#F4F5F0", "#CD212A")),
+    28: ("Portimao",        "Portugal",        ("#046A38", "#DA291C")),
+    29: ("Dschidda",        "Saudi-Arabien",   ("#006C35", "#FFFFFF")),
+    30: ("Miami",           "USA",             ("#3C3B6E", "#FFFFFF", "#B22234")),
+    31: ("Las Vegas",       "USA",             ("#3C3B6E", "#FFFFFF", "#B22234")),
+    32: ("Losail",          "Katar",           ("#8A1538", "#FFFFFF")),
+}
+
+def _track_info(track_id):
+    """(Name, Land, Farben) zu einer Strecken-ID - auch fuer unbekannte."""
+    t = TRACK_INFO.get(track_id)
+    if t:
+        return t
+    # ⚠ Nicht leer lassen: eine unbenannte Strecke soll trotzdem einen
+    # wiedererkennbaren Namen haben, sonst steht in der Liste nur eine Zahl.
+    return ("Strecke #%d" % track_id if track_id is not None and track_id >= 0
+            else "Unbekannte Strecke"), "", ()
+
 # Safety car status: 0=none, 1=Full SC, 2=VSC, 3=Formation Lap
 SC_STATUS = {0: "none", 1: "sc", 2: "vsc", 3: "formation"}
 
@@ -775,16 +977,19 @@ def handle_session(data):
             if len(forecast) >= 5:
                 break
 
-    # Streckenwechsel -> gelernte Trackmap-Kontur verwerfen. Session-Wechsel auf
-    # derselben Strecke (z.B. Quali -> Rennen) behält sie.
+    # Streckenwechsel -> Kontur neu bestimmen. Session-Wechsel auf derselben
+    # Strecke (z.B. Quali -> Rennen) behält sie.
     if session_info.get("track_id") != track_id:
-        track_outline["pts"] = []
-        track_outline["done"] = False
-        track_outline["ver"] += 1
-        _outline_ref.update({"idx": None, "start_pt": None, "last": None, "dist": 0.0, "start_prog": None})
+        _strecke_gewechselt(track_id, track_length)
 
+    _t_name, _t_land, _t_farben = _track_info(track_id)
     session_info.update({
         "track_id": track_id,
+        "track_name": _t_name,
+        "track_land": _t_land,
+        # Flaggenfarben statt Emoji - siehe Kommentar bei TRACK_INFO.
+        "track_colors": list(_t_farben),
+        "track_known": _track_eintrag(track_id) is not None,
         "track_length": track_length,
         "type": session_type,
         "type_name": SESSION_TYPE.get(session_type, "Unbekannt"),
@@ -1099,6 +1304,12 @@ def _learn_outline():
     if closed or len(track_outline["pts"]) > 4000:   # 4000 = Sicherheitsnetz
         track_outline["done"] = True
         track_outline["ver"] += 1
+        # ⚠ NUR eine geschlossene Runde behalten. Greift das Sicherheitsnetz, ist
+        # die Kontur nicht rund geworden - so etwas fuer immer zu speichern waere
+        # schlimmer als sie beim naechsten Mal neu zu lernen.
+        if closed:
+            _track_sichern(session_info.get("track_id"),
+                           session_info.get("track_length", 0))
 
 # Packet 8: Final Classification – offizielles Endergebnis nach der Zielflagge.
 # FinalClassificationData = 46 Bytes: pos/laps/grid/points/stops/status/reason (7x uint8),
@@ -1675,19 +1886,78 @@ def api_track():
         if o["idx"] is not None and o["idx"] in drivers and tl > 0:
             dd = drivers[o["idx"]]
             cur_prog = round(dd["lap_num"] + max(0.0, dd["lap_distance"]) / tl, 3)
+        # Lernfortschritt 0..1 - wie weit ist das Referenzauto auf seiner Runde?
+        # ⚠ Bewusst ein eigenes Feld und nicht nur im _dbg-Block: die Oberflaeche
+        # zeigt ihn an, und sie soll sich nicht auf etwas stuetzen muessen, das
+        # "Diagnose" heisst und jederzeit wegfallen darf.
+        lernt = None
+        if cur_prog is not None and o["start_prog"] is not None:
+            lernt = round(max(0.0, min(1.0, cur_prog - o["start_prog"])), 3)
         return jsonify({"pts": [list(p) for p in track_outline["pts"]],
                         "done": track_outline["done"], "ver": track_outline["ver"],
+                        "lernt": lernt, "punkte": len(track_outline["pts"]),
                         "_dbg": {"ref_idx": o["idx"], "start_prog": o["start_prog"],
                                  "cur_prog": cur_prog, "dist_m": round(o["dist"]), "tl": tl}})
+
+@app.route("/api/tracks", methods=["GET", "POST"])
+def api_tracks():
+    """Welche Strecken sind bekannt - und eine selbst gelernte wieder loswerden.
+
+    POST {"id": 11, "delete": true} loescht NUR aus der eigenen Datei. Eine
+    mitgelieferte Kontur steckt in der EXE und laesst sich zur Laufzeit nicht
+    entfernen; nach dem Loeschen der eigenen gilt wieder sie.
+    """
+    if request.method == "POST":
+        d = request.get_json(silent=True) or {}
+        try:
+            tid = int(d.get("id"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "id fehlt"}), 400
+        with state_lock:
+            if d.get("delete") and user_tracks.pop(tid, None) is not None:
+                _tracks_speichern()
+                # Laeuft gerade genau diese Strecke, sofort neu lernen - sonst
+                # bleibt die geloeschte Karte bis zum naechsten Wechsel stehen.
+                if session_info.get("track_id") == tid:
+                    if not _track_laden(tid, session_info.get("track_length", 0)):
+                        track_outline["pts"] = []
+                        track_outline["done"] = False
+                        track_outline["ver"] += 1
+                        _outline_ref.update({"idx": None, "start_pt": None,
+                                             "last": None, "dist": 0.0,
+                                             "start_prog": None})
+    with state_lock:
+        aktuell = session_info.get("track_id")
+        ids = sorted(set(user_tracks) | set(builtin_tracks))
+        raus = []
+        for tid in ids:
+            eigen = tid in user_tracks
+            e = user_tracks[tid] if eigen else builtin_tracks[tid]
+            name, land, farben = _track_info(tid)
+            raus.append({"id": tid, "name": name, "land": land,
+                         "colors": list(farben), "len": e["len"],
+                         "pts": len(e["pts"]),
+                         "quelle": "eigen" if eigen else "mitgeliefert",
+                         "aktiv": tid == aktuell})
+        return jsonify({"tracks": raus, "aktuell": aktuell,
+                        "aktuell_name": _track_info(aktuell)[0] if aktuell is not None else ""})
 
 @app.route("/api/track/relearn", methods=["POST", "GET"])
 def api_track_relearn():
     # Kontur verwerfen und neu lernen (falls eine verzerrte Runde erwischt wurde).
     with state_lock:
+        # ⚠ Die GESPEICHERTE muss mit weg, sonst laedt sie sich beim naechsten
+        # Streckenwechsel sofort wieder und der Knopf tut scheinbar nichts.
+        tid = session_info.get("track_id")
+        if tid is not None and user_tracks.pop(tid, None) is not None:
+            _tracks_speichern()
         track_outline["pts"] = []
         track_outline["done"] = False
         track_outline["ver"] += 1
         _outline_ref.update({"idx": None, "start_pt": None, "last": None, "dist": 0.0, "start_prog": None})
+        # Hinweis: eine MITGELIEFERTE Kontur bleibt in der EXE. Sie kommt aber
+        # erst beim naechsten Streckenwechsel wieder zum Zug, und bis dahin hat
+        # das Neulernen laengst eine eigene gespeichert, die sie schlaegt.
     return jsonify({"ok": True})
 
 @app.route("/api/record/start", methods=["POST"])

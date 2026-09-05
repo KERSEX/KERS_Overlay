@@ -25,6 +25,9 @@ presets.json
 # Gespeicherte Layouts (Stufe 4). Gleiche Begruendung wie presets.json daneben:
 # Laufzeit-Zustand des Benutzers, kein Quelltext.
 layouts.json
+# Selbst gelernte Streckenkonturen neben der .exe. ⚠ NICHT static/tracks.json -
+# die ist die mitgelieferte und gehoert ins Repo.
+/tracks.json
 
 # Aufzeichnungen und Mitschnitte (koennen sehr gross werden)
 sessions/

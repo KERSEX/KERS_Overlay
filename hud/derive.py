@@ -59,6 +59,7 @@ DEFAULT_CFG = {
     "penside": "left",
     "penhidefinish": True,
     "podiumstil": "flat",
+    "trackname": False,
     "layout": {},
 }
 

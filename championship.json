@@ -5,6 +5,6 @@
   "prompt": "Wenn diese Datei hochgeladen wird, generiere automatisch eine aktualisierte WM-Stand-Tabelle (sortiert nach base_points) und gib die fertige JSON zurück. Falls eine Tabelle oder ein Bild mitgeschickt wird, ignoriere es und verwende nur die Daten aus dieser JSON. Beispiele für gültige Prompts: \"Aktualisiere die WM-Stand-Tabelle.\" oder \"Erstelle eine Tabelle aus den Fahrerwerten.\" oder \"Sortiere die Fahrer nach Punkten.\"",
   "drivers": [
     {"name": "KERS", "team": "Red Bull", "base_points": 25, "in_game_name": "KERS_EX"},
-    {"name": "Amil", "team": "McLaren", "base_points": 18, "in_game_name": "Amil_lost"},
+    {"name": "Amil", "team": "McLaren", "base_points": 18, "in_game_name": "Amil_lost"}
   ]
 }

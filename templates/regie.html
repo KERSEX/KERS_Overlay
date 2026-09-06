@@ -642,12 +642,17 @@ async function pullTrack() {
     return;
   }
   if (empty) empty.style.display = "none";
+  // ⚠ Der Name kommt aus dem Sitzungsstand, nicht aus /api/track - dort steht
+  // nur die Kontur. Fehlt er (unbekannte ID), reicht "Die Strecke".
+  const tName = (rLetzteSession && rLetzteSession.track_name) || "Die Strecke";
   if (rTrackLernte) {
-    // ⚠ Der Name kommt aus dem Sitzungsstand, nicht aus /api/track - dort steht
-    // nur die Kontur. Fehlt er (unbekannte ID), reicht "Die Strecke".
-    const name = (rLetzteSession && rLetzteSession.track_name) || "Die Strecke";
-    trackNote(`✓ ${name} gelernt und gespeichert — beim nächsten Mal ist die Karte sofort da.`);
+    trackNote(`✓ ${tName} gelernt und gespeichert — beim nächsten Mal ist die Karte sofort da.`);
     rTrackLernte = false;
+  } else if (rTrackVer && t.ver !== rTrackVer) {
+    // Schon eine Karte da, aber eine neue Fassung: eine spätere Runde hat sie
+    // ersetzt. Im Zeitfahren ist die erste Runde die Ausfahrt aus der Box —
+    // deshalb lernt das Overlay weiter, und die zuletzt gefahrene gewinnt.
+    trackNote(`↻ Karte von ${tName} aus der letzten Runde aufgefrischt.`);
   }
   if (t.ver !== rTrackVer) {
     rTrackVer = t.ver; rPtsRaw = t.pts;

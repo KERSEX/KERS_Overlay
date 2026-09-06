@@ -46,6 +46,9 @@ FMT = 1
 trocken = "--dry" in sys.argv
 
 
+kuerzen = None       # wird unten aus main.py geholt, siehe aus_main
+
+
 def lesen(pfad):
     try:
         with open(pfad, encoding="utf-8") as f:
@@ -61,10 +64,35 @@ def lesen(pfad):
         if k == "fmt" or not isinstance(v, dict):
             continue
         try:
-            raus[int(k)] = {"len": int(v["len"]), "pts": v["pts"]}
+            # Genau wie der Server: eine Kontur mit zwei Runden auf die erste
+            # kuerzen. Sonst wandert der Murks in die Auslieferung und wird erst
+            # beim Einlesen geheilt - bei jedem Start aufs Neue.
+            laenge = int(v["len"])
+            raus[int(k)] = {"len": laenge,
+                            "pts": kuerzen(v["pts"], laenge)}
         except (TypeError, ValueError, KeyError):
             continue
     return raus, "%d Strecken" % len(raus)
+
+
+def aus_main(name):
+    """Eine Funktion aus main.py holen, ohne main.py zu importieren.
+
+    ⚠ Nicht abschreiben: _kontur_auf_eine_runde entscheidet, ob eine Kontur zwei
+    Runden enthaelt. Eine zweite Kopie hier wuerde frueher oder spaeter von der
+    im Server abweichen, und dann liefert das Werkzeug etwas anderes aus, als der
+    Server einliest.
+    """
+    import ast
+    with open(os.path.join(PROJ, "main.py"), encoding="utf-8") as f:
+        baum = ast.parse(f.read())
+    for k in baum.body:
+        if isinstance(k, ast.FunctionDef) and k.name == name:
+            umgebung = {}
+            exec(compile(ast.Module(body=[k], type_ignores=[]), "<main.py>", "exec"),
+                 umgebung)
+            return umgebung[name]
+    raise SystemExit("%s in main.py nicht gefunden" % name)
 
 
 def namen():
@@ -82,6 +110,8 @@ def namen():
             return {i: v[0] for i, v in roh.items()}
     return {}
 
+
+kuerzen = aus_main("_kontur_auf_eine_runde")
 
 gelernt, q_info = lesen(QUELLE)
 liegt, z_info = lesen(ZIEL)

@@ -634,13 +634,69 @@ start_lights = {"num": 0, "out": False, "t": 0.0}   # STLG/LGOT-Events -> Start-
 # in der Box, keine Out-Lap) -> der Startpunkt liegt garantiert auf der Ideallinie und
 # das Auto kommt nach einer Runde dorthin zurück -> saubere, geschlossene Schleife,
 # Boxengasse nie dabei.
-track_outline = {"pts": [], "done": False, "ver": 0}
-_outline_ref = {"idx": None, "start_pt": None, "last": None, "dist": 0.0, "start_prog": None}
+# "fest" heisst: die Kontur kam fertig aus der Ablage und wird NICHT mehr
+# ueberschrieben. Nur was fehlt, wird gelernt - eine einmal gespeicherte Strecke
+# bleibt, wie sie ist. Aufheben laesst sich das mit /api/track/relearn.
+track_outline = {"pts": [], "done": False, "ver": 0, "fest": False}
+_outline_ref = {"idx": None, "start_pt": None, "last": None, "dist": 0.0,
+                "start_prog": None, "invalid": False}
+# Die Runde, die GERADE aufgezeichnet wird. Bewusst getrennt von track_outline:
+# die angezeigte Karte muss stehen bleiben, waehrend im Hintergrund schon die
+# naechste Runde mitgeschrieben wird. Siehe _learn_outline.
+_outline_buf = []
 
 # ── Gelernte Strecken behalten ────────────────────────────────────────────────
 # Eine Kontur hat rund 800-1400 Punkte (alle 5 m einer auf 4-7 km). Auf eine
 # Nachkommastelle gerundet sind das ~25 KB je Strecke; ein voller Satz bleibt
 # unter 1 MB und faellt neben einer 243-MB-EXE nicht auf.
+
+def _kontur_auf_eine_runde(pts, laenge):
+    """Enthaelt die Kontur mehr als eine Runde? Auf die erste kuerzen.
+
+    Heilt Konturen, die vor der Notbremse in _learn_outline entstanden sind -
+    auch mitgelieferte.
+
+    ⚠ Der Rundenanteil allein taugt dafuer NICHT, auch wenn er sich anbietet: er
+    springt je Runde einmal zurueck, aber wie oft das in der Liste steht, haengt
+    davon ab, WO die Aufzeichnung begann. Eine saubere Runde ab Streckenmitte hat
+    einen Ruecksprung - zwei Runden ab der Start/Ziel-Linie ebenfalls. Die beiden
+    Faelle sind darueber nicht zu unterscheiden.
+
+    Die GEFAHRENE STRECKE ist eindeutig: an sechs echten Strecken nachgemessen
+    liegt eine saubere Runde bei 98-99 % der Streckenlaenge, zwei Runden bei rund
+    198 %. Ab dem Anderthalbfachen ist es also sicher mehr als eine Runde.
+    """
+    if laenge <= 0 or len(pts) < 3:
+        return pts
+
+    def abstand(a, b):
+        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
+    weg = 0.0
+    for i in range(1, len(pts)):
+        weg += abstand(pts[i], pts[i - 1])
+    if weg < laenge * 1.5:
+        return pts
+
+    # Zurueck am Startpunkt, nachdem mehr als eine halbe Runde gefahren wurde -
+    # dieselbe Pruefung, die _learn_outline als Rueckfallebene benutzt.
+    #
+    # ⚠ Nicht beim ERSTEN Punkt im Umkreis abbrechen, sondern beim naechsten.
+    # Die Punkte liegen 5 m auseinander; wer beim ersten Treffer aufhoert,
+    # schneidet bis zu 30 m zu frueh und hinterlaesst einen sichtbaren Spalt in
+    # der Karte (an Shanghai gemessen: 27 m statt 1 m).
+    weg, bester, bester_abstand = 0.0, None, None
+    for i in range(1, len(pts)):
+        weg += abstand(pts[i], pts[i - 1])
+        if weg <= laenge * 0.5:
+            continue
+        a = abstand(pts[i], pts[0])
+        if a < 30.0:
+            if bester_abstand is None or a < bester_abstand:
+                bester, bester_abstand = i, a
+        elif bester is not None:
+            break          # Umkreis wieder verlassen - der beste steht fest
+    return pts[:bester + 1] if bester is not None else pts
 
 def _tracks_pruefen(roh) -> dict:
     """Rohdaten aus einer tracks.json in einen sauberen Satz umwandeln.
@@ -680,6 +736,7 @@ def _tracks_pruefen(roh) -> dict:
                 sauber = []
                 break
         if sauber:
+            sauber = _kontur_auf_eine_runde(sauber, laenge)
             eintrag_neu = {"len": laenge, "pts": sauber}
             # Ausrichtung ist freiwillig - fehlt sie, gilt die allgemeine.
             try:
@@ -739,6 +796,7 @@ def _track_laden(track_id, track_length) -> bool:
         return False
     track_outline["pts"] = [list(p) for p in e["pts"]]
     track_outline["done"] = True
+    track_outline["fest"] = True      # bekannt -> nicht mehr neu lernen
     track_outline["ver"] += 1
     # Ausrichtung je Strecke: einmal zurechtgedreht, ab dann richtig.
     # ⚠ Laeuft im UDP-Faden, aber handle_session haelt state_lock - dieselbe
@@ -797,12 +855,15 @@ def _strecke_gewechselt(track_id, track_length) -> bool:
     Bewusst eine eigene Funktion und nicht inline in handle_session: so laesst
     sich der Wechsel pruefen, ohne ein Session-Binaerpaket von Hand zu bauen.
     """
+    global _outline_buf
     _outline_ref.update({"idx": None, "start_pt": None, "last": None,
-                         "dist": 0.0, "start_prog": None})
+                         "dist": 0.0, "start_prog": None, "invalid": False})
+    _outline_buf = []
     if _track_laden(track_id, track_length):
         return True
     track_outline["pts"] = []
     track_outline["done"] = False
+    track_outline["fest"] = False     # unbekannt -> lernen
     track_outline["ver"] += 1
     return False
 
@@ -812,7 +873,9 @@ def _track_sichern(track_id, track_length) -> None:
     if track_id is None or track_id < 0 or not track_outline["pts"]:
         return
     user_tracks[track_id] = {"len": int(track_length or 0),
-                             "pts": [list(p) for p in track_outline["pts"]]}
+                             "pts": _kontur_auf_eine_runde(
+                                 [list(p) for p in track_outline["pts"]],
+                                 int(track_length or 0))}
     _tracks_speichern()
     name = _track_info(track_id)[0]
     print(f"[TRACKS] {name} gelernt und gespeichert "
@@ -1301,68 +1364,138 @@ def handle_motion(data):
     _learn_outline()
 
 def _learn_outline():
-    """Streckenkontur aus EINER Runde des Führenden lernen. Startet sofort, sobald das
-    Referenzauto echt auf der Strecke fährt (driver_status 1/4, nicht in der Box) ->
-    der Startpunkt liegt auf der Ideallinie. Alle ~5 m ein Punkt; sobald das Auto nach
-    ~einer Runde (>1 km gefahren) wieder < 30 m am Startpunkt ist, schließt die Schleife.
-    Referenzauto wird gehalten, bis es unbrauchbar wird (Box/DNF/weg)."""
-    if track_outline["done"]:
+    """Streckenkontur aus einer Runde lernen - und mit jeder weiteren verbessern.
+
+    Startet, sobald das Referenzauto echt auf der Strecke faehrt (nicht in der
+    Box), alle ~5 m ein Punkt, Schluss nach genau einer Runde.
+
+    Es wird NICHT nach der ersten Runde aufgehoert. Im Zeitfahren ist die erste
+    Runde die Ausfahrt aus der Box: sie enthaelt die Boxengasse und eine schiefe
+    Linie. Deshalb laeuft die Aufzeichnung weiter, und JEDE brauchbare Runde
+    ersetzt die vorige - am Ende steht also die zuletzt gefahrene.
+
+    Aufgezeichnet wird in _outline_buf, nicht in track_outline. Die angezeigte
+    Karte muss stehen bleiben, waehrend die naechste Runde laeuft - sonst
+    verschwaende sie nach jeder Zieldurchfahrt.
+    """
+    global _outline_buf
+    # ⚠ Eine bekannte Strecke wird NICHT angefasst. Was einmal gespeichert ist -
+    # selbst gefahren oder mitgeliefert - bleibt so. Gelernt wird nur, was fehlt:
+    # wer Imola schon hat und Monza nicht, lernt beim Fahren genau Monza dazu.
+    # Absichtlich neu lernen geht ueber /api/track/relearn.
+    if track_outline["fest"]:
         return
     o = _outline_ref
     tl = session_info.get("track_length", 0)
     idx = o["idx"]
-    # Hinweis: m_driverStatus ist im Rennen unbrauchbar (das Spiel meldet für alle Autos
-    # 2 = "in lap"), daher NUR über in_pit/Position filtern. Die Boxengasse fällt über
-    # m_pitStatus (in_pit) raus.
+    # Hinweis: m_driverStatus ist im Rennen unbrauchbar (das Spiel meldet fuer alle
+    # Autos 2 = "in lap"), daher NUR ueber in_pit/Position filtern. Die Boxengasse
+    # faellt ueber m_pitStatus (in_pit) raus.
     ref_ok = (idx is not None and idx in car_pos and idx in drivers
               and not drivers[idx]["in_pit"] and not drivers[idx]["dnf"] and not drivers[idx]["dsq"]
-              and not (o["start_prog"] is None and tl > 0))   # Streckenlänge kam nach -> neu locken (Fortschritt)
+              and not (o["start_prog"] is None and tl > 0))   # Streckenlaenge kam nach
     if not ref_ok:
-        # (Neu-)Wahl der Referenz: bestplatziertes Auto auf der Strecke -> sofort mit dem
-        # Aufzeichnen beginnen (Startpunkt = echter Streckenpunkt). Start-Fortschritt merken.
-        o.update({"idx": None, "start_pt": None, "last": None, "dist": 0.0, "start_prog": None})
-        track_outline["pts"] = []
+        # (Neu-)Wahl der Referenz: bestplatziertes Auto auf der Strecke.
+        # Nur der PUFFER wird geleert - eine schon fertige Karte bleibt stehen,
+        # sie ist besser als gar keine, waehrend ein neues Auto gesucht wird.
+        o.update({"idx": None, "start_pt": None, "last": None, "dist": 0.0,
+                  "start_prog": None, "invalid": False})
+        _outline_buf = []
         for d in sorted(drivers.values(), key=lambda x: x["position"] or 99):
             if d["position"] > 0 and d["index"] in car_pos and not d["in_pit"]:
                 x, z = car_pos[d["index"]]
                 sp = (d["lap_num"] + max(0.0, d["lap_distance"]) / tl) if tl > 0 else None
-                o.update({"idx": d["index"], "start_pt": (x, z), "last": (x, z), "dist": 0.0, "start_prog": sp})
+                o.update({"idx": d["index"], "start_pt": (x, z), "last": (x, z),
+                          "dist": 0.0, "start_prog": sp, "invalid": False})
                 frac = round(max(0.0, d["lap_distance"]) / tl, 4) if tl > 0 else -1
-                track_outline["pts"] = [[x, z, frac, d.get("sector", 0)]]
+                _outline_buf = [[x, z, frac, d.get("sector", 0)]]
                 break
         return
+
     d = drivers[idx]
+    # Track Limits waehrend DIESER Runde? Dann taugt sie nicht als Vorlage.
+    if d.get("lap_invalid"):
+        o["invalid"] = True
     x, z = car_pos[idx]
     lx, lz = o["last"]
     step2 = (x - lx) ** 2 + (z - lz) ** 2
     if step2 >= 25.0:                                 # >= 5 m seit dem letzten Punkt
-        # Punkt = [x, z, Rundenanteil 0..1, Sektor 0..2] -> Frontend kann Sektoren
-        # einfärben und Marshal-Zonen (Flaggen) auf die Kontur mappen.
+        # Punkt = [x, z, Rundenanteil 0..1, Sektor 0..2] -> das Frontend kann
+        # Sektoren einfaerben und Marshal-Zonen auf die Kontur mappen.
         frac = round(max(0.0, d["lap_distance"]) / tl, 4) if tl > 0 else -1
-        track_outline["pts"].append([x, z, frac, d.get("sector", 0)])
+        _outline_buf.append([x, z, frac, d.get("sector", 0)])
         o["dist"] += step2 ** 0.5
         o["last"] = (x, z)
-    # Schließen: GENAU eine volle Runde. Bevorzugt exakt über den Fortschritt
-    # (Runde + lap_distance/Streckenlänge) -> kein Fehl-Schließen bei engen/parallelen
-    # Streckenpassagen. Ohne Streckenlänge Fallback über Distanz + Nähe zum Start.
+
+    # Schliessen: GENAU eine volle Runde. Bevorzugt ueber den Fortschritt
+    # (Runde + lap_distance/Streckenlaenge) -> kein Fehl-Schliessen bei engen
+    # Parallelpassagen. Ohne Streckenlaenge Rueckfall ueber Distanz und Naehe.
     closed = False
     if tl > 0 and o["start_prog"] is not None:
         prog = d["lap_num"] + max(0.0, d["lap_distance"]) / tl
-        if prog - o["start_prog"] >= 1.0 and len(track_outline["pts"]) > 60:
+        if prog - o["start_prog"] >= 1.0 and len(_outline_buf) > 60:
             closed = True
     else:
         sx, sz = o["start_pt"]
         if o["dist"] > 1000.0 and (x - sx) ** 2 + (z - sz) ** 2 < 900.0:
             closed = True
-    if closed or len(track_outline["pts"]) > 4000:   # 4000 = Sicherheitsnetz
+    # Notbremse ueber die GEFAHRENE Strecke. Der Abschluss oben rechnet mit
+    # lap_num + lap_distance/Streckenlaenge - und diese beiden Felder koennen an
+    # der Start/Ziel-Linie auseinanderliegen: der Rundenzaehler steht schon auf
+    # der neuen Runde, waehrend die Distanz noch die alte zeigt. Wird der
+    # Startfortschritt in diesem Moment gemerkt, ist er eine ganze Runde zu hoch
+    # und es wird ZWEIMAL herumgefahren. Genau so ist Shanghai mit 1917 Punkten
+    # und 10,7 km entstanden.
+    if not closed and tl > 0 and o["dist"] > tl * 1.25:
+        closed = True
+
+    if not closed:
+        if len(_outline_buf) > 4000:      # 4000 = Sicherheitsnetz
+            # Nicht rund geworden - wegwerfen und neu ansetzen, statt Murks zu
+            # behalten. Beim naechsten Takt sucht sich die Funktion ein Auto.
+            o["idx"] = None
+        return
+
+    if _runde_taugt(_outline_buf, tl, o["invalid"]):
+        track_outline["pts"] = [list(p) for p in _outline_buf]
         track_outline["done"] = True
         track_outline["ver"] += 1
-        # ⚠ NUR eine geschlossene Runde behalten. Greift das Sicherheitsnetz, ist
-        # die Kontur nicht rund geworden - so etwas fuer immer zu speichern waere
-        # schlimmer als sie beim naechsten Mal neu zu lernen.
-        if closed:
-            _track_sichern(session_info.get("track_id"),
-                           session_info.get("track_length", 0))
+        _track_sichern(session_info.get("track_id"),
+                       session_info.get("track_length", 0))
+    # Ab hier die naechste Runde - Startpunkt ist der aktuelle.
+    frac = round(max(0.0, d["lap_distance"]) / tl, 4) if tl > 0 else -1
+    o.update({"start_pt": (x, z), "last": (x, z), "dist": 0.0, "invalid": False,
+              "start_prog": (d["lap_num"] + max(0.0, d["lap_distance"]) / tl)
+                            if tl > 0 else None})
+    _outline_buf = [[x, z, frac, d.get("sector", 0)]]
+
+
+def _runde_taugt(pts, laenge, ungueltig) -> bool:
+    """Ist diese Runde als Streckenkontur brauchbar?
+
+    Weil jede neue Runde die vorige ERSETZT, braucht es diese Pruefung. Ohne sie
+    wuerde ein Dreher oder eine abgekuerzte Runde eine gute Karte ueberschreiben,
+    und die waere dann nur ueber "neu lernen" zurueckzuholen.
+    """
+    if len(pts) < 60:
+        return False
+    if ungueltig:
+        print("[TRACKS] Runde war ungueltig (Track Limits) - nicht uebernommen")
+        return False
+    if laenge <= 0:
+        return True                      # ohne Streckenlaenge nicht pruefbar
+    weg = 0.0
+    for i in range(1, len(pts)):
+        weg += ((pts[i][0] - pts[i - 1][0]) ** 2
+                + (pts[i][1] - pts[i - 1][1]) ** 2) ** 0.5
+    # Eine saubere Runde misst 98-99 % der Streckenlaenge (an sechs echten
+    # Strecken nachgemessen). Alles weit darunter oder darueber ist keine.
+    if not (laenge * 0.85 <= weg <= laenge * 1.20):
+        print("[TRACKS] Runde misst %.0f m bei %d m Strecke - nicht uebernommen"
+              % (weg, laenge))
+        return False
+    return True
+
 
 # Packet 8: Final Classification – offizielles Endergebnis nach der Zielflagge.
 # FinalClassificationData = 46 Bytes: pos/laps/grid/points/stops/status/reason (7x uint8),
@@ -1975,6 +2108,7 @@ def api_tracks():
                     if not _track_laden(tid, session_info.get("track_length", 0)):
                         track_outline["pts"] = []
                         track_outline["done"] = False
+                        track_outline["fest"] = False    # jetzt wieder lernen
                         track_outline["ver"] += 1
                         _outline_ref.update({"idx": None, "start_pt": None,
                                              "last": None, "dist": 0.0,
@@ -2007,8 +2141,11 @@ def api_track_relearn():
             _tracks_speichern()
         track_outline["pts"] = []
         track_outline["done"] = False
+        track_outline["fest"] = False       # ab jetzt darf wieder gelernt werden
         track_outline["ver"] += 1
-        _outline_ref.update({"idx": None, "start_pt": None, "last": None, "dist": 0.0, "start_prog": None})
+        _outline_ref.update({"idx": None, "start_pt": None, "last": None,
+                             "dist": 0.0, "start_prog": None, "invalid": False})
+        globals()["_outline_buf"] = []
         # Hinweis: eine MITGELIEFERTE Kontur bleibt in der EXE. Sie kommt aber
         # erst beim naechsten Streckenwechsel wieder zum Zug, und bis dahin hat
         # das Neulernen laengst eine eigene gespeichert, die sie schlaegt.

@@ -762,7 +762,12 @@ def _tracks_speichern() -> None:
     try:
         raus = {"fmt": TRACKS_FMT}
         for tid, e in user_tracks.items():
-            raus[str(tid)] = {"len": e["len"],
+            # ⚠ Der Name steht NUR fuer den Menschen drin, der die Datei aufmacht.
+            # Ohne ihn sieht man dort bloss Nummern ("2", "13") und kann nicht
+            # sagen, welche Strecke das ist. Gelesen wird er nie - massgeblich ist
+            # TRACK_INFO, sonst haette man zwei Namensquellen, die auseinanderlaufen.
+            raus[str(tid)] = {"name": _track_info(tid)[0],
+                              "len": e["len"],
                               **({"rot": e["rot"]} if isinstance(e.get("rot"), int) else {}),
                               **({"flip": e["flip"]} if isinstance(e.get("flip"), bool) else {}),
                               # Auf eine Nachkommastelle: das sind 10 cm auf der
@@ -931,6 +936,12 @@ TRACK_INFO = {
     30: ("Miami",           "USA",             ("#3C3B6E", "#FFFFFF", "#B22234")),
     31: ("Las Vegas",       "USA",             ("#3C3B6E", "#FFFFFF", "#B22234")),
     32: ("Losail",          "Katar",           ("#8A1538", "#FFFFFF")),
+    # Rueckwaerts-Varianten. NICHT geraten, sondern aus KERS' gefahrenen Daten
+    # nachgemessen: ID 39 deckt denselben Asphalt wie Silverstone (groesste
+    # Abweichung 9 m, also nur die Ideallinie) und laeuft im Uhrzeigersinn statt
+    # dagegen; ID 40 genauso zum Red Bull Ring. Gleiche Streckenlaenge, eigene ID.
+    39: ("Silverstone rueckwaerts", "Grossbritannien", ("#012169", "#FFFFFF", "#C8102E")),
+    40: ("Red Bull Ring rueckwaerts", "Oesterreich",   ("#ED2939", "#FFFFFF")),
 }
 
 def _track_info(track_id):

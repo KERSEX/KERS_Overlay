@@ -155,7 +155,10 @@ if trocken:
 
 raus = {"fmt": FMT}
 for tid, e in sorted(liegt.items()):
-    raus[str(tid)] = {"len": e["len"],
+    # Name nur zum Nachschlagen fuer Menschen - gelesen wird er nie, siehe
+    # Kommentar bei _tracks_speichern in main.py.
+    raus[str(tid)] = {"name": name.get(tid, "Strecke #%d" % tid),
+                      "len": e["len"],
                       "pts": [[round(float(p[0]), 1), round(float(p[1]), 1),
                                round(float(p[2]), 4), int(p[3])] for p in e["pts"]]}
 os.makedirs(os.path.dirname(ZIEL), exist_ok=True)

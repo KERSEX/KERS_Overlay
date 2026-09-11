@@ -621,7 +621,13 @@ _rc_id = 0
 # die id), die Regie zeigt daraus den Verlauf -> lieber etwas mehr Historie. Die Liste geht in
 # JEDEN SSE-Payload, deshalb nicht unbegrenzt wachsen lassen.
 RC_KEEP = 30
-PENALTY_LABELS = {0: "Drive Through Penalty", 1: "Stop-&-Go-Strafe", 2: "Startplatzstrafe",
+# Eine Stop-&-Go ist im Spiel immer dieselbe Strafe, deshalb hier fest verdrahtet.
+# Aus dem Paket laesst sich die Dauer NICHT ablesen: das Feld "time" im PENA-Ereignis
+# ist laut Spezifikation "Time gained, or time spent doing action in seconds" - also
+# gewonnene bzw. gestandene Zeit, nicht die Strafdauer. Daran ist die Anzeige bisher
+# vorbeigelaufen. So benannt und beziffert auf Ansage von KERS (11.09.2026).
+STOPGO_SEK = 10
+PENALTY_LABELS = {0: "Drive Through Penalty", 1: f"{STOPGO_SEK} Sek Strafe", 2: "Startplatzstrafe",
                   4: "Zeitstrafe", 5: "Verwarnung", 6: "Disqualifiziert", 9: "Reifen-Regel"}
 
 last_quali: dict[str, float] = {}    # Bestzeiten der letzten Quali {Name: Sekunden} -> Grid-Screen
@@ -1202,6 +1208,7 @@ def handle_lap_data(data):
             lap_invalid = data[start + 37]     # m_currentLapInvalid (0=gültig, 1=ungültig)
             penalties_s = data[start + 38]     # m_penalties (aufaddierte Zeitstrafe in Sekunden)
             dt_pens      = data[start + 41]     # m_numUnservedDriveThroughPens (offene Durchfahrtstrafen)
+            sg_pens      = data[start + 42]     # m_numUnservedStopGoPens (offene Stop-&-Go)
             corner_warns = data[start + 40]     # m_cornerCuttingWarnings (Track-Limits-Verwarnungen)
             driver_status = data[start + 44]   # 0=Garage,1=fliegende Runde,2=in lap,3=out lap,4=on track
             result_stat = data[start + 45]
@@ -1252,7 +1259,15 @@ def handle_lap_data(data):
         d["in_pit"] = pit_status in (1, 2)
         d["pit_stops"] = num_pit_stops
         d["lap_invalid"] = lap_invalid == 1
-        d["penalties"] = penalties_s
+        # Offene Stop-&-Go zaehlen mit je STOPGO_SEK Sekunden mit. Das Spiel fuehrt sie
+        # NICHT in m_penalties, sondern nur als Anzahl in einem eigenen Byte - wer +3 s
+        # hatte und eine Stop-&-Go bekam, sah deshalb weiter +3 s (gemeldet aus dem
+        # Rennen am 11.09.). Ist sie abgeleistet, faellt der Zaehler auf 0 und der
+        # Aufschlag verschwindet von selbst.
+        # ⚠ Hier und nicht in den Anzeigen: Tower (models.py), Web-Overlay und die
+        # Positions-Vorschau der Regie lesen alle dieses eine Feld und wuerden sonst
+        # auseinanderlaufen.
+        d["penalties"] = penalties_s + STOPGO_SEK * sg_pens
         d["pen_dt"] = dt_pens
         d["corner_warnings"] = corner_warns
         d["dnf"] = result_stat in (4, 6, 7)
@@ -1705,7 +1720,7 @@ def handle_event(data):
     elif code == "DTSV" and len(data) >= HEADER_SIZE + 5:
         push_rc("penserved", f"{_car_name(data[b])}: Drive Through Penalty abgeleistet")
     elif code == "SGSV" and len(data) >= HEADER_SIZE + 5:
-        push_rc("penserved", f"{_car_name(data[b])}: Stop-&-Go-Strafe abgeleistet")
+        push_rc("penserved", f"{_car_name(data[b])}: {STOPGO_SEK} Sek Strafe abgeleistet")
     elif code == "STLG" and len(data) >= HEADER_SIZE + 5:
         # Start-Ampel: kommt pro aufleuchtendem Licht (num = wie viele an sind)
         start_lights["num"] = data[b]

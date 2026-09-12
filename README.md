@@ -12,6 +12,43 @@ mehr. Jeder Baustein lässt sich einzeln abschalten und frei platzieren.
 
 ---
 
+## So sieht es aus
+
+![Das HUD im Rennen: Timing Tower, Trackmap und zwei Battle-Boxen](docs/screenshots/hud-rennen.png)
+
+Das HUD im Rennen: Timing Tower mit Strafen-Pillen, Überrundeten und Ausfällen,
+dazu die Trackmap und zwei Battle-Boxen.
+
+| Quali | WM-Stand |
+|:---:|:---:|
+| ![Quali mit Hotlap-Status, Eliminierungszone, Onboard und Hot-Lap-Boxen](docs/screenshots/hud-quali.png) | ![Rennen mit der Fahrerwertung, wie sie stünde, wenn das Rennen jetzt endet](docs/screenshots/hud-wm-stand.png) |
+| Hotlap-/Inlap-Status, Eliminierungszone, Onboard, Hot-Lap-Boxen — und wer in der Gefahrenzone steht | Die Fahrerwertung, wie sie stünde, wenn das Rennen jetzt endet |
+
+| Gap-Verlauf | Regie im Browser |
+|:---:|:---:|
+| ![Abstand jedes Fahrers zum Führenden über das ganze Rennen](docs/screenshots/hud-chart.png) | ![Die Regie-Seite mit Kamera-Tipp, Live-Tower, Battles und Rennleitung](docs/screenshots/regie.png) |
+| Abstand zum Führenden über das ganze Rennen, eingeblendet aus der Regie | `/regie` — Kamera-Tipp, Live-Tower, Battles, Rennleitung und WM-Projektion |
+
+<table>
+  <tr>
+    <th>Das Schaltbrett</th>
+    <th>Einstellungen im Browser</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/schaltbrett.png" width="300" alt="Das Schaltbrett: Server, HUD-Fenster, Layout und OBS"></td>
+    <td align="center"><img src="docs/screenshots/einstellungen.png" width="380" alt="Die Einstellungsseite mit Presets und einem Schalter je Baustein"></td>
+  </tr>
+  <tr>
+    <td align="center">Server starten, HUD an und aus, Layout bearbeiten, OBS</td>
+    <td align="center"><code>/settings</code> — Presets, und jeder Baustein einzeln schaltbar</td>
+  </tr>
+</table>
+
+> Die Overlay-Bilder zeigen das eingebaute Demo-Rennen (`kers_hud.py --demo`) —
+> erfundene Daten, keine Aufnahme aus dem Spiel.
+
+---
+
 ## Schnellstart
 
 1. Unter [Releases](https://github.com/KERSEX/KERS_Overlay/releases) die

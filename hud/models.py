@@ -413,7 +413,7 @@ class SettingsState(_StateBase):
     # im QML kaum auseinanderzuhalten - und ein Vertipper faellt dort nicht auf,
     # weil eine unbekannte Eigenschaft still `undefined` ist und die Bindung
     # danebengeht, statt zu scheitern.
-    showTrackNameChanged, showTrackName = _prop("showTrackName", bool, False)
+    showTrackNameChanged, showTrackName = _prop("showTrackName", bool, True)
     showTickerChanged, showTicker = _prop("showTicker", bool, True)
     dmgCritChanged, dmgCrit = _prop("dmgCrit", int, 60)
     # Platz der Trackmap (tc/tr/rc/bl/bc/br). Ohne diese Zeile kam die Auswahl

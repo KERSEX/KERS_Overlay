@@ -59,7 +59,7 @@ DEFAULT_CFG = {
     "penside": "left",
     "penhidefinish": True,
     "podiumstil": "flat",
-    "trackname": False,
+    "trackname": True,          # ab Werk an - gleiche Vorgabe wie in main.py
     "layout": {},
 }
 

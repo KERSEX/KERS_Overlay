@@ -285,6 +285,11 @@ class DemoFeed(QObject):
                 "is_quali": self._quali,
                 "current_lap": lap, "total_laps": 58,
                 "track_length": 5300, "track_id": 1,
+                # Name und Flaggenfarben so, wie der Server sie zu ID 1 schickt
+                # (TRACK_INFO in main.py). Ohne sie bliebe der Tower-Kopf in der
+                # Demo leer, obwohl "trackname" an ist - gezeigt wird nur, was kommt.
+                "track_name": "Paul Ricard",
+                "track_colors": ["#002395", "#FFFFFF", "#ED2939"],
                 "formula": 13, "formula_name": "F1 26",
                 "safety_car_status": sc_status,
                 # Quali-Uhr laeuft in 220-s-Runden von 200 auf 0. Kurz genug, dass

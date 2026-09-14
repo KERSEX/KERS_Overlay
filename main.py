@@ -324,9 +324,11 @@ DEFAULT_SETTINGS = {
     # wird, liegt nur Mikrosekunden an und faellt zwischen zwei Abfragen durch.
     # 60 ms sind rund vier Bilder und damit auch bei Rucklern sicher.
     "camholdms": 60,
-    # Streckennamen im OVERLAY zeigen (in der Regie steht er immer). Vorgabe aus:
-    # das Overlay ist das Sendebild, und was dort erscheint, entscheidet KERS.
-    "trackname": False,
+    # Streckennamen im OVERLAY zeigen (in der Regie steht er immer). Das Overlay
+    # ist das Sendebild, und was dort erscheint, entscheidet KERS - der hat es am
+    # 14.09.2026 so entschieden: ab Werk AN, ein Tower-Kopf ohne Strecke sah leer
+    # aus. Wer ihn nicht will, schaltet ihn in /settings ab.
+    "trackname": True,
     # Freies Layout, je Baustein {ecke, dx, dy, z}. LEER heißt "alles wie gehabt";
     # ein Baustein ohne Eintrag behält seine einprogrammierte Lage (siehe
     # LAYOUT_STANDARD oben).

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- KERS-VERSION: 0.0.1 — Regie-Panel
+<!-- KERS-VERSION: 0.0.9 — Regie-Panel (Twitch-Chat mit Mini-Stream im Seitenfach)
      Beim Aendern dieser Datei hochzaehlen. Wird in /settings angezeigt.
      ⚠ Der Marker wandert beim Kopieren test.html -> index.html mit. -->
 <html lang="de">
@@ -14,7 +14,10 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, -apple-system, sans-serif; background: radial-gradient(circle at 30% -10%, #1d2433, #0a0c11 70%);
-         color: #fff; padding: 14px; min-height: 100vh; }
+         color: #fff; padding: 14px; min-height: 100vh; overflow-x: hidden;
+         transition: padding-right 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
+  /* Twitch-Chat offen: der Hauptbereich rueckt ein, statt unter dem Fach zu liegen. */
+  body.chat-open { padding-right: 354px; }
   h1 { font-size: 20px; letter-spacing: 1px; }
   .sub { color: #8e8e9e; font-size: 12px; margin: 2px 0 14px; }
   .wrap { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
@@ -303,11 +306,126 @@
   .pc-row .pc-d.down { color: #ff5a5a; }
   .pc-foot { padding: 9px 12px; font-size: 12.5px; color: #9aa0aa; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }
   .pc-foot b { color: #ffcc00; font-variant-numeric: tabular-nums; }
+
+  /* ── Twitch Side-Drawer Styling ── */
+  #tcDrawer {
+    position: fixed; top: 0; right: 0; width: 340px; height: 100vh;
+    background: rgba(14, 14, 20, 0.96); border-left: 1px solid rgba(145, 70, 255, 0.3);
+    box-shadow: -8px 0 28px rgba(0,0,0,0.7); z-index: 9999;
+    display: flex; flex-direction: column;
+    transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(12px);
+  }
+  #tcDrawer.open { transform: translateX(0); }
+  
+  /* Kompakt-Badge Container oben rechts */
+  #tcBadgeGroup {
+    position: fixed; right: 0; top: 14px; z-index: 9998;
+    display: flex; gap: 5px; align-items: center;
+    transition: right 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #tcBadgeGroup.drawer-open { right: 340px; }
+
+  /* ⚠ flex/min-width zuruecksetzen: die allgemeine button-Regel oben gibt jedem Knopf
+     flex:1 und 120 px Mindestbreite - die Badges waren sonst so breit wie Schalter. */
+  .tc-badge-btn {
+    flex: none; min-width: 0;
+    background: #9146ff; color: #fff; border: none; border-radius: 8px 0 0 8px;
+    padding: 7px 8px; font-weight: 800; cursor: pointer;
+    box-shadow: -3px 2px 12px rgba(145, 70, 255, 0.45);
+    transition: background .15s, transform .05s;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  }
+  .tc-badge-btn:hover { background: #772ce8; }
+  .tc-badge-btn.active { background: #e10600; box-shadow: -3px 2px 12px rgba(225, 6, 0, 0.45); }
+  .tc-badge-btn .tc-icon { width: 16px; height: 16px; flex-shrink: 0; }
+  .tc-badge-btn span { font-size: 9px; line-height: 1; opacity: 0.9; }
+
+  .tc-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(145,70,255,0.1); }
+  .tc-head h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px; color: #a970ff; display: flex; align-items: center; gap: 6px; }
+  .tc-head h3 svg { width: 14px; height: 14px; fill: currentColor; }
+  .tc-close { background: none; border: none; color: #9aa0aa; font-size: 16px; cursor: pointer; padding: 2px 6px; flex: none; min-width: auto; }
+  .tc-close:hover { color: #fff; }
+
+  .tc-bar { padding: 10px 12px; display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.2); }
+  #tcInput { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; color: #fff; padding: 8px 10px; font-size: 12.5px; flex: 1; min-width: 0; }
+  #tcInput:focus { border-color: #9146ff; outline: none; }
+  #tcBtn { flex: none; min-width: auto; padding: 8px 12px; font-size: 12px; font-weight: 700; background: #9146ff; border: 1px solid #9146ff; color: #fff; border-radius: 6px; cursor: pointer; }
+  #tcBtn:hover { background: #772ce8; }
+
+  /* ── Stream Box (oben direkt über dem Chat-Verlauf) ── */
+  #tcStreamBox {
+    display: none; width: 100%; background: #000;
+    border-bottom: 1px solid rgba(145, 70, 255, 0.3); flex-shrink: 0;
+  }
+  .tc-stream-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 10px; background: rgba(145, 70, 255, 0.15); border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 11px; font-weight: 700; color: #a970ff;
+  }
+  .tc-stream-head span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tc-stream-body { width: 100%; aspect-ratio: 16 / 9; background: #000; }
+  #tcStreamIframe { width: 100%; height: 100%; border: none; display: block; }
+
+  #tcBody { flex: 1; width: 100%; position: relative; background: #0e0e14; min-height: 0; }
+  #tcIframe { width: 100%; height: 100%; border: none; display: none; }
+
+  /* ⚠ Handy: das Fach ist 340 px breit, der Bildschirm kaum mehr. Einruecken hiesse,
+     die Regie auf ein paar Pixel zusammenzuschieben - hier legt sich das Fach
+     stattdessen ueber die ganze Breite, geschlossen wird es oben mit dem ✕. */
+  @media (max-width: 760px) {
+    body.chat-open { padding-right: 14px; }
+    #tcDrawer { width: 100%; }
+    #tcBadgeGroup.drawer-open { right: 0; }
+  }
 </style>
 </head>
 <body>
 <h1>KERS Regie</h1>
 <div class="sub">Live-Tower links, Steuerung rechts. Läuft übers Netz — auch vom Handy.</div>
+
+<!-- Ausklappbarer Twitch-Chat (Side-Drawer rechts) -->
+<div id="tcDrawer">
+  <div class="tc-head">
+    <h3>
+      <svg viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143h-1.715zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+      Twitch Chat
+    </h3>
+    <button class="tc-close" id="tcCloseBtn" title="Chat einklappen">✕</button>
+  </div>
+  <div class="tc-bar">
+    <input id="tcInput" type="text" placeholder="Kanalname oder Link (z.B. twitch.tv/WTV_Live)">
+    <button id="tcBtn">Laden</button>
+  </div>
+  
+  <!-- Mini Live-Stream (oben direkt über dem Chat-Verlauf) -->
+  <div id="tcStreamBox">
+    <div class="tc-stream-head">
+      <span id="tcStreamTitle">Live-Stream</span>
+      <button class="tc-close" id="tcStreamCloseBtn" title="Video-Stream ausblenden">✕</button>
+    </div>
+    <div class="tc-stream-body">
+      <iframe id="tcStreamIframe" src="" allowfullscreen></iframe>
+    </div>
+  </div>
+
+  <div id="tcBody">
+    <div id="tcPlaceholder" class="empty" style="padding: 24px 16px; text-align: center;">Kanalnamen oder Twitch-Link eingeben & „Laden“ drücken.</div>
+    <iframe id="tcIframe" src=""></iframe>
+  </div>
+</div>
+
+<!-- Badge Group ganz oben rechts: [LIVE Stream] & [Chat Toggle] -->
+<div id="tcBadgeGroup">
+  <button class="tc-badge-btn" id="tcStreamToggleBtn" title="Mini-Stream (Video) über dem Chat umschalten">
+    <svg class="tc-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>
+    <span>LIVE</span>
+  </button>
+  <button class="tc-badge-btn" id="tcToggleBtn" title="Twitch Chat umschalten">
+    <svg class="tc-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143h-1.715zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+    <span id="tcArrow">◀</span>
+  </button>
+</div>
 
 <div class="card" id="deCard"><h2>Director's Eye — Kamera-Tipp<span id="camNow">🎥 —</span></h2>
   <div id="deList"><div class="empty">warte auf Daten…</div></div>
@@ -1593,6 +1711,114 @@ document.getElementById("compactBtn").addEventListener("click", () => {
   applyCompact();
 });
 applyCompact();
+
+// ── Twitch-Chat mit Mini-Stream im Seitenfach ────────────────────────────────
+// Rechts ausklappbar; der Kanal bleibt im Browser gespeichert (localStorage), damit
+// er nach dem Neuladen wieder da ist. Chat und Stream sind Twitch-Einbettungen.
+// ⚠ Twitch verlangt im Einbett-Link "parent" = der Rechnername, unter dem DIESE
+// Seite geoeffnet wurde - deshalb location.hostname und nichts Festes: vom PC ist
+// das 127.0.0.1, vom Handy die IP des Rechners. Der Stream startet stumm.
+function parseTwitchChannel(raw) {
+  let str = (raw || "").trim();
+  if (!str) return "";
+  str = str.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  const match = str.match(/(?:www\.)?twitch\.tv\/([a-zA-Z0-9_]{3,25})/i);
+  if (match) return match[1];
+  return str.split("/")[0].replace(/[^a-zA-Z0-9_]/g, "");
+}
+
+function initTwitchDrawer() {
+  const drawer = document.getElementById("tcDrawer");
+  const badgeGroup = document.getElementById("tcBadgeGroup");
+  const toggleBtn = document.getElementById("tcToggleBtn");
+  const streamToggleBtn = document.getElementById("tcStreamToggleBtn");
+  const closeBtn = document.getElementById("tcCloseBtn");
+  const input = document.getElementById("tcInput");
+  const btn = document.getElementById("tcBtn");
+  const iframe = document.getElementById("tcIframe");
+  const placeholder = document.getElementById("tcPlaceholder");
+  const arrow = document.getElementById("tcArrow");
+
+  const streamBox = document.getElementById("tcStreamBox");
+  const streamIframe = document.getElementById("tcStreamIframe");
+  const streamCloseBtn = document.getElementById("tcStreamCloseBtn");
+  const streamTitle = document.getElementById("tcStreamTitle");
+
+  let currentChannel = "";
+
+  function getHost() {
+    let host = window.location.hostname;
+    return (!host || host === "") ? "localhost" : host;
+  }
+
+  function toggleDrawer(open) {
+    const isOpened = open !== undefined ? open : !drawer.classList.contains("open");
+    drawer.classList.toggle("open", isOpened);
+    badgeGroup.classList.toggle("drawer-open", isOpened);
+    document.body.classList.toggle("chat-open", isOpened);
+    if (arrow) arrow.textContent = isOpened ? "▶" : "◀";
+  }
+
+  function loadChatAndStream(chanInput) {
+    const channel = parseTwitchChannel(chanInput);
+    currentChannel = channel;
+    if (!channel) {
+      iframe.style.display = "none";
+      iframe.src = "";
+      placeholder.style.display = "block";
+      if (streamIframe) streamIframe.src = "";
+      if (streamBox) streamBox.style.display = "none";
+      if (streamToggleBtn) streamToggleBtn.classList.remove("active");
+      return;
+    }
+    const host = getHost();
+    localStorage.setItem("kers_twitch_channel", channel);
+    input.value = channel;
+    iframe.src = `https://www.twitch.tv/embed/${encodeURIComponent(channel)}/chat?parent=${encodeURIComponent(host)}&darkpopout`;
+    iframe.style.display = "block";
+    placeholder.style.display = "none";
+
+    if (streamBox && streamBox.style.display === "block") {
+      updateStreamIframe(channel);
+    }
+  }
+
+  function updateStreamIframe(channel) {
+    if (!channel) return;
+    const host = getHost();
+    streamIframe.src = `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${encodeURIComponent(host)}&muted=true`;
+    if (streamTitle) streamTitle.textContent = "Live: " + channel;
+  }
+
+  function toggleStreamBox(show) {
+    toggleDrawer(true); // Drawer immer öffnen, wenn Stream gedrückt wird
+    const isVisible = show !== undefined ? show : (streamBox.style.display !== "block");
+    if (isVisible) {
+      if (!currentChannel) {
+        input.focus();
+        return;
+      }
+      updateStreamIframe(currentChannel);
+      streamBox.style.display = "block";
+      streamToggleBtn.classList.add("active");
+    } else {
+      streamIframe.src = "";
+      streamBox.style.display = "none";
+      streamToggleBtn.classList.remove("active");
+    }
+  }
+
+  if (toggleBtn) toggleBtn.addEventListener("click", () => toggleDrawer());
+  if (streamToggleBtn) streamToggleBtn.addEventListener("click", () => toggleStreamBox());
+  if (closeBtn) closeBtn.addEventListener("click", () => toggleDrawer(false));
+  if (streamCloseBtn) streamCloseBtn.addEventListener("click", () => toggleStreamBox(false));
+  if (btn) btn.addEventListener("click", () => loadChatAndStream(input.value));
+  if (input) input.addEventListener("keydown", e => { if (e.key === "Enter") loadChatAndStream(input.value); });
+
+  const saved = localStorage.getItem("kers_twitch_channel");
+  if (saved) loadChatAndStream(saved);
+}
+initTwitchDrawer();
 
 // ── K14: Datenanbindung — SSE (Push) mit Polling-Fallback ────────────────────
 // Der Stream liefert drivers + session + regie + settings in EINEM Payload, also

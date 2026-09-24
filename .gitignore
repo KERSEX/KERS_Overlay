@@ -50,3 +50,11 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# ── C++-Fassung (ab 0.3.0) ────────────────────────────────────────────────────
+# CMake/Ninja-Ausgaben (build/ und dist/ stehen schon oben)
+/build-debug/
+CMakeUserPresets.json
+*.user
+# Nutzerdaten im Dev-Betrieb (data\ neben der EXE)
+/data/

@@ -10,6 +10,11 @@ mehr. Jeder Baustein lässt sich einzeln abschalten und frei platzieren.
 > Nur **F1 26** (UDP-Format „2026"). Ältere Spiele senden ein anderes Format und
 > werden nicht gelesen.
 
+**Seit 0.3.0 in C++.** Server und HUD laufen als *ein* Programm: eine einzelne
+`KERS_Subsystems.exe` von rund 57 MB statt 243 MB, ohne Python, ohne Chromium,
+ohne zweiten Prozess. Einstellungen, WM-Stände und Fensterlage aus 0.2.x werden
+unverändert weiterbenutzt — siehe [Neu in 0.3.0](#neu-in-030).
+
 ---
 
 ## So sieht es aus
@@ -44,7 +49,7 @@ dazu die Trackmap und zwei Battle-Boxen.
   </tr>
 </table>
 
-> Die Overlay-Bilder zeigen das eingebaute Demo-Rennen (`kers_hud.py --demo`) —
+> Die Overlay-Bilder zeigen das eingebaute Demo-Rennen (`KERS_Subsystems.exe --demo`) —
 > erfundene Daten, keine Aufnahme aus dem Spiel.
 
 ---
@@ -58,8 +63,11 @@ dazu die Trackmap und zwei Battle-Boxen.
    * UDP Format: **2026**
    * IP: `127.0.0.1`, Port: `20777`
    * Fahrer `Spielernamen: AN`
-3. `KERS_Subsystems.exe` starten. Es öffnet sich das Schaltbrett *KERS Subsystems*.
-4. Dort **Start Server** drücken, dann **HUD IST AN**.
+3. `KERS_Subsystems.exe` starten. Es öffnet sich das Schaltbrett *KERS Subsystems*,
+   der Server läuft dabei schon mit.
+4. Beim ersten Start fragt die Windows-Firewall, ob das Programm im Netzwerk
+   erreichbar sein darf. Für Handy und zweiten PC (Regie, Settings) **Private
+   Netzwerke** erlauben; nur am eigenen Rechner geht es auch ohne.
 
 Beim ersten Start legt die EXE daneben einen Ordner `data\` an. Dort liegen alle
 deine Daten — Einstellungen, Fensterlage, WM-Stände, Aufzeichnungen. Die EXE
@@ -75,7 +83,9 @@ während es über dem Bild liegt. Entsperrt lässt es sich verschieben und in de
 Größe ändern.
 
 **Das Schaltbrett** ist die Steuerung: Server starten und stoppen, HUD an und aus,
-sperren, auf den Bildschirm legen, Deckkraft, Renderer und Layout.
+sperren, auf den Bildschirm legen, Layout, OBS und Updates. Der Knopf **Log**
+zeigt, was Server und HUD melden — das, was früher im Konsolenfenster des
+Servers stand. Dieselben Zeilen stehen in `data\kers.log`.
 Es hat außerdem ein Symbol im Infobereich der Taskleiste.
 
 ---
@@ -123,7 +133,7 @@ Anordnung unter einem Namen und holst sie mit einem Klick zurück — z.B. eine 
 Rennen und eine für die Quali. Gesichert wird nur das Layout: Ankerpunkt, Versatz,
 Ebene und Größe je Baustein. Farben, Deckkraft und Schalter bleiben unberührt,
 dafür sind die *Presets* ganz oben da. Die Layouts liegen auf dem Server
-(`layouts.json` neben der .exe), sind also auch vom Handy aus da.
+(`data\layouts.json`), sind also auch vom Handy aus da.
 
 **Zurück auf Anfang:** der Knopf **Standard Layout** neben *Layout bearbeiten*
 stellt alle Bausteine wieder an ihren eingebauten Platz. Das betrifft nur die
@@ -159,61 +169,103 @@ wegfilterst.
 
 Beim Start sieht das Programm still nach, ob es eine neuere Fassung gibt, und
 meldet sich mit einem Knopf. Der Download wird gegen Größe und SHA-256 geprüft,
-bevor er die laufende Datei ersetzt; die alte bleibt als Rückfallebene liegen.
-Du kannst im Schaltbrett auch gezielt eine andere Fassung wählen.
+bevor er die laufende Datei ersetzt; die alte bleibt als Rückfallebene liegen,
+bis die neue einmal gestartet ist. Du kannst im Schaltbrett auch gezielt eine
+andere Fassung wählen — auch zurück auf eine Python-Fassung 0.2.x.
+
+Von 0.2.6 kommt man ganz normal über den Update-Knopf auf 0.3.0. Die C++-Fassung
+räumt beim ersten Start die alte 243-MB-Datei (`KERS_Subsystems.exe.bak`) weg.
 
 ---
 
-## Aus dem Quelltext starten
+## Neu in 0.3.0
 
-Gebraucht wird **Python 3.13** (damit wird entwickelt und gebaut).
+* **Ein Programm statt zwei.** Der Server läuft im selben Prozess wie das HUD.
+  Das HUD bekommt seine Daten direkt, Browser, Handy und OBS weiter über
+  `http://<PC>:5100`. Ein eigenes Konsolenfenster gibt es nicht mehr, dafür das
+  Log im Schaltbrett.
+* **Der Server startet mit.** Abschalten lässt sich das in `data\hud_state.json`
+  mit `"server_autostart": false` oder beim Start mit `--no-server`. Die Knöpfe
+  *Start Server* und *Stop Server* bleiben.
+* **Kein Browser geht mehr von selbst auf.** Regie und Settings öffnest du über die
+  Knöpfe im Schaltbrett.
+* **Die Renderer-Auswahl ist weg.** Das HUD ist nur noch die QML-Szene; die alten
+  HTML-Seiten gibt es weiter als Browserquelle.
+* **Trackmap nach Session-Wechsel.** Bisher war die Karte einer bekannten Strecke
+  nach dem Wechsel von der Quali ins Rennen leer, bis man die Strecke wechselte.
+  Jetzt bleibt sie stehen.
+* **Eine Quelle auf dem UDP-Port.** Der Server belegt Port 20777 exklusiv. Läuft
+  noch ein zweiter Server (z.B. die alte Python-Fassung), meldet das Schaltbrett
+  „Port belegt", statt dass sich zwei Programme die Pakete teilen.
+
+---
+
+## Aus dem Quelltext bauen
+
+C++20 mit Qt 6.11, statisch gelinkt — das Ergebnis ist eine einzelne EXE ohne DLLs.
+Das Werkzeug liegt portabel unter `D:\Tools` und `D:\Qt`, installiert wird nichts:
+
+| Was | Wo |
+|---|---|
+| LLVM-MinGW (clang, lld) | `D:\Tools\llvm-mingw` |
+| CMake, Ninja | `D:\Tools\cmake`, `D:\Tools\ninja` |
+| Qt 6.11.2 statisch (qtbase, qtshadertools, qtdeclarative) | `D:\Qt\6.11.2-static` |
+
+Das statische Qt baut `tools\build_qt_static.cmd` einmalig aus den Quellen
+(rund 15 Minuten). Danach:
 
 ```bat
-run.bat
+packaging\build.bat
 ```
 
-Legt beim ersten Mal eine `venv` an, installiert `requirements.txt` und startet
-den Server auf Port 5100. Danach ist das Overlay im Browser erreichbar.
+Ergebnis: `build\KERS_Subsystems.exe`. Die Tests laufen mit
 
 ```bat
-start_hud.bat
+packaging\env.bat
+ctest --test-dir build --output-on-failure
 ```
 
-Startet das Desktop-HUD samt Schaltbrett. Dass sich das Konsolenfenster gleich
-wieder schließt, ist normal — das HUD läuft ohne eigene Konsole weiter. Den Server
-kannst du danach im Schaltbrett per Knopf starten.
+Für eine Veröffentlichung legt `packaging\release.bat` die EXE samt SHA-256 in
+`dist\` ab.
 
-Einmalig für das QML-Overlay: `python tools\woff2_to_ttf.py` erzeugt die
-TTF-Schriften. Qt kann keine woff2-Dateien lesen.
+**Startoptionen**
 
-Abhängigkeiten: `flask`, `requests` für den Server, `PySide6` zusätzlich für das
-HUD (bringt QtWebEngine mit, daher der größere Download beim ersten Mal).
+| Option | Wirkung |
+|---|---|
+| `--demo` / `--demo quali` | erfundenes Rennen, ohne Spiel und ohne Server |
+| `--url http://…:5100` | keinen eigenen Server starten, sondern einen anderen beobachten |
+| `--server` | nur der Server, ohne HUD (mit Tray-Icon) |
+| `--no-server` | den eingebauten Server nicht automatisch starten |
+| `--port N`, `--udp-port N` | andere Ports (Vorgabe 5100 und 20777) |
+| `--obs`, `--chroma`, `--unlocked`, `--no-panel`, `--hz N` | wie bisher |
+| `--qml-dir <Ordner>` | die Szene aus Dateien statt aus der EXE laden — zum Bauen am QML |
+
+Der Golden-Vergleich mit der Python-Fassung liegt in `tests\golden\`: eine
+`.f1rec`-Aufnahme läuft einmal durch `main.py` und einmal durch `kers_replay`,
+`vergleich.py` legt die Ergebnisse nebeneinander.
 
 ---
 
 ## Aufbau
 
 ```
-main.py                 Flask-Server + UDP-Parser (F1 26 / Format 2026)
-templates/, static/     Das Overlay als Webseite, Regie und Einstellungen
-livery.py               Team- und Fahrerfarben
-championship.json       WM-Stand
-hud/
-  kers_hud.py           Startpunkt des Desktop-HUD
-  subsystems_panel.py   Das Schaltbrett
-  qml_overlay.py        Das Always-on-Top-Fenster
-  qml/                  Die Overlay-Szene
-  bridge.py             Server -> Szene
-  derive.py, parts.py   Die Rechnerei hinter den Bausteinen
-  updater.py            Selbst-Update über GitHub Releases
-  README.md             Ausführliche Technik-Notizen zum HUD
-tools/                  Hilfsskripte
+src/server/     UDP-Parser, Rennzustand, HTTP/SSE-Server, Routen, Recorder,
+                Kamera-Tasten, Streckenkonturen, Settings    (früher main.py)
+src/hud/        Theme, Modelle, Bausteine, Datenstrom, HUD- und OBS-Fenster
+                                                              (früher hud/*.py)
+src/app/        main.cpp, Schaltbrett, Tray, Updater, Log-Fenster
+src/common/     Pfade (data\), JSON-Dateien, Log, hud_state.json
+hud/qml/        die Overlay-Szene — dieselben QML-Dateien wie in 0.2.x
+templates/, static/   Web-Overlay, Regie und Einstellungen — in die EXE eingebettet
+tests/          Qt-Tests (ctest) und der Golden-Vergleich
+main.py, hud/*.py     die Python-Fassung 0.2.6, nur noch als Vorlage
 ```
 
 Ports: **5100** für die Weboberfläche, **20777** für die UDP-Pakete des Spiels.
 
 > Beim Testen darf nur **eine** Quelle auf 20777 senden — entweder das echte Spiel
-> oder ein Testsender. Sonst mischen sich die Daten.
+> oder ein Testsender. Sonst mischen sich die Daten. `Test\test.py --port 20778`
+> schickt an einen anderen Port.
 
 ---
 
@@ -231,9 +283,23 @@ Browserquelle in OBS der bessere Weg.
 **OBS findet das Fenster nicht.** *In OBS auffindbar* einschalten. Dafür erscheint
 das HUD dann auch in der Taskleiste.
 
+**„Port belegt" beim Start.** Auf 5100 oder 20777 läuft schon etwas — meist die
+alte Python-Fassung (`main.exe` bzw. `main.py`) oder ein zweites KERS. Das andere
+Programm beenden, dann im Schaltbrett **Start Server**.
+
+**Handy erreicht die Regie nicht.** Beim ersten Start hat die Windows-Firewall
+gefragt; wurde dort abgelehnt, in den Firewall-Einstellungen
+`KERS_Subsystems.exe` für *Private Netzwerke* freigeben.
+
 ---
 
 ## Lizenz und Zugehörigkeit
 
 Privates Projekt, kein offizielles Produkt von EA oder Codemasters. Alle Marken
 gehören ihren jeweiligen Eigentümern.
+
+Der eigene Quelltext steht unter der MIT-Lizenz (`LICENSE.txt`). Die EXE enthält
+statisch gelinkt **Qt 6** (LGPL-3.0, https://www.qt.io/licensing) und dessen
+mitgelieferte Bibliotheken (zlib, libpng, libjpeg, FreeType, HarfBuzz, PCRE2).
+Weil der gesamte Quelltext offen liegt, lässt sich die EXE mit einer anderen
+Qt-Fassung neu bauen, wie es die LGPL verlangt.

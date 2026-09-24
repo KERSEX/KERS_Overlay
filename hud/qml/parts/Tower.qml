@@ -32,8 +32,14 @@ Item {
     // Spalten mit Breite 0 aus, und contentWidth zaehlt sie nicht mit.
     // Name, Reifen und Luecke bekommen dafuer wieder ihre Rennbreiten: sie waren
     // nur geschrumpft, um Platz fuer die Sektoren zu schaffen.
-    readonly property var cols: quali ? [36, 48, 169, 90, 90, 90, 0, 86]
-                                      : [36, 48, 169, 90, 90, 90, 0, 44]
+    //
+    // Name 182 statt 169 (22.09.2026, KERS: Namen dicker/groesser - jetzt 18 px Bold
+    // statt 17 px DemiBold, siehe TowerRow.qml). Die 13 px sind genau der Rest, der
+    // im Rennen zwischen den Spalten (615) und dem Boden von 628 frei war: der
+    // Renn-Tower wird dadurch NICHT breiter, nur der in der Quali um 13 px. Ohne das
+    // wuerde ein langer Online-Name wie "MIDWEEKDREAD20" jetzt abgeschnitten.
+    readonly property var cols: quali ? [36, 48, 182, 90, 90, 90, 0, 86]
+                                      : [36, 48, 182, 90, 90, 90, 0, 44]
 
     readonly property real contentWidth: {
         var w = 24;                       // padding: 0 12px
@@ -52,8 +58,8 @@ Item {
     // Panel, also 75 px tote Flaeche rechts neben der Status-Spalte. Jetzt
     // bestimmt in der Quali der Inhalt die Breite.
     //
-    // Der Rennen-Boden von 628 BLEIBT: dort fuellen die Spalten 615 px, und die
-    // 13 px Rest sind die Aufteilung, die so aussehen soll. Im Web-Overlay
+    // Der Rennen-Boden von 628 BLEIBT: seit dem breiteren Namen fuellen die
+    // Spalten ihn genau (vorher 615 px mit 13 px Rest). Im Web-Overlay
     // bleibt 732 ebenfalls richtig - dort gibt es die Sektoren noch.
     readonly property real panelWidth: Math.max(628, contentWidth)
 

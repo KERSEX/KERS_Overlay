@@ -1,21 +1,43 @@
 # KERS HUD — Overlay als Desktop-Fenster
 
-> **Das Overlay ist von HTML nach QML umgezogen.** Der QML-Renderer ist die Vorgabe,
-> **alle 15 Bausteine sind portiert**. Die HTML-Seiten bleiben vorerst bestehen und
-> sind im Schaltbrett unter „Renderer" weiter erreichbar — zum Vergleichen und als
-> Rückfallebene. Siehe [Umbau auf QML](#umbau-auf-qml).
+> **Seit 0.3.0 ist das HUD C++.** Diese Notizen beschreiben an vielen Stellen noch
+> die Python-Fassung 0.2.6 (`hud/*.py`) — deren Aufbau hat die C++-Fassung Datei
+> für Datei übernommen, die Begründungen gelten weiter. Die QML-Szene in `hud/qml/`
+> ist unverändert dieselbe. Was sich geändert hat, steht gleich hier; der Rest ist
+> als Hintergrund stehen geblieben.
 
-> **Wichtigster Befund zum Speicherverbrauch — siehe [Sparfassung](#sparfassung-opti) unten.**
-> Die 2–3 GB kamen von zwei `requestAnimationFrame`-Dauerschleifen im Overlay-HTML.
-> Gemessen: `/test` wächst um **86 MB/min (≈ 5 GB/Stunde, kein Plateau)**, `/opti` bleibt
-> flach bei ~313 MB. Das betrifft **auch OBS**, nicht nur das HUD.
+### Wo die Python-Module in C++ gelandet sind
 
+| Python (0.2.6) | C++ (0.3.0) |
+|---|---|
+| `kers_hud.py` | `src/app/main.cpp` |
+| `subsystems_panel.py` | `src/app/subsystems_panel.cpp`, dazu `log_view.cpp` |
+| `updater.py` | `src/app/updater.cpp` |
+| `api_client.py` | `src/app/server_control.cpp` (`RemoteStatus` bzw. `LocalServer`) |
+| `common.py` | `src/common/` (Pfade, `hud_state.json`, Log) und `src/app/icon.cpp` |
+| `qml_overlay.py` | `src/hud/hud_window.cpp` |
+| `obs_window.py` | `src/hud/obs_window.cpp` |
+| `bridge.py` | `src/hud/bridge.cpp` |
+| `feed.py` | `src/hud/sse_feed.cpp` (Remote) und `src/app/local_link.cpp` (im Prozess) |
+| `derive.py`, `models.py`, `parts.py`, `extras.py` | gleichnamige Dateien in `src/hud/` |
+| `theme.py`, `demo.py` | `src/hud/theme.cpp`, `src/hud/demo_feed.cpp` |
+| `overlay_window.py` (Renderer „web") | entfällt |
+| `main.py` (Server) | `src/server/` |
 
-Ordner 3 = die vollständige NG-Version aus Ordner 1 **plus** das HUD aus Ordner 2.
-Am Server (`main.py`), an `templates/` und an `static/` wurde **nichts** geändert —
-das HUD hängt nur als weiterer Client dran.
+### Was sich gegenüber 0.2.6 geändert hat
 
-## Was dazugekommen ist
+* **Der Server läuft im selben Prozess.** Das HUD holt seine Daten direkt
+  (`LocalFeed`, `LocalDataSource`) — kein HTTP, kein SSE, gleicher Takt und
+  dieselbe Regel „senden bei neuen UDP-Daten, sonst einmal pro Sekunde". Mit
+  `--url` hängt es wie früher per SSE an einem fremden Server.
+* **Der Renderer „web" ist weg**, mit ihm die Seitenauswahl, Zoom, `--web`,
+  `--page`, `--no-gpu` und `--devtools`. `page`, `renderer` und `zoom` in einer alten
+  `hud_state.json` werden beim Laden überlesen.
+* **Kein Konsolenfenster.** Die Meldungen stehen im Log-Fenster (Knopf *Log*) und
+  in `data\kers.log`.
+* **Schriften** kommen weiter aus `static/fonts/ttf/`, jetzt aus der EXE (qrc).
+
+## Was dazugekommen ist (Python-Fassung 0.2.6)
 
 ```
 3/
@@ -53,31 +75,33 @@ das HUD hängt nur als weiterer Client dran.
 
 ## Starten
 
-```bash
-start_hud.bat
+```bat
+KERS_Subsystems.exe
 ```
 
-Den Server kannst du danach direkt im Schaltbrett per Knopf starten — oder wie bisher
-mit `run.bat`. Beim allerersten Mal muss `run.bat` einmal laufen, weil es die `venv`
-anlegt und `requirements.txt` installiert (jetzt inkl. PySide6, ~80 MB, einmalig).
+Schaltbrett, HUD und Server gehen zusammen auf. Aus dem Quelltext:
+`packaging\build.bat`, dann `build\KERS_Subsystems.exe` (siehe README im
+Hauptordner).
 
-Optionen: `--qml` / `--web` (Renderer), `--demo` bzw. `--demo quali` (erfundenes Rennen
-ohne Server), `--obs` (Aufnahmefenster gleich mit öffnen), `--chroma`, `--unlocked`,
-`--no-panel`, `--page /test` (Spielwiese, nur `--web`), `--no-gpu` (falls der
-Hintergrund schwarz statt durchsichtig bleibt).
+Optionen: `--demo` bzw. `--demo quali` (erfundenes Rennen ohne Server), `--obs`
+(Aufnahmefenster gleich mit öffnen), `--chroma`, `--unlocked`, `--no-panel`, `--hz N`,
+`--url <Server>` (fremden Server beobachten statt eigenen starten), `--server` (nur
+der Server), `--no-server`, `--port`, `--udp-port`, `--qml-dir <Ordner>` (Szene aus
+Dateien laden, damit „Neu laden" beim Arbeiten am QML greift), `--shot <png>` (nach
+`--shot-delay` ms ein Bild der Szene sichern und beenden).
 
-```bash
-start_hud.bat --demo
+```bat
+KERS_Subsystems.exe --demo
 ```
 
 Der Demo-Modus erzeugt ein vollständiges Rennen aus dem Nichts: 22 Fahrer (11 Teams
 wie ab 2026, inklusive Cadillac), die sich überholen, Boxenstopps, Schaden, Strafen,
 Rennleitungs-Meldungen, Kamerawechsel, eine erfundene Strecke für die Trackmap und im
 Wechsel Safety Car, VSC und rote Flagge. Damit lässt sich am Overlay arbeiten, ohne
-auf ein echtes Rennen zu warten — und ohne dass `main.py` überhaupt läuft.
+auf ein echtes Rennen zu warten — und ohne dass der Server überhaupt läuft.
 
-**Die echten Settings werden mitgelesen.** Gibt es `overlay_settings.json` neben
-`main.py`, legt der Demo-Modus sie über seine Vorgaben. Branding, Logo, Deckkraft und
+**Die echten Settings werden mitgelesen.** Gibt es `data\overlay_settings.json`,
+legt der Demo-Modus sie über seine Vorgaben. Branding, Logo, Deckkraft und
 Skalierung sehen also genauso aus wie im Betrieb — man kann sein Logo damit vorschauen,
 ohne den Server zu starten.
 
@@ -329,12 +353,13 @@ roten Rahmen und lässt sich ziehen und an den Ecken skalieren (Doppelklick = sp
 
 | | |
 |---|---|
-| Statuszeile + **Server starten / Server stoppen** | `main.py` in einem eigenen Konsolenfenster |
+| Statuszeile + **Server starten / Server stoppen** | der eingebaute Server (läuft ab Start mit) |
 | großer Hauptschalter | HUD an/aus (grün = an) |
 | **Bildschirm füllen** / Zentrieren / Neu laden | |
-| HUD-Fenster | sperren, **Renderer**, Seite, Overlay-Hz, X/Y/Breite/Höhe, Fenster immer vorn |
+| HUD-Fenster | sperren, Overlay-Hz, X/Y/Breite/Höhe, Fenster immer vorn |
 | **OBS** | eigenes OBS-Fenster + Canvas-Größe, Schlüsselfarbe; darunter die zwei Schalter fürs HUD-Fenster selbst |
-| Regie öffnen / Settings öffnen | öffnen im Browser |
+| Regie / Settings / Nach Update suchen / **Log** | Seiten im Browser, Update-Suche, Meldungen von Server und HUD |
+| Version | andere Fassung laden (auch zurück auf 0.2.x) |
 | **ALLES BEENDEN** | Server beenden, HUD schließen, Subsystems beenden |
 
 **Tray-Icon** — die Notbremse, wenn das HUD gesperrt und das Schaltbrett zu ist:
@@ -374,32 +399,22 @@ Fenster zumachen beendet nichts, es blendet nur aus.
 
 ## Server starten und stoppen
 
-**Starten** führt `main.py` mit dem venv-Python in einem **eigenen Konsolenfenster** aus —
-bewusst sichtbar, nicht still im Hintergrund: dort landen die Meldungen, und genau die
-willst du sehen, wenn z. B. UDP 20777 schon von `testgui.py` oder einer zweiten Instanz
-belegt ist. Der Knopf ist gesperrt, solange der Server erreichbar ist, damit nicht
-versehentlich eine zweite Instanz startet.
+Der Server ist Teil des Programms. Er startet mit (abschaltbar mit
+`"server_autostart": false` in `data\hud_state.json` oder `--no-server`), und
+**Stop Server** / **Start Server** schließen bzw. öffnen nur seine Ports — das HUD
+läuft weiter und zeigt „keine Verbindung", bis der Server wieder da ist.
 
-**Stoppen** ist zweistufig, weil `main.py` keinen Endpunkt zum Herunterfahren hat — der
-Prozess muss also beendet werden:
+Ist ein Port belegt, startet der Server nicht und das Schaltbrett sagt es:
+Knopf „Start Server (Port belegt?)", Hinweis im Tray, Zeile im Log. Meist läuft
+dann noch die alte Python-Fassung oder ein zweites KERS. Den UDP-Port belegt der
+Server **exklusiv** — zwei Programme, die sich die Pakete des Spiels teilen, soll
+es nicht mehr geben.
 
-| Fall | was passiert |
-|---|---|
-| von hier gestartet | wird sofort beendet (`taskkill /T`, das Konsolenfenster hängt mit dran) |
-| fremd gestartet (run.bat, eigenes Terminal) | wird über den Port gesucht, Rückfrage mit PID, erst dann beendet |
-| Prozess auf dem Port ist kein Python | Warnung, es wird **nichts** beendet |
+Die frühere Stopp-Logik über `netstat` und `taskkill` gibt es nicht mehr: es ist
+kein fremder Prozess mehr zu beenden.
 
-Die Rückfrage beim fremden Prozess ist Absicht: erkannt wird er nur daran, dass er auf
-Port 5100 lauscht — theoretisch könnte da etwas anderes sitzen.
-
-**ALLES BEENDEN** macht beides auf einmal: eine Rückfrage (die sagt, was genau dran
-glauben muss), dann Server beenden, HUD schließen und Subsystems beenden. Läuft kein
-Server, wird nur das HUD beendet.
-
-> Die Port-Suche liest `netstat -ano` und wertet die Statusspalte **bewusst nicht** aus:
-> auf deinem deutschen Windows steht dort „ABHÖREN" statt „LISTENING". Erkannt wird ein
-> lauschender Socket stattdessen daran, dass die Gegenstelle Port 0 hat — das ist in jeder
-> Sprache gleich.
+**ALLES BEENDEN** macht beides auf einmal: eine Rückfrage, dann Server beenden, HUD
+schließen und Subsystems beenden.
 
 ## „Bildschirm füllen" sperrt mit Absicht
 

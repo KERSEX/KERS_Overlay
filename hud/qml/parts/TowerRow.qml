@@ -76,9 +76,9 @@ Item {
 
     readonly property bool isLeader: position === 1 && !quali && !dnf && !dsq
     readonly property bool podium: position >= 1 && position <= 3
-    /** Metallverlauf auf den Podiumszahlen? Umschaltbar in /settings; die
-     *  Vorgabe ist AUS, weil der Verlauf bei dieser Ziffernhoehe Lesbarkeit
-     *  kostet (siehe Kommentar bei rankPlain). */
+    /** Metallverlauf auf den Podiumszahlen? Umschaltbar in /settings, Vorgabe
+     *  AUS. Die unleserlichen 2 und 3 mit Metall lagen an der Maskenschwelle
+     *  von MultiEffect und sind seit 22.09.2026 behoben (MedalText.qml). */
     readonly property bool medaille: Kers.settings.podiumStil === "metal"
 
     height: Theme.rowHeight
@@ -283,12 +283,11 @@ Item {
                     // Ausserhalb des Podiums: schlichter Text. Der Metallverlauf ist
                     // teuer und waere hier ohnehin unsichtbar.
                     //
-                    // ⚠ Bei "flat" bekommen AUCH P1-3 diesen Text, nur in der
-                    // Medaillenfarbe. Der Verlauf braucht zwei Texturen und einen
-                    // Maskenschritt; bei rund 19 Bildpunkten Ziffernhoehe geht
-                    // dabei so viel Kante verloren, dass 2 und 3 unleserlich
-                    // werden. Schlichter Text wird direkt gerastert - genau so
-                    // scharf wie P4 abwaerts, wo es nie ein Problem gab.
+                    // Bei "flat" bekommen AUCH P1-3 diesen Text, nur in der
+                    // Medaillenfarbe. Schlichter Text wird direkt gerastert.
+                    // (Frueher hiess es hier, der Verlauf mache 2 und 3 bei rund
+                    // 19 Bildpunkten unleserlich. Der Grund war die Maskenschwelle
+                    // in MedalText.qml, nicht die Groesse - siehe dort.)
                     Text {
                         id: rankPlain
                         text: row.position
@@ -394,7 +393,12 @@ Item {
                     // Bestrunden-Fahrer bekommt einen lila Namen (.fl-lap .driver-name).
                     color: row.isFastestLap ? "#c44dff" : Theme.textMain
                     elide: Text.ElideRight
-                    font { family: Theme.sans; pixelSize: 17; weight: Font.DemiBold
+                    // 18 px Bold (bis 0.3.0: 17 px DemiBold) - auf Wunsch von KERS
+                    // kraeftiger. Der Tower wird auf ~0,72 gestaucht, der Name
+                    // landet also bei rund 13 Bildpunkten; eine Stufe fetter
+                    // bringt dort mehr als ein weiterer Pixel Hoehe. Die Spalte
+                    // ist dafuer breiter geworden (cols in Tower.qml).
+                    font { family: Theme.sans; pixelSize: 18; weight: Font.Bold
                            capitalization: Font.AllUppercase }
                     style: Theme.textOutline > 0 ? Text.Outline : Text.Raised
                     styleColor: Theme.textStyleColor

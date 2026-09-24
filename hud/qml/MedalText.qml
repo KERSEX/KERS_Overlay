@@ -33,6 +33,9 @@ Item {
      *  zu verkleinern. Wird der Faktor nicht gesetzt, gilt 1 - dann ist es die
      *  Ausgangsgroesse wie vor 0.2.2.
      *
+     *  ⚠ Die eigentliche Ursache der Klumpen stand woanders - siehe die
+     *  Maskenschwelle am MultiEffect unten. Die Texturgroesse war nur ein Teil.
+     *
      *  ⚠ Hier hat 0.2.2 danebengegriffen: dreifache Texturgroesse, in der
      *  Annahme "gross zeichnen, klein anzeigen sei besser". Das Gegenteil ist der
      *  Fall - die Verkleinerung war damit 3/0,717 = 4,2:1 statt 1,4:1, und die
@@ -158,6 +161,20 @@ Item {
         source: paint
         maskEnabled: true
         maskSource: mask
+        // ⚠ DAS war der Grund fuer die unleserlichen 2 und 3, nicht die Texturgroesse.
+        // Mit den Vorgaben (Schwelle 0, Uebergang 0) rechnet MultiEffect
+        // smoothstep(0, 0.0001, alpha) - jeder Randpixel der Ziffer, den die
+        // Kantenglaettung auch nur zu 0,01 % bedeckt, wird VOLL deckend. Bei rund
+        // 19 Bildpunkten Ziffernhoehe liegt fast jeder Pixel im Kasten der Ziffer am
+        // Rand, und aus 2 und 3 wurden Kloetze; die 1 hielt nur, weil ein
+        // senkrechter Balken kaum Rand hat.
+        // Schwelle 0,375 mit Uebergang 0,6 ergibt smoothstep(0, 0.6, alpha) - die
+        // Kantenglaettung der Ziffer geht durch, halb bedeckte Randpixel werden nur
+        // etwas kraeftiger. So wirkt die Metallziffer so fett wie die schlichte 4
+        // darunter; mit smoothstep(0, 1, alpha) war sie sichtbar duenner.
+        // (Rechnung: qquickmultieffect.cpp, updateMaskThresholdSpread.)
+        maskThresholdMin: 0.375
+        maskSpreadAtMin: 0.6
     }
 
     /** Die vier Stopps des Metallverlaufs - stehen in Fmt.js, damit sie nur an

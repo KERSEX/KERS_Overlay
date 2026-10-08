@@ -13,6 +13,7 @@
 #include <QHostAddress>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 
 namespace kers::server {
@@ -20,6 +21,23 @@ class KersServer;
 }
 
 namespace kers::app {
+
+/// Beendet den Server einer Python-Fassung (0.2.x), der noch aus DIESEM Ordner laeuft.
+///
+/// Anlass: Der Updater der 0.2.6 beendet beim Tausch nur das HUD. Der Server lief
+/// dort als eigener Prozess (data\main.exe, mit eigener Konsole) und bleibt stehen -
+/// er haelt 5100/20777, und der eingebaute Server der neuen Fassung bekommt die
+/// Ports nicht ("Port belegt", HUD leer, bis jemand die alte Konsole schliesst).
+///
+/// Beendet wird NUR, was genau unter einem der Pfade laeuft (voller Programmpfad,
+/// nicht nur der Name) - ein main.exe aus einem anderen Ordner bleibt unberuehrt.
+/// Eine PyInstaller-onefile-EXE sind zwei Prozesse mit demselben Pfad: erst das
+/// Kind (darin laeuft Python, es haelt die Ports), dann darf der Bootloader seinen
+/// _MEI-Ordner in %TEMP% selbst wegraeumen; erst wenn er das nicht tut, wird auch
+/// er beendet.
+///
+/// Rueckgabe: je beendetem Prozess "main.exe (PID n)"; leer = nichts gefunden.
+QStringList alteServerBeenden(const QStringList& pfade, int warteMs = 3000);
 
 class ServerControl : public QObject {
     Q_OBJECT
@@ -89,12 +107,16 @@ public:
     void stop() override;
     QString baseUrl() const override;
     void refresh() override;
+    /// Vor jedem Start den Server der Python-Fassung unter diesen Pfaden beenden
+    /// (siehe alteServerBeenden). Leer = nie (Tests, Vorgabe).
+    void setAlteServer(const QStringList& pfade) { m_alteServer = pfade; }
 
 private:
     server::KersServer& m_server;
     quint16 m_httpPort;
     quint16 m_udpPort;
     QHostAddress m_bind;
+    QStringList m_alteServer;
     QTimer m_timer;
     bool m_serverOk = false;
     bool m_udpOk = false;

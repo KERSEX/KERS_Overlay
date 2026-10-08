@@ -23,6 +23,12 @@ target_sources(tst_local PRIVATE
     ${CMAKE_SOURCE_DIR}/src/app/server_control.cpp ${CMAKE_SOURCE_DIR}/src/app/server_control.h
     ${CMAKE_SOURCE_DIR}/src/app/local_link.cpp ${CMAKE_SOURCE_DIR}/src/app/local_link.h)
 target_include_directories(tst_local PRIVATE ${CMAKE_SOURCE_DIR}/src/app)
+# Spielt in tst_local den Server der Python-Fassung (data\main.exe) - siehe schlaefer.cpp
+add_executable(kers_schlaefer schlaefer.cpp)
+target_link_libraries(kers_schlaefer PRIVATE ws2_32)
+target_link_options(kers_schlaefer PRIVATE -static)
+add_dependencies(tst_local kers_schlaefer)
+target_compile_definitions(tst_local PRIVATE KERS_SCHLAEFER="$<TARGET_FILE:kers_schlaefer>")
 # Der Updater gehoert zur App (keine eigene Bibliothek) - die Quelle direkt mitbauen
 target_sources(tst_updater PRIVATE ${CMAKE_SOURCE_DIR}/src/app/updater.cpp ${CMAKE_SOURCE_DIR}/src/app/updater.h)
 target_include_directories(tst_updater PRIVATE ${CMAKE_SOURCE_DIR}/src/app)

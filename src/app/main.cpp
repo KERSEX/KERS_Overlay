@@ -39,6 +39,7 @@
 
 #include <QApplication>
 #include <QDesktopServices>
+#include <QDir>
 #include <QMenu>
 #include <QMessageBox>
 #include <QUrl>
@@ -104,6 +105,15 @@ Args parseArgs(const QStringList& a)
         else if (s == QLatin1String("--udp-port")) { QString v; next(v); out.udpPort = v.toInt(); }
     }
     return out;
+}
+
+/// Wo die Python-Fassung (0.2.x) ihren Server entpackt hatte und laufen liess:
+/// data\main.exe, vor dem Umzug nach data\ direkt neben der EXE. Laeuft dort nach
+/// dem Update noch einer, haelt er die Ports - siehe app::alteServerBeenden.
+QStringList alteServerPfade()
+{
+    return {paths::dataFile(QStringLiteral("main.exe")),
+            QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("main.exe"))};
 }
 
 /// Eigene Identitaet in der Taskleiste - sonst gruppiert Windows nach dem
@@ -189,6 +199,9 @@ QSystemTrayIcon* buildTray(QApplication& app, HudWindow& hud, HudState& state, S
 int runServerOnly(QApplication& app, const Args& args)
 {
     server::KersServer srv(paths::dataDir());
+    const QStringList weg = app::alteServerBeenden(alteServerPfade());
+    if (!weg.isEmpty())
+        qInfo().noquote() << "[UPDATE] Server der Python-Fassung beendet:" << weg.join(QStringLiteral(", "));
     if (!srv.start(static_cast<quint16>(args.port), static_cast<quint16>(args.udpPort))) {
         QMessageBox::critical(nullptr, QStringLiteral("KERS Server"), srv.errorString());
         return 1;
@@ -268,8 +281,10 @@ int main(int argc, char* argv[])
     server::KersServer kersServer(paths::dataDir());
     std::unique_ptr<app::ServerControl> serverCtl;
     if (lokal) {
-        serverCtl = std::make_unique<app::LocalServer>(kersServer, static_cast<quint16>(args.port),
-                                                       static_cast<quint16>(args.udpPort));
+        auto local = std::make_unique<app::LocalServer>(kersServer, static_cast<quint16>(args.port),
+                                                        static_cast<quint16>(args.udpPort));
+        local->setAlteServer(alteServerPfade());
+        serverCtl = std::move(local);
     } else {
         auto remote = std::make_unique<app::RemoteStatus>(state.baseUrl);
         remote->startPolling();

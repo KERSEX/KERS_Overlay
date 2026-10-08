@@ -175,6 +175,9 @@ andere Fassung wählen — auch zurück auf eine Python-Fassung 0.2.x.
 
 Von 0.2.6 kommt man ganz normal über den Update-Knopf auf 0.3.0. Die C++-Fassung
 räumt beim ersten Start die alte 243-MB-Datei (`KERS_Subsystems.exe.bak`) weg.
+Der Server der alten Fassung (`data\main.exe` mit seinem Konsolenfenster) läuft
+nach dem Tausch noch weiter — 0.3.0 beendet ihn vor dem eigenen Serverstart von
+selbst, aber nur genau diesen aus dem eigenen Ordner.
 
 ---
 
@@ -283,9 +286,10 @@ Browserquelle in OBS der bessere Weg.
 **OBS findet das Fenster nicht.** *In OBS auffindbar* einschalten. Dafür erscheint
 das HUD dann auch in der Taskleiste.
 
-**„Port belegt" beim Start.** Auf 5100 oder 20777 läuft schon etwas — meist die
-alte Python-Fassung (`main.exe` bzw. `main.py`) oder ein zweites KERS. Das andere
-Programm beenden, dann im Schaltbrett **Start Server**.
+**„Port belegt" beim Start.** Auf 5100 oder 20777 läuft schon etwas — meist eine
+alte Python-Fassung aus einem anderen Ordner (`main.exe` bzw. `main.py`) oder ein
+zweites KERS. (Den `data\main.exe` aus dem eigenen Ordner beendet 0.3.0 selbst.)
+Das andere Programm beenden, dann im Schaltbrett **Start Server**.
 
 **Handy erreicht die Regie nicht.** Beim ersten Start hat die Windows-Firewall
 gefragt; wurde dort abgelehnt, in den Firewall-Einstellungen

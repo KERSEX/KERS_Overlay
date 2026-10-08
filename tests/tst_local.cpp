@@ -8,11 +8,29 @@
 #include "local_link.h"
 #include "server_control.h"
 
+#include <QDir>
+#include <QFile>
+#include <QProcess>
 #include <QSignalSpy>
+#include <QTcpServer>
 #include <QTemporaryDir>
 #include <QTest>
 
 using namespace kers;
+
+namespace {
+/// Port suchen, der gerade frei ist.
+quint16 freierPort()
+{
+    QTcpServer frei;
+    return frei.listen(QHostAddress::LocalHost, 0) ? frei.serverPort() : 0;
+}
+bool belegt(quint16 port)
+{
+    QTcpServer probe;
+    return !probe.listen(QHostAddress::LocalHost, port);
+}
+}  // namespace
 
 class TstLocal : public QObject {
     Q_OBJECT
@@ -104,6 +122,65 @@ private slots:
         QTRY_VERIFY(gemeldet);
         QVERIFY(!erfolg);                                        // Server aus -> Layout bleibt vorgemerkt
         feed.stop();
+    }
+
+    // ── Server der Python-Fassung nach dem Update ────────────────────────────
+    // Der Updater der 0.2.6 beendet beim Tausch nur das HUD - data\main.exe laeuft
+    // weiter und haelt die Ports. Gespielt von kers_schlaefer (siehe schlaefer.cpp).
+
+    void alterServerNurAusDiesemOrdner()
+    {
+        QTemporaryDir dir;
+        QVERIFY(QDir(dir.path()).mkpath("data"));
+        QVERIFY(QDir(dir.path()).mkpath("fremd"));
+        const QString alt = dir.filePath("data/main.exe"), fremd = dir.filePath("fremd/main.exe");
+        QVERIFY(QFile::copy(QStringLiteral(KERS_SCHLAEFER), alt));
+        QVERIFY(QFile::copy(QStringLiteral(KERS_SCHLAEFER), fremd));
+
+        const quint16 port = freierPort();
+        QVERIFY(port);
+        QProcess boot, anderer;
+        boot.start(alt, {"--bootloader", "--port", QString::number(port)});
+        anderer.start(fremd, {});
+        QVERIFY(boot.waitForStarted());
+        QVERIFY(anderer.waitForStarted());
+        QTRY_VERIFY(belegt(port));                               // das Kind laeuft
+
+        const QStringList weg = app::alteServerBeenden({alt});
+        QCOMPARE(weg.size(), 2);                                 // Kind + Bootloader
+        QVERIFY(boot.waitForFinished(3000));
+        QCOMPARE(boot.exitCode(), 0);                            // Bootloader ging VON SELBST
+        QVERIFY(!belegt(port));
+        QCOMPARE(anderer.state(), QProcess::Running);            // anderer Ordner: unberuehrt
+        QVERIFY(app::alteServerBeenden({alt}).isEmpty());        // nichts mehr da
+        anderer.kill();
+        anderer.waitForFinished(3000);
+    }
+
+    void startBeendetAltenServer()
+    {
+        QTemporaryDir dir;
+        QVERIFY(QDir(dir.path()).mkpath("data"));
+        const QString alt = dir.filePath("data/main.exe");
+        QVERIFY(QFile::copy(QStringLiteral(KERS_SCHLAEFER), alt));
+        const quint16 port = freierPort();
+        QVERIFY(port);
+        QProcess boot;
+        boot.start(alt, {"--bootloader", "--port", QString::number(port)});
+        QVERIFY(boot.waitForStarted());
+        QTRY_VERIFY(belegt(port));
+
+        server::KersServer srv(dir.path(), dir.filePath("x.json"));
+        QVERIFY(!srv.start(port, 0, QHostAddress::LocalHost));  // so stand 0.3.0 nach dem Update da
+        app::LocalServer ctl(srv, port, 0, QHostAddress::LocalHost);
+        ctl.setAlteServer({alt});
+        QSignalSpy fehler(&ctl, &app::ServerControl::errorOccurred);
+        ctl.start();                                             // = Autostart / "Start Server"
+        QCOMPARE(fehler.count(), 0);
+        QVERIFY(srv.isRunning());
+        QCOMPARE(srv.httpPort(), port);
+        QVERIFY(boot.waitForFinished(3000));
+        srv.stop();
     }
 };
 

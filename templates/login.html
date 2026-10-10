@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<!-- KERS-VERSION: 0.0.1 — Anmeldung fuer fremde Geraete (ab 0.3.1)
+     Kommt fuer JEDE Seite, die ein fremdes Geraet ohne Schluessel aufruft. Nach dem
+     Anmelden wird dieselbe Adresse neu geladen - der Server setzt dafuer ein Cookie. -->
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KERS – Anmelden</title>
+<link rel="icon" href="/static/brand/Icon.ico" type="image/x-icon">
+<link rel="apple-touch-icon" href="/static/brand/Icon.png">
+<style>
+:root{ --bg:#0f0f14; --card:#181820; --line:rgba(255,255,255,.09); --txt:#e9e9f0; --muted:#8e8e9e;
+       --red:#e10600; --green:#00e676; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;
+     display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px 22px}
+h1{font-size:22px;font-weight:800;letter-spacing:1px;border-bottom:2px solid var(--red);padding-bottom:10px;margin-bottom:14px}
+p{font-size:14px;color:var(--muted);line-height:1.45;margin-bottom:16px}
+label{display:block;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:12px 0 6px}
+input{width:100%;background:#0c0c11;border:1px solid var(--line);border-radius:8px;color:var(--txt);
+      font-size:16px;padding:11px 12px;outline:none}
+input:focus{border-color:var(--red)}
+#code{font-size:28px;letter-spacing:10px;text-align:center;font-variant-numeric:tabular-nums}
+button{width:100%;margin-top:18px;background:var(--red);border:none;border-radius:8px;color:#fff;
+       font-size:15px;font-weight:700;letter-spacing:1px;padding:12px;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+#msg{min-height:20px;margin-top:12px;font-size:13px;color:#ff6b66;text-align:center}
+#msg.ok{color:var(--green)}
+</style>
+</head>
+<body>
+<form class="card" id="f" autocomplete="off">
+  <h1>KERS Subsystems</h1>
+  <p>Dieses Gerät ist noch nicht freigegeben. Den 6-stelligen Code findest du am Spiele-PC
+     im Fenster <b>KERS Subsystems</b> unter „Zugriff“.</p>
+  <label for="code">Code</label>
+  <input id="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autofocus required>
+  <label for="name">Name dieses Geräts (optional)</label>
+  <input id="name" maxlength="40" placeholder="z. B. Handy Regie">
+  <button id="btn" type="submit">Freigeben</button>
+  <div id="msg"></div>
+</form>
+<script>
+const f = document.getElementById("f"), msg = document.getElementById("msg"), btn = document.getElementById("btn");
+f.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  btn.disabled = true; msg.className = ""; msg.textContent = "";
+  try {
+    const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: document.getElementById("code").value.replace(/\s/g, ""),
+                             name: document.getElementById("name").value.trim() }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok) {
+      msg.className = "ok"; msg.textContent = "Freigegeben – lädt …";
+      // Gleiche Adresse noch einmal - jetzt mit Cookie. Auf /login selbst geht es zur Regie.
+      setTimeout(() => location.replace(location.pathname === "/login" ? "/regie" : location.href), 400);
+      return;
+    }
+    msg.textContent = j.error === "Code falsch" ? `Code falsch – noch ${j.rest} Versuch(e)` : (j.error || "Fehler " + r.status);
+  } catch (err) {
+    msg.textContent = "Keine Verbindung zum Server";
+  }
+  btn.disabled = false;
+});
+</script>
+</body>
+</html>

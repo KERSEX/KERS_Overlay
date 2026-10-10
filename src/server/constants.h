@@ -84,5 +84,6 @@ bool isLayoutTeil(const QString& key);
 extern const QStringList MAP_CORNERS;
 
 int championshipPoints(int position);        // 25/18/15/... fuer P1-P10, sonst 0
+constexpr int POINTS_MAX_POS = 30;           // eigene Punktelisten (points_system) bis P30
 
 }  // namespace kers::server

@@ -141,6 +141,12 @@ class SessionState : public QObject {
     KERS_PROP(QString, flagKind, QString())      // "" | "sc" | "fin"
     // Spaltenkoepfe (Rennen vs. Quali)
     KERS_PROP(bool, isQuali, false)
+    // Einzelwerte fuer Designs mit eigenem Kopf (ab 0.3.1, z. B. F1 TV: "LAP 7 / 20")
+    KERS_PROP(QString, sessionName, QString())   // type_name vom Server ("Q2", "Rennen", "Sprint" ...)
+    KERS_PROP(int, currentLap, 0)
+    KERS_PROP(int, totalLaps, 0)
+    KERS_PROP(int, timeLeft, 0)                  // Sekunden (Quali)
+    KERS_PROP(QString, poleName, QString())      // wer die Bestzeit haelt (Quali)
     KERS_PROP(QString, boostLabel, QStringLiteral("DRS"))
     KERS_PROP(QString, headLeader, QStringLiteral("LEADER"))
     KERS_PROP(QString, headInterval, QStringLiteral("INTERVAL"))
@@ -191,6 +197,7 @@ class SettingsState : public QObject {
     KERS_PROP(bool, penHideFinish, true)
     // Positionszahlen 1-3: "flat" oder "metal"
     KERS_PROP(QString, podiumStil, QStringLiteral("flat"))
+    KERS_PROP(QString, design, QString())        // Ordnername des Designs, "" = Standard
     // Freies Layout, je Baustein {ecke, dx, dy, z, groesse}. Einzelne Felder
     // duerfen fehlen und fallen dann auf den eingebauten Wert zurueck
     // (Overlay.qml, Funktion `hat`).

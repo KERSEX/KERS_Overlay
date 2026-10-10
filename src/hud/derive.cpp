@@ -34,6 +34,8 @@ const QVariantMap& Config::defaults()
         {"penside", QStringLiteral("left")},
         {"penhidefinish", true},
         {"podiumstil", QStringLiteral("flat")},
+        {"champ_view", QStringLiteral("drivers")},
+        {"design", QString()},
         {"trackname", true},
         {"layout", QVariantMap()},
     };

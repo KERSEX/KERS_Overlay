@@ -1,5 +1,7 @@
 #include "sse_feed.h"
 
+#include "data_source.h"
+
 #include <QJsonDocument>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -104,6 +106,7 @@ void SseFeed::connectStream()
     m_buffer.clear();
     QNetworkRequest req(QUrl(QStringLiteral("%1/api/stream?hz=%2&slim=1").arg(m_base).arg(m_hz)));
     req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+    applyAccessKey(req);
     // Der Timeout muss ueber dem Heartbeat des Servers liegen (der schickt
     // mindestens 1x/s), sonst reisst eine ruhige Verbindung staendig ab.
     req.setTransferTimeout(10000);
@@ -165,6 +168,7 @@ void SseFeed::pollOnce()
 {
     QNetworkRequest req(QUrl(m_base + QStringLiteral("/api/live")));
     req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+    applyAccessKey(req);
     req.setTransferTimeout(2000);
     QNetworkReply* reply = m_nam.get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {

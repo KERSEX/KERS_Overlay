@@ -11,13 +11,20 @@
 //
 // ⚠ Property-Namen sind die Schnittstelle zur unveraenderten QML-Szene. Nichts
 // umbenennen; eine unbekannte Property ist in QML still `undefined`.
+//
+// Ab 0.3.1 kommen Farben, Deckkraft, Formen und Schriften aus dem aktiven Design
+// (design.json, siehe src/common/designs.h). Ohne Design gelten genau die Werte
+// von bis 0.3.0 - das eingebaute Design "KERS" schreibt sie nur noch einmal hin.
 #pragma once
 
 #include <QColor>
 #include <QHash>
+#include <QJsonObject>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QVariantMap>
 
 namespace kers::hud {
 
@@ -47,14 +54,18 @@ class Theme : public QObject {
     Q_PROPERTY(QColor towerHead2 READ towerHead2 NOTIFY changed)
     Q_PROPERTY(QColor headBg1 READ headBg1 NOTIFY changed)
     Q_PROPERTY(QColor headBg2 READ headBg2 NOTIFY changed)
-    Q_PROPERTY(QColor panelBorder READ panelBorder CONSTANT)
+    Q_PROPERTY(QColor panelBorder READ panelBorder NOTIFY changed)
     // Masse
-    Q_PROPERTY(int panelRadius READ panelRadius CONSTANT)
-    Q_PROPERTY(int accentWidth READ accentWidth CONSTANT)
-    Q_PROPERTY(int rowHeight READ rowHeight CONSTANT)
+    Q_PROPERTY(int panelRadius READ panelRadius NOTIFY changed)
+    Q_PROPERTY(int accentWidth READ accentWidth NOTIFY changed)
+    Q_PROPERTY(int rowHeight READ rowHeight NOTIFY changed)
     // Schriften
-    Q_PROPERTY(QString sans READ sans CONSTANT)
-    Q_PROPERTY(QString display READ display CONSTANT)
+    Q_PROPERTY(QString sans READ sans NOTIFY changed)
+    Q_PROPERTY(QString display READ display NOTIFY changed)
+    // Design (ab 0.3.1): Ordnername und freie Zusatzwerte aus design.json ("extra")
+    // fuer eigene QML-Dateien eines Designs.
+    Q_PROPERTY(QString design READ design NOTIFY changed)
+    Q_PROPERTY(QVariantMap extra READ extra NOTIFY changed)
     // Asset-Pfade
     Q_PROPERTY(QString assetRoot READ assetRoot CONSTANT)
 
@@ -73,6 +84,10 @@ public:
     void applySettings(qreal uiAlpha, qreal textOutline, const QString& accent,
                        const QString& headerColor, const QString& rowColor);
 
+    /// Design uebernehmen: Werte aus design.json, Schriften aus dir/fonts.
+    /// Fehlende oder ungueltige Werte bleiben beim KERS-Standard.
+    void applyDesign(const QString& id, const QJsonObject& tokens, const QString& dir);
+
     qreal uiAlpha() const { return m_uiAlpha; }
     QColor accent() const;
     QColor accentGlow() const;
@@ -90,11 +105,13 @@ public:
     QColor headBg1() const;
     QColor headBg2() const;
     QColor panelBorder() const;
-    int panelRadius() const { return 10; }
-    int accentWidth() const { return 3; }
-    int rowHeight() const { return kRowHeight; }
-    QString sans() const { return QStringLiteral("Inter"); }
-    QString display() const { return QStringLiteral("Teko"); }
+    int panelRadius() const { return m_t.panelRadius; }
+    int accentWidth() const { return m_t.accentWidth; }
+    int rowHeight() const { return m_t.rowHeight; }
+    QString sans() const { return m_t.sans; }
+    QString display() const { return m_t.display; }
+    QString design() const { return m_design; }
+    QVariantMap extra() const { return m_t.extra; }
     QString assetRoot() const { return m_assetRoot; }
 
     Q_INVOKABLE QString teamLogo(const QString& filename) const;
@@ -111,10 +128,37 @@ private:
     /// Die tatsaechlich verwendete Deckkraft (1.25 im Chroma-Modus).
     qreal alpha() const { return m_opaque ? 1.25 : m_uiAlpha; }
 
+    /// Die Werte eines Designs. Vorgaben = der Look bis 0.3.0.
+    struct Tokens {
+        QColor accent{0xe1, 0x06, 0x00};
+        QColor textMain{0xff, 0xff, 0xff};
+        QColor textMuted{0xa6, 0xa6, 0xb4};
+        // Flaechen: Farbe und Grund-Deckkraft (wird noch mit uiAlpha multipliziert)
+        QColor panel{14, 14, 19};       qreal panelA = 0.94;
+        QColor row{24, 24, 33};         qreal rowA = 0.988;
+        QColor rowAlt{16, 16, 23};      qreal rowAltA = 0.988;
+        QColor headerRow{10, 10, 15};   qreal headerRowA = 0.994;
+        QColor towerHead1{22, 22, 30};  qreal towerHead1A = 1.0;
+        QColor towerHead2{40, 40, 50};  qreal towerHead2A = 1.0;
+        QColor headBg1{27, 27, 34};     qreal headBg1A = 1.0;
+        QColor headBg2{17, 17, 22};     qreal headBg2A = 1.0;
+        QColor panelBorder{255, 255, 255}; qreal panelBorderA = 0.09;   // NICHT an uiAlpha
+        int panelRadius = 10;
+        int accentWidth = 3;
+        int rowHeight = kRowHeight;
+        QString sans = QStringLiteral("Inter");
+        QString display = QStringLiteral("Teko");
+        QVariantMap extra;
+    };
+    QColor flaeche(const QColor& c, qreal a) const;
+
+    Tokens m_t;
+    QString m_design;
+    QSet<QString> m_fontDirs;          // schon geladene Schrift-Ordner
     qreal m_uiAlpha = 1.0;
     qreal m_textOutline = 0.0;
     bool m_opaque = false;
-    QString m_accent;          // "#e10600" ab Werk
+    QString m_accent;          // aus den Settings ("#e10600" ab Werk)
     QString m_headerAccent;    // leer = Akzentfarbe verwenden
     QString m_rowOverride;     // leer = die beiden Standard-Zeilentoene
     QString m_assetRoot;

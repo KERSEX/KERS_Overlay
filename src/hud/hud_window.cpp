@@ -210,6 +210,9 @@ HudWindow::HudWindow(HudState& state, const QString& demo, const QString& qmlDir
 
     // Die drei Objekte, die die Szene sieht. Muessen vor setSource() stehen.
     m_theme = new Theme(this);
+    // Design (ab 0.3.1) gleich aus der Datei, damit die Szene nicht erst im
+    // Standard-Look und Sekunden spaeter noch einmal geladen wird.
+    m_design.apply(m_theme, DesignScene::initialId());
     m_bridge = new OverlayBridge(state.baseUrl, state.hz, demo, this);
     m_hud = new HudController(this, state, this);
     // Branding und Deckkraft wandern aus den Settings ins Theme - das
@@ -221,6 +224,15 @@ HudWindow::HudWindow(HudState& state, const QString& demo, const QString& qmlDir
     connect(s, &SettingsState::uiAlphaChanged, this, &HudWindow::syncTheme);
     connect(s, &SettingsState::textOutlineChanged, this, &HudWindow::syncTheme);
     syncTheme();
+    // Design in /settings umgestellt -> Werte und Szene tauschen
+    connect(s, &SettingsState::designChanged, this, [this]() {
+        const QString id = m_bridge->settingsState()->design();
+        if (id.compare(m_design.wanted(), Qt::CaseInsensitive) == 0)
+            return;
+        m_design.apply(m_theme, id);
+        engine()->clearComponentCache();
+        loadScene();
+    });
 
     QQmlContext* ctx = engine()->rootContext();
     ctx->setContextProperty(QStringLiteral("Theme"), m_theme);
@@ -256,9 +268,7 @@ HudWindow::~HudWindow()
 
 QUrl HudWindow::sceneUrl() const
 {
-    if (!m_qmlDir.isEmpty())
-        return QUrl::fromLocalFile(QDir(m_qmlDir).filePath(QStringLiteral("Overlay.qml")));
-    return QUrl(QStringLiteral("qrc:/KersHud/Overlay.qml"));
+    return m_design.url(m_qmlDir);
 }
 
 void HudWindow::loadScene()
@@ -269,7 +279,9 @@ void HudWindow::loadScene()
 void HudWindow::reloadPage()
 {
     // Ohne clearComponentCache laedt die Engine die alten, bereits uebersetzten
-    // QML-Dateien wieder aus dem Cache.
+    // QML-Dateien wieder aus dem Cache. Das Design wird dabei neu zusammengesetzt -
+    // so zeigt "Neu laden" Aenderungen an den Dateien eines eigenen Designs.
+    m_design.refresh(m_theme);
     engine()->clearComponentCache();
     loadScene();
 }

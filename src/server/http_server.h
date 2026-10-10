@@ -57,6 +57,8 @@ struct HttpResponse {
     /// Gesetzt = Event-Stream: nach dem Kopf ruft der Server das auf und gibt die
     /// Verbindung ab. Auf ihr laufen danach keine weiteren Anfragen.
     std::function<void(HttpConnection*)> stream;
+    /// Nach der Antwort auflegen (gesperrtes Geraet: kein Keep-Alive mehr).
+    bool closeConnection = false;
 
     static HttpResponse json(const QJsonObject& o, int status = 200);
     static HttpResponse html(const QByteArray& body, int status = 200);

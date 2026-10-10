@@ -390,6 +390,7 @@ void SettingsState::apply(const Config& cfg)
     set_penSide(cfg.s("penside") == QLatin1String("right") ? QStringLiteral("right") : QStringLiteral("left"));
     set_penHideFinish(cfg.b("penhidefinish"));
     set_podiumStil(cfg.s("podiumstil") == QLatin1String("metal") ? QStringLiteral("metal") : QStringLiteral("flat"));
+    set_design(cfg.s("design"));
     set_layout(cfg.map("layout"));
 }
 

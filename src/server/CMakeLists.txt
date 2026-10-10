@@ -7,6 +7,8 @@ qt_add_library(kers_server STATIC
     race_state.cpp
     payload.cpp
     http_server.cpp
+    access_guard.cpp
+    obs_link.cpp
     sse_hub.cpp
     recorder.cpp
     cam_keys.cpp
@@ -19,8 +21,9 @@ target_link_libraries(kers_server PUBLIC
     Qt6::Core
     Qt6::Gui
     Qt6::Network
+    Qt6::WebSockets         # OBS-Steuerung (obs-websocket v5), ab 0.3.1
     Qt6::ZlibPrivate        # gzip fuer die .f1rec-Aufnahmen (Qt-eigenes zlib)
 )
 if(WIN32)
-    target_link_libraries(kers_server PUBLIC user32)   # SendInput fuer die Kamera-Tasten
+    target_link_libraries(kers_server PUBLIC user32 crypt32)   # SendInput (Kamera-Tasten), DPAPI (OBS-Passwort)
 endif()

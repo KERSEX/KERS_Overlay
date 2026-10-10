@@ -9,8 +9,10 @@
 // ohne Umweg ueber HTTP bekommt.
 #pragma once
 
+#include "access_guard.h"
 #include "cam_keys.h"
 #include "http_server.h"
+#include "obs_link.h"
 #include "race_state.h"
 #include "recorder.h"
 #include "settings_store.h"
@@ -25,6 +27,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace kers::server {
 
@@ -69,6 +72,10 @@ public:
     SettingsStore& settingsStore() { return m_settings; }
     TrackStore& trackStore() { return m_tracks; }
     CamKeys& camKeys() { return m_cam; }
+    /// Zugriffsschutz fuer fremde Geraete (Code, Geraeteliste, Sperren).
+    AccessGuard& access() { return m_access; }
+    /// OBS-Steuerung (obs-websocket), ab 0.3.1.
+    ObsLink& obs() { return m_obs; }
     int streamClients() const { return m_sse.clientCount(); }
 
 signals:
@@ -83,6 +90,11 @@ private:
     void neuerZustand();
 
     // Routen-Helfer (routes.cpp)
+    /// Vor allen Routen: gesperrt? fremd ohne Code? fremde Webseite (CSRF)?
+    std::optional<HttpResponse> wache(const HttpRequest& req, const AccessGuard::Result& zugang) const;
+    HttpResponse route(const HttpRequest& req, const AccessGuard::Result& zugang);
+    HttpResponse apiLogin(const HttpRequest& req);
+    HttpResponse loginPage() const;
     HttpResponse page(const QString& templateName) const;
     HttpResponse partsIndex() const;
     HttpResponse staticFile(const HttpRequest& req, const QString& rel) const;
@@ -90,12 +102,18 @@ private:
     HttpResponse apiTracks(const HttpRequest& req);
     HttpResponse apiPresets(const HttpRequest& req);
     HttpResponse apiLayouts(const HttpRequest& req);
+    HttpResponse apiChampPoints(const HttpRequest& req);
+    HttpResponse apiObs(const HttpRequest& req, const AccessGuard::Result& zugang);
+    HttpResponse apiDesigns(const HttpRequest& req, const AccessGuard::Result& zugang);
+    /// Farben des aktiven Designs als CSS-Variablen (haengt an /static/css/core.css).
+    QByteArray designCss() const;
     QJsonObject apiVersion() const;
     void relearn();
 
     QString m_dataDir;
     std::function<double()> m_clock;
     SettingsStore m_settings;
+    AccessGuard m_access;
     TrackStore m_tracks;
     std::unique_ptr<RaceState> m_state;
     QJsonObject m_regie;
@@ -103,6 +121,8 @@ private:
     CamKeys m_cam;
     HttpServer m_http;
     SseHub m_sse;
+    ObsLink m_obs;
+    EventChannel m_obsChannel;
     QUdpSocket m_udp;
     bool m_running = false;
     QString m_error;

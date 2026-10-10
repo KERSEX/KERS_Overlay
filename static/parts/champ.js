@@ -17,10 +17,13 @@ function updateChamp(drivers, session, connected) {
   }
   if (!champData || !Array.isArray(champData.standings)) return;
   champEl.classList.add("show");
-  const st = champData.standings, live = st.some(s => s.live_points > 0);
-  champEl.innerHTML = `<div class="champ-title">${esc(champData.title || "Championship")}${live ? " · wenn heute so endet" : ""}</div>`
+  // Ab 0.3.1: Fahrer, Teams oder im Wechsel alle 8 s (champ_view in /settings).
+  const v = KERS.cfg.champ_view, teams = Array.isArray(champData.teams) && champData.teams.length > 0
+    && (v === "teams" || (v === "wechsel" && Math.floor(Date.now() / 8000) % 2 === 1));
+  const st = teams ? champData.teams : champData.standings, live = st.some(s => s.live_points > 0);
+  champEl.innerHTML = `<div class="champ-title">${esc((teams ? champData.teams_title : champData.title) || "Championship")}${live ? " · wenn heute so endet" : ""}</div>`
     + st.slice(0, 12).map((s, i) => `<div class="champ-row" style="--t:${teamColor(s.team)}"><span class="champ-pos">${i + 1}</span>`
-        + `<span class="champ-name">${esc(s.name)}</span><span class="champ-pts">${s.total_points}</span>`
+        + `<span class="champ-name">${esc(teams ? s.team : s.name)}</span><span class="champ-pts">${s.total_points}</span>`
         + `<span class="champ-delta">${s.live_points > 0 ? "+" + s.live_points : ""}</span></div>`).join("");
 }
 

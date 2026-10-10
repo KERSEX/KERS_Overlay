@@ -102,7 +102,9 @@ private:
     QByteArray anfrage(const QByteArray& methode, const QByteArray& pfad, const QByteArray& body = {},
                        const QByteArray& extra = {})
     {
-        QByteArray r = methode + ' ' + pfad + " HTTP/1.1\r\nHost: x\r\n" + extra;
+        // Host wie ein Browser auf diesem PC - ein Phantasiename gilt seit 0.3.1 als
+        // fremd (DNS-Rebinding, siehe AccessGuard::isLocalRequest).
+        QByteArray r = methode + ' ' + pfad + " HTTP/1.1\r\nHost: 127.0.0.1\r\n" + extra;
         if (!body.isEmpty() || methode == "POST")
             r += "Content-Type: application/json\r\nContent-Length: " + QByteArray::number(body.size()) + "\r\n";
         return r + "\r\n" + body;
@@ -264,7 +266,7 @@ private slots:
         QTcpSocket s;
         s.connectToHost(QHostAddress::LocalHost, m_srv->httpPort());
         QVERIFY(s.waitForConnected(2000));
-        s.write("GET /api/stream?hz=20&slim=1 HTTP/1.1\r\nHost: x\r\n\r\n");
+        s.write("GET /api/stream?hz=20&slim=1 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
         QTRY_COMPARE(m_srv->streamClients(), 1);
 
         // UDP-Pakete an den Server

@@ -17,6 +17,7 @@
 //   * Diagnose, WER sich davorlegt (DWM-Cloaking beachten)
 #pragma once
 
+#include "design_scene.h"
 #include "hud_state.h"
 #include "theme.h"
 
@@ -146,6 +147,7 @@ private:
     QString m_qmlDir;
     bool m_wantVisible;
     Theme* m_theme;
+    DesignScene m_design{QString()};
     OverlayBridge* m_bridge;
     HudController* m_hud;
     QTimer m_topmost;

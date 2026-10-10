@@ -27,6 +27,7 @@ HudState HudState::load(const QString& path)
     flag("panel_visible", s.panelVisible); flag("panel_on_top", s.panelOnTop);
     flag("update_stumm", s.updateStumm);
     flag("server_autostart", s.serverAutostart);
+    str("remote_key", s.remoteKey);
     if (s.baseUrl.endsWith(QLatin1Char('/')))
         s.baseUrl.chop(1);
     return s;
@@ -46,6 +47,8 @@ bool HudState::save(const QString& path) const
     o["panel_visible"] = panelVisible; o["panel_on_top"] = panelOnTop;
     o["update_stumm"] = updateStumm;
     o["server_autostart"] = serverAutostart;
+    if (!remoteKey.isEmpty())
+        o["remote_key"] = remoteKey;
     return json::writeObject(path, o);
 }
 

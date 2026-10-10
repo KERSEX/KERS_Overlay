@@ -83,14 +83,49 @@ QJsonObject buildLivePayload(const RaceState& st, const QJsonObject& settings, c
     return out;
 }
 
+QMap<int, double> pointsSystem(const QJsonObject& cfg)
+{
+    // "points_system": {"1": 25, "2": 18, ...} - Position -> Punkte, auch ueber P10
+    // hinaus. Eine Liste [25, 18, ...] (Index 0 = P1) geht auch. Ungueltige
+    // Eintraege fallen weg; bleibt nichts uebrig, gilt der Standard.
+    QMap<int, double> t;
+    const QJsonValue v = cfg.value("points_system");
+    auto nehmen = [&t](int pos, const QJsonValue& p) {
+        const auto d = py::toFloat(p);
+        if (pos >= 1 && pos <= POINTS_MAX_POS && d && std::isfinite(*d) && *d >= 0)
+            t[pos] = *d;
+    };
+    if (v.isObject()) {
+        const QJsonObject o = v.toObject();
+        for (auto it = o.begin(); it != o.end(); ++it) {
+            bool ok = false;
+            const int pos = it.key().trimmed().toInt(&ok);
+            if (ok)
+                nehmen(pos, it.value());
+        }
+    } else if (v.isArray()) {
+        const QJsonArray a = v.toArray();
+        for (int i = 0; i < a.size(); ++i)
+            nehmen(i + 1, a.at(i));
+    }
+    return t;
+}
+
 QJsonObject calculateChampionship(const RaceState& st, const QString& champPath)
 {
-    // Gesamtpunkte = base_points + Punkte fuer die aktuelle Rennposition (Top 10).
+    // Gesamtpunkte = base_points + Punkte fuer die aktuelle Rennposition.
     // Namensabgleich: in_game_name -> name -> Teilstring.
     bool ok = false;
     const QJsonObject cfg = json::readObject(champPath, &ok);
     if (!ok)
-        return QJsonObject{{"title", ""}, {"standings", QJsonArray()}};
+        return QJsonObject{{"title", ""}, {"standings", QJsonArray()}, {"teams", QJsonArray()}};
+    // Eigene Punkteliste der Liga (ab 0.3.1) - ohne bleibt es bei 25-18-15-...
+    const QMap<int, double> eigene = pointsSystem(cfg);
+    auto punkte = [&eigene](int pos) -> double {
+        if (eigene.isEmpty())
+            return championshipPoints(pos);
+        return eigene.value(pos, 0.0);
+    };
     // Nach Auto-Index geordnet, damit der Teilstring-Abgleich immer denselben
     // Treffer liefert (QHash hat keine feste Reihenfolge).
     QList<int> idx = st.drivers().keys();
@@ -123,7 +158,7 @@ QJsonObject calculateChampionship(const RaceState& st, const QString& champPath)
                 }
             }
         }
-        const int livePts = championshipPoints(pos);
+        const double livePts = pos > 0 ? punkte(pos) : 0.0;
         QJsonObject sRow;
         sRow["name"] = name;
         sRow["team"] = drv.value("team").toString();
@@ -145,7 +180,78 @@ QJsonObject calculateChampionship(const RaceState& st, const QString& champPath)
     QJsonArray arr;
     for (const QJsonObject& r : standings)
         arr.append(r);
-    return QJsonObject{{"title", cfg.value("title").toString(QStringLiteral("Championship"))}, {"standings", arr}};
+
+    // Team-WM (ab 0.3.1): Summe der Fahrer je Team. Ein Eintrag in "teams" der
+    // Datei ersetzt die Basis-Summe - fuer Ligen, in denen Fahrer gewechselt haben
+    // und die Fahrerpunkte nicht mehr zum Team passen.
+    struct Team {
+        QString name;
+        double base = 0, live = 0;
+        bool fest = false;
+    };
+    QList<Team> teams;
+    auto teamFuer = [&teams](const QString& name) -> Team& {
+        for (Team& t : teams)
+            if (t.name.compare(name, Qt::CaseInsensitive) == 0)
+                return t;
+        teams.append(Team{name});
+        return teams.last();
+    };
+    for (const QJsonValue& v : cfg.value("teams").toArray()) {
+        const QJsonObject t = v.toObject();
+        const QString name = t.value("name").toString().trimmed();
+        const auto base = py::toFloat(t.value("base_points"));
+        if (name.isEmpty() || !base || !std::isfinite(*base))
+            continue;
+        Team& team = teamFuer(name);
+        team.base = *base;
+        team.fest = true;
+    }
+    for (const QJsonObject& r : standings) {
+        const QString name = r.value("team").toString().trimmed();
+        if (name.isEmpty())
+            continue;
+        Team& team = teamFuer(name);
+        if (!team.fest)
+            team.base += r.value("base_points").toDouble();
+        team.live += r.value("live_points").toDouble();
+    }
+    std::stable_sort(teams.begin(), teams.end(), [](const Team& a, const Team& b) {
+        const double ta = a.base + a.live, tb = b.base + b.live;
+        if (ta != tb)
+            return ta > tb;
+        return a.base > b.base;
+    });
+    QJsonArray teamArr;
+    for (const Team& t : teams)
+        teamArr.append(QJsonObject{{"team", t.name}, {"base_points", t.base}, {"live_points", t.live},
+                                   {"total_points", t.base + t.live}});
+
+    QJsonObject system;
+    if (eigene.isEmpty()) {
+        for (int p = 1; p <= 10; ++p)
+            system[QString::number(p)] = championshipPoints(p);
+    } else {
+        for (auto it = eigene.begin(); it != eigene.end(); ++it)
+            system[QString::number(it.key())] = it.value();
+    }
+    // Titel der Team-Ansicht: "teams_title" aus der Datei, sonst aus dem Titel
+    // abgeleitet ("Fahrerwertung" -> "Teamwertung", "GFL WM" -> "GFL WM · Teams").
+    const QString titel = cfg.value("title").toString(QStringLiteral("Championship"));
+    QString teamTitel = cfg.value("teams_title").toString().trimmed();
+    if (teamTitel.isEmpty()) {
+        teamTitel = titel;
+        if (teamTitel.contains(QLatin1String("Fahrer"), Qt::CaseInsensitive))
+            teamTitel.replace(QLatin1String("Fahrer"), QLatin1String("Team"), Qt::CaseInsensitive);
+        else
+            teamTitel += QStringLiteral(" · Teams");
+    }
+    return QJsonObject{{"title", titel},
+                       {"teams_title", teamTitel},
+                       {"standings", arr},
+                       {"teams", teamArr},
+                       {"points_system", system},
+                       {"custom_points", !eigene.isEmpty()}};
 }
 
 QJsonObject trackJson(RaceState& st)

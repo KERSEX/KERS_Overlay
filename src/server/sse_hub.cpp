@@ -1,5 +1,6 @@
 #include "sse_hub.h"
 
+#include "access_guard.h"
 #include "http_server.h"
 
 #include <QJsonDocument>
@@ -19,6 +20,9 @@ struct SseHub::Client {
     double lastSent = 0.0;
     bool slim = false;
     QJsonObject lastSlim;
+    QString deviceId;
+    QString ip;
+    bool local = true;
 };
 
 SseHub::SseHub(PayloadFn payload, TimeFn lastPacket, TimeFn clock, QObject* parent)
@@ -43,12 +47,15 @@ double SseHub::tickFor(const QString& hzArg)
     return hz > 0 ? 1.0 / std::max(1.0, std::min(60.0, hz)) : DEFAULT_TICK;
 }
 
-void SseHub::add(HttpConnection* conn, double tickSeconds, bool slim)
+void SseHub::add(HttpConnection* conn, double tickSeconds, bool slim, const QString& deviceId, bool local)
 {
     auto c = std::make_unique<Client>();
     Client* raw = c.get();
     raw->conn = conn;
     raw->slim = slim;
+    raw->deviceId = deviceId;
+    raw->ip = AccessGuard::ipText(conn->peer());
+    raw->local = local;
     raw->timer.setTimerType(Qt::PreciseTimer);
     raw->timer.setInterval(std::max(1, static_cast<int>(std::lround(tickSeconds * 1000.0))));
     connect(&raw->timer, &QTimer::timeout, this, [this, raw] { tick(raw); });
@@ -80,6 +87,84 @@ void SseHub::closeAll()
             c->conn->close();
         }
     }
+}
+
+void SseHub::closeMatching(const QString& ip, const QString& deviceId)
+{
+    std::vector<Client*> weg;
+    for (const auto& c : m_clients) {
+        const bool treffer = (!ip.isEmpty() && c->ip == ip) || (!deviceId.isEmpty() && c->deviceId == deviceId)
+            || (ip.isEmpty() && deviceId.isEmpty() && !c->local && c->deviceId.isEmpty());
+        if (treffer)
+            weg.push_back(c.get());
+    }
+    for (Client* c : weg) {
+        QPointer<HttpConnection> conn = c->conn;
+        remove(c);
+        if (conn)
+            conn->close();
+    }
+}
+
+// ── EventChannel ─────────────────────────────────────────────────────────────
+EventChannel::EventChannel(QObject* parent)
+    : QObject(parent)
+{
+    // Lebenszeichen: haelt Proxys/WebViews wach und raeumt tote Verbindungen auf.
+    m_ping.setInterval(15000);
+    connect(&m_ping, &QTimer::timeout, this, [this] { send(QByteArray()); });
+    m_ping.start();
+}
+
+EventChannel::~EventChannel()
+{
+    closeAll();
+}
+
+void EventChannel::add(HttpConnection* conn, const QByteArray& first, const QString& deviceId, bool local)
+{
+    m_clients.push_back({conn, deviceId, AccessGuard::ipText(conn->peer()), local});
+    conn->write("retry: 3000\n\n");
+    if (!first.isEmpty())
+        conn->write("data: " + first + "\n\n");
+}
+
+void EventChannel::send(const QByteArray& json)
+{
+    const QByteArray out = json.isEmpty() ? QByteArray(": ping\n\n") : "data: " + json + "\n\n";
+    for (auto it = m_clients.begin(); it != m_clients.end();) {
+        if (!it->conn) {
+            it = m_clients.erase(it);
+            continue;
+        }
+        if (it->conn->pendingBytes() < SseHub::MAX_PENDING)
+            it->conn->write(out);
+        ++it;
+    }
+}
+
+void EventChannel::closeMatching(const QString& ip, const QString& deviceId)
+{
+    for (auto it = m_clients.begin(); it != m_clients.end();) {
+        const bool treffer = (!ip.isEmpty() && it->ip == ip) || (!deviceId.isEmpty() && it->deviceId == deviceId)
+            || (ip.isEmpty() && deviceId.isEmpty() && !it->local && it->deviceId.isEmpty());
+        if (treffer) {
+            if (it->conn)
+                it->conn->close();
+            it = m_clients.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void EventChannel::closeAll()
+{
+    auto alle = std::move(m_clients);
+    m_clients.clear();
+    for (auto& c : alle)
+        if (c.conn)
+            c.conn->close();
 }
 
 void SseHub::tick(Client* c)

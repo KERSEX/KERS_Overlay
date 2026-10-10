@@ -49,6 +49,8 @@ ObsWindow::ObsWindow(HudState& state, OverlayBridge* bridge, const QString& qmlD
 
     m_theme = new Theme(this);
     m_theme->setOpaque(true);            // Panels deckend, siehe Kopfkommentar
+    m_design.apply(m_theme, m_bridge->settingsState()->design().isEmpty() ? DesignScene::initialId()
+                                                                          : m_bridge->settingsState()->design());
     m_hud = new ObsController(color, this);
 
     SettingsState* s = m_bridge->settingsState();
@@ -58,6 +60,14 @@ ObsWindow::ObsWindow(HudState& state, OverlayBridge* bridge, const QString& qmlD
     connect(s, &SettingsState::uiAlphaChanged, this, &ObsWindow::syncTheme);
     connect(s, &SettingsState::textOutlineChanged, this, &ObsWindow::syncTheme);
     syncTheme();
+    connect(s, &SettingsState::designChanged, this, [this]() {
+        const QString id = m_bridge->settingsState()->design();
+        if (id.compare(m_design.wanted(), Qt::CaseInsensitive) == 0)
+            return;
+        m_design.apply(m_theme, id);
+        engine()->clearComponentCache();
+        setSource(sceneUrl());
+    });
 
     QQmlContext* ctx = engine()->rootContext();
     ctx->setContextProperty(QStringLiteral("Theme"), m_theme);
@@ -76,9 +86,7 @@ ObsWindow::ObsWindow(HudState& state, OverlayBridge* bridge, const QString& qmlD
 
 QUrl ObsWindow::sceneUrl() const
 {
-    if (!m_qmlDir.isEmpty())
-        return QUrl::fromLocalFile(QDir(m_qmlDir).filePath(QStringLiteral("Overlay.qml")));
-    return QUrl(QStringLiteral("qrc:/KersHud/Overlay.qml"));
+    return m_design.url(m_qmlDir);
 }
 
 void ObsWindow::syncTheme()
@@ -90,6 +98,7 @@ void ObsWindow::syncTheme()
 
 void ObsWindow::reloadScene()
 {
+    m_design.refresh(m_theme);
     engine()->clearComponentCache();
     setSource(sceneUrl());
 }

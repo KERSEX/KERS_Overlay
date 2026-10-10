@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- KERS-VERSION: 0.0.9 — Regie-Panel (Twitch-Chat mit Mini-Stream im Seitenfach)
+<!-- KERS-VERSION: 0.0.11 — Regie-Panel (OBS-Steuerung mit Docks, Twitch-Chat direkt oder eingebettet)
      Beim Aendern dieser Datei hochzaehlen. Wird in /settings angezeigt.
      ⚠ Der Marker wandert beim Kopieren test.html -> index.html mit. -->
 <html lang="de">
@@ -378,6 +378,53 @@
     #tcDrawer { width: 100%; }
     #tcBadgeGroup.drawer-open { right: 0; }
   }
+  /* ── OBS (ab 0.3.1) ─────────────────────────────────────────────────────── */
+  #obsCard h2 { display: flex; align-items: center; gap: 8px; }
+  #obsStatus { font-size: 10px; letter-spacing: .5px; color: #8e8e9e; text-transform: none; font-variant-numeric: tabular-nums; }
+  #obsStatus.ok { color: #00d56a; }
+  #obsStatus.live { color: #ff5a5a; }
+  .obs-mini { margin-left: auto; flex: none; min-width: 0; font-size: 10px; font-weight: 700; letter-spacing: .5px;
+              text-transform: uppercase; padding: 4px 9px; border-radius: 6px; background: rgba(255,255,255,0.04); color: #9aa0aa; }
+  #obsMsg .obs-mini { margin-left: 6px; }
+  .obs-picker { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .obs-picker label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #c6c6d0; cursor: pointer;
+                      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 5px 8px; }
+  .obs-dock + .obs-dock { border-top: 1px solid rgba(255,255,255,0.06); }
+  .obs-scenes button { min-width: 110px; padding: 12px 8px; font-size: 13px; }
+  .obs-scenes button.pv { background: rgba(0,213,106,0.18); border-color: #00d56a; }
+  .obs-src, .obs-aud { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 13px; }
+  .obs-src + .obs-src, .obs-aud + .obs-aud { box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
+  .obs-src span, .obs-aud .an { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .obs-src button, .obs-aud button { flex: none; min-width: 0; padding: 5px 10px; font-size: 12px; border-radius: 7px; }
+  .obs-src.off span { color: #6a6a78; text-decoration: line-through; }
+  .obs-aud input[type=range] { flex: 1.3; min-width: 80px; accent-color: #e10600; }
+  .obs-aud .adb { font-family: monospace; font-size: 11px; color: #9aa0aa; min-width: 52px; text-align: right; }
+  .obs-aud button.muted { background: #e10600; border-color: #e10600; }
+  .obs-ctl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
+  .obs-ctl button { min-width: 0; padding: 12px 8px; font-size: 13px; }
+  .obs-ctl button.live { background: #e10600; border-color: #e10600; }
+  .obs-ctl .tc { grid-column: span 2; font-family: monospace; font-size: 12px; color: #9aa0aa; text-align: center; }
+  .obs-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 10px 12px; font-size: 12px; color: #c6c6d0; }
+  .obs-stats b { color: #fff; font-variant-numeric: tabular-nums; }
+  .obs-frame { width: 100%; height: 360px; border: none; display: block; background: #0e0e14; }
+  .obs-link { display: block; padding: 6px 12px 10px; font-size: 11px; color: #8e8e9e; }
+  .obs-link a, .tc-stream-head a { color: #a970ff; text-decoration: none; }
+  /* Twitch-Chat direkt (ohne Einbettung) */
+  .tchat { height: 100%; overflow-y: auto; padding: 6px 10px; font-size: 13px; line-height: 1.45; }
+  .obs-dock .tchat { height: 360px; }
+  .tmsg { padding: 2px 0; overflow-wrap: anywhere; }
+  .tmsg .tu { font-weight: 700; }
+  .tmsg .tb { display: inline-block; font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 3px; margin-right: 4px;
+              vertical-align: 1px; background: #3a3a46; color: #fff; }
+  .tmsg .tb.mod { background: #00ad03; }
+  .tmsg .tb.str { background: #e91916; }
+  .tmsg .tb.vip { background: #e005b9; }
+  .tmsg .tb.sub { background: #8205b4; }
+  .tmsg img { height: 22px; vertical-align: middle; margin: -3px 0; }
+  .tmsg.sys { color: #8e8e9e; font-style: italic; font-size: 12px; }
+  #tcMode { flex: none; min-width: 0; padding: 8px; font-size: 11px; font-weight: 700; border-radius: 6px;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #c6c6d0; }
+  #tcMode.on { background: #9146ff; border-color: #9146ff; color: #fff; }
 </style>
 </head>
 <body>
@@ -396,12 +443,14 @@
   <div class="tc-bar">
     <input id="tcInput" type="text" placeholder="Kanalname oder Link (z.B. twitch.tv/WTV_Live)">
     <button id="tcBtn">Laden</button>
+    <button id="tcMode" title="Direkt: KERS liest den Chat selbst (geht auch in LibreWolf, nur lesen). Einbettung: der Twitch-eigene Chat zum Mitschreiben.">Direkt</button>
   </div>
   
   <!-- Mini Live-Stream (oben direkt über dem Chat-Verlauf) -->
   <div id="tcStreamBox">
     <div class="tc-stream-head">
       <span id="tcStreamTitle">Live-Stream</span>
+      <a id="tcStreamOpen" target="_blank" rel="noopener" title="Stream in neuem Tab öffnen (falls der Browser die Einbettung blockt)">↗</a>
       <button class="tc-close" id="tcStreamCloseBtn" title="Video-Stream ausblenden">✕</button>
     </div>
     <div class="tc-stream-body">
@@ -412,6 +461,7 @@
   <div id="tcBody">
     <div id="tcPlaceholder" class="empty" style="padding: 24px 16px; text-align: center;">Kanalnamen oder Twitch-Link eingeben & „Laden“ drücken.</div>
     <iframe id="tcIframe" src=""></iframe>
+    <div id="tcDirect" class="tchat" style="display:none"></div>
   </div>
 </div>
 
@@ -462,6 +512,12 @@
     </div>
   </div>
   <div class="col-ctl">
+    <!-- OBS (ab 0.3.1): welche Bereiche hier stehen, legt "Docks" fest (je Geraet gemerkt). -->
+    <div class="card" id="obsCard"><h2>OBS<span id="obsStatus">—</span><button class="obs-mini" id="obsDockBtn" title="Welche OBS-Bereiche hier stehen">Docks</button></h2>
+      <div class="obs-picker" id="obsPicker" hidden></div>
+      <div id="obsMsg" class="empty">verbinde…</div>
+      <div id="obsDocks"></div>
+    </div>
     <!-- Oben das, was man waehrend der Session liest; die Schalter stehen darunter. -->
     <div class="card"><h2 id="bhHead">Battles</h2><div id="battles"><div class="empty">—</div></div></div>
     <!-- I7: Pace-Vergleich — blendet sich nur im Rennen ein -->
@@ -491,6 +547,7 @@
         <button data-toggle="battles">Battles</button>
         <button data-toggle="hotlap">Hotlap</button>
         <button data-toggle="champ">WM-Stand</button>
+        <button id="champViewBtn" title="Was der WM-Stand zeigt: Fahrer → Teams → im Wechsel">WM: Fahrer</button>
         <button class="off-btn" id="allOff">Alles ausblenden</button>
       </div>
     </div>
@@ -509,6 +566,9 @@ const TEAM_LOGOS = { "Red Bull":"Red_Bull_Half","Ferrari":"Ferrari","McLaren":"M
 const TYRE_COLOR = { S:"#E8002D", M:"#FFC906", H:"#EBEBEB", I:"#39B54A", W:"#0067FF", E:"#00CFFF" };
 const logoSrc = t => TEAM_LOGOS[t] ? "/static/teams/" + TEAM_LOGOS[t] + ".png" : "";
 const esc = s => (s || "").replace(/</g, "&lt;");
+// Fuer Attribute (title="…", data-…="…"): auch Anfuehrungszeichen - Szenen- und
+// Fahrernamen kommen von aussen (OBS, Spiel).
+const escA = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const wearColor = w => `hsl(${Math.round(130 - 130 * Math.max(0, Math.min(100, w)) / 100)}, 80%, 60%)`;   // grün (frisch) -> rot (verbraucht)
 // Schriftfarbe auf farbigem Grund: dunkel auf hellen Flächen, sonst weiß. Fest dunkel war
 // auf Soft (Rot) und Wet (Blau) kaum lesbar. Maß ist die wahrgenommene Helligkeit (YIQ).
@@ -784,6 +844,28 @@ async function pullTrack() {
 function applyMapCfg(s) {   // Drehung/Spiegelung aus den Overlay-Settings übernehmen
   const rot = (s.maprot || 0) * Math.PI / 180, flip = !!s.mapflip;
   if (rot !== rRot || flip !== rFlip) { rRot = rot; rFlip = flip; rBuildTrack(); }
+  applyChampView(s);
+}
+// ── WM-Ansicht (ab 0.3.1): Fahrer, Teams oder im Wechsel — Einstellung champ_view ──
+let CHAMP_VIEW = "drivers";
+const CV_NAMES = { drivers: "Fahrer", teams: "Teams", wechsel: "Wechsel" };
+function applyChampView(s) {
+  const v = (s && s.champ_view) || "drivers";
+  if (v === CHAMP_VIEW && document.getElementById("champViewBtn").dataset.v === v) return;
+  CHAMP_VIEW = v;
+  const b = document.getElementById("champViewBtn");
+  b.dataset.v = v;
+  b.textContent = "WM: " + (CV_NAMES[v] || "Fahrer");
+  b.classList.toggle("on", v !== "drivers");
+}
+async function cycleChampView() {
+  const order = ["drivers", "teams", "wechsel"];
+  const next = order[(order.indexOf(CHAMP_VIEW) + 1) % order.length];
+  try {
+    applyChampView(await (await fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                          body: JSON.stringify({ champ_view: next }) })).json());
+    pollChamp();
+  } catch (e) { setStatus("Senden fehlgeschlagen", "err"); }
 }
 async function pullMapCfg() { try { applyMapCfg(await (await fetch("/api/settings")).json()); } catch (e) {} }
 async function relearnTrack() {   // Kontur verwerfen und neu lernen (echter Endpoint: /api/track/relearn)
@@ -1580,7 +1662,7 @@ function renderLive(d) {
     + (logoSrc(dr.team) ? `<img class="tl" src="${logoSrc(dr.team)}" alt="" onerror="this.style.visibility='hidden'">` : `<span class="tl"></span>`)
     // title: die Zeile ist voll, lange Namen werden per Ellipse gekürzt — so kommt man
     // per Hover/Langdruck trotzdem an den vollen Namen.
-    + `<span class="tn" title="${esc(dr.name)}">${esc(dr.name)}</span>`
+    + `<span class="tn" title="${escA(dr.name)}">${esc(dr.name)}</span>`
     // Direkt rechts vom Namen: Landeposition mit Zeitstrafe (die Strafe selbst steht links)
     + (quali ? "" : penProjection(dr, drivers))
     + (quali ? "" : boxPill(dr))               // Rennen: BOX + laufende Standzeit
@@ -1674,15 +1756,21 @@ document.addEventListener("click", e => {
   const c = e.target.closest("button[data-chart]"); if (c) { push({ chart: S.chart === c.dataset.chart ? "none" : c.dataset.chart }); return; }
   const t = e.target.closest("button[data-toggle]"); if (t) { push({ [t.dataset.toggle]: !S[t.dataset.toggle] }); return; }
   if (e.target.id === "allOff") push({ chart: "none", champ: false });
+  if (e.target.id === "champViewBtn") cycleChampView();
 });
 async function pollChamp() {
   let c;
   try { c = await (await fetch("/api/championship")).json(); } catch (e) { return; }
   const el = document.getElementById("champ");
-  const st = (c && c.standings) || [];
-  el.innerHTML = st.length ? st.slice(0, 12).map((s, i) =>
-      `<div class="brow"><span class="bp">${i + 1}</span><span>${esc(s.name)}</span>`
-    + `<span class="bg">${s.total_points}${s.live_points > 0 ? " (+" + s.live_points + ")" : ""}</span></div>`).join("")
+  const st = (c && c.standings) || [], tm = (c && c.teams) || [];
+  const zeile = (name, s, i) => `<div class="brow"><span class="bp">${i + 1}</span><span>${esc(name)}</span>`
+    + `<span class="bg">${s.total_points}${s.live_points > 0 ? " (+" + s.live_points + ")" : ""}</span></div>`;
+  // Fahrer und Teams untereinander; was gerade im Overlay steht, kommt zuerst.
+  const fahrer = st.slice(0, 12).map((s, i) => zeile(s.name, s, i)).join("");
+  const teams = tm.length ? `<div class="btns-lbl" style="margin-top:8px">Teams</div>` + tm.map((s, i) => zeile(s.team, s, i)).join("") : "";
+  const punkte = c && c.custom_points ? `<div class="btns-lbl" style="margin-top:8px">eigene Punkte: `
+    + Object.entries(c.points_system || {}).slice(0, 10).map(([p, v]) => `P${p} ${v}`).join(" · ") + `</div>` : "";
+  el.innerHTML = st.length ? (CHAMP_VIEW === "teams" && teams ? teams + `<div class="btns-lbl" style="margin-top:8px">Fahrer</div>` + fahrer : fahrer + teams) + punkte
     : `<div class="empty">keine WM-Daten (championship.json prüfen)</div>`;
 }
 // Top-3-Quali-Merkzettel: nur lokal (localStorage), bleibt beim Neuladen erhalten.
@@ -1727,6 +1815,124 @@ function parseTwitchChannel(raw) {
   return str.split("/")[0].replace(/[^a-zA-Z0-9_]/g, "");
 }
 
+// ── Twitch-Chat direkt (ab 0.3.1) ────────────────────────────────────────────
+// Die Twitch-Einbettung braucht Drittanbieter-Speicher. LibreWolf (und strenge
+// Datenschutz-Einstellungen) sperren ihn - der Chat bleibt dann leer. "Direkt" liest
+// den Chat selbst: anonym ueber Twitch-IRC per WebSocket (justinfan…), nur lesen.
+// Auch die Twitch-Chat-Docks aus OBS laufen darueber (Popout-Chats lassen sich
+// ohnehin nicht einbetten).
+const TC_BADGES = { broadcaster: ["str", "STREAMER"], moderator: ["mod", "MOD"], vip: ["vip", "VIP"], subscriber: ["sub", "SUB"] };
+function tcColor(name) {
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return `hsl(${h % 360},70%,65%)`;
+}
+function tcTags(raw) {
+  const t = {};
+  for (const kv of raw.split(";")) {
+    const i = kv.indexOf("=");
+    if (i > 0) t[kv.slice(0, i)] = kv.slice(i + 1).replace(/\\s/g, " ");
+  }
+  return t;
+}
+function tcText(text, emotes) {
+  // emotes: "25:0-4,12-16/1902:6-10" - Positionen in Unicode-Zeichen, nicht UTF-16
+  const chars = Array.from(text), repl = [];
+  if (emotes) for (const e of emotes.split("/")) {
+    const [id, pos] = e.split(":");
+    if (!pos || !/^[\w-]+$/.test(id)) continue;
+    for (const r of pos.split(",")) { const [a, b] = r.split("-").map(Number); repl.push([a, b, id]); }
+  }
+  repl.sort((x, y) => x[0] - y[0]);
+  let out = "", i = 0;
+  for (const [a, b, id] of repl) {
+    if (a < i || !(b >= a)) continue;
+    out += esc(chars.slice(i, a).join(""));
+    out += `<img alt="${escA(chars.slice(a, b + 1).join(""))}" src="https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/1.0">`;
+    i = b + 1;
+  }
+  return out + esc(chars.slice(i).join(""));
+}
+class TwitchDirect {
+  constructor(el) { this.el = el; this.ws = null; this.ch = ""; this.timer = null; this.joined = false; }
+  open(channel) {
+    this.close();
+    this.ch = (channel || "").toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (!this.ch) return;
+    this.el.innerHTML = "";
+    this.joined = false;
+    this.sys(`verbinde mit #${this.ch} …`);
+    const ws = new WebSocket("wss://irc-ws.chat.twitch.tv:443");
+    this.ws = ws;
+    ws.onopen = () => {
+      ws.send("CAP REQ :twitch.tv/tags twitch.tv/commands");
+      ws.send("PASS SCHMOOPIIE");
+      ws.send("NICK justinfan" + (10000 + Math.floor(Math.random() * 80000)));
+      ws.send("JOIN #" + this.ch);
+    };
+    ws.onmessage = ev => String(ev.data).split("\r\n").forEach(l => { if (l) this.line(l); });
+    ws.onclose = () => {
+      if (this.ws !== ws) return;                     // absichtlich geschlossen
+      this.sys("Verbindung weg – neuer Versuch in 5 s");
+      this.timer = setTimeout(() => this.open(this.ch), 5000);
+    };
+  }
+  close() {
+    clearTimeout(this.timer);
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) try { ws.close(); } catch (e) {}
+  }
+  sys(t) { this.add(`<div class="tmsg sys">${esc(t)}</div>`); }
+  add(html, id, user) {
+    const unten = this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < 40;
+    const box = document.createElement("div");
+    box.innerHTML = html;
+    const m = box.firstElementChild;
+    if (id) m.dataset.id = id;
+    if (user) m.dataset.u = user;
+    this.el.appendChild(m);
+    while (this.el.children.length > 200) this.el.firstElementChild.remove();
+    if (unten) this.el.scrollTop = this.el.scrollHeight;
+  }
+  line(l) {
+    if (l.startsWith("PING")) { if (this.ws) this.ws.send("PONG" + l.slice(4)); return; }
+    let tags = {}, rest = l;
+    if (rest[0] === "@") { const sp = rest.indexOf(" "); tags = tcTags(rest.slice(1, sp)); rest = rest.slice(sp + 1); }
+    const m = rest.match(/^(?::(\S+) )?(\S+)((?: [^: ]\S*)*)(?: :(.*))?$/);
+    if (!m) return;
+    const prefix = m[1] || "", cmd = m[2], text = m[4] || "";
+    const user = prefix.split("!")[0];
+    if (cmd === "PRIVMSG") {
+      const name = tags["display-name"] || user;
+      const col = /^#[0-9a-f]{6}$/i.test(tags.color || "") ? tags.color : tcColor(user);
+      let badges = "";
+      for (const b of (tags.badges || "").split(",")) {
+        const k = b.split("/")[0];
+        if (TC_BADGES[k]) badges += `<span class="tb ${TC_BADGES[k][0]}">${TC_BADGES[k][1]}</span>`;
+      }
+      let t = text, me = false;
+      if (t.startsWith("\u0001ACTION ") && t.endsWith("\u0001")) { t = t.slice(8, -1); me = true; }
+      this.add(`<div class="tmsg">${badges}<span class="tu" style="color:${col}">${esc(name)}</span>${me ? " " : ": "}`
+             + `<span${me ? ` style="color:${col}"` : ""}>${tcText(t, tags.emotes)}</span></div>`, tags.id, user);
+    } else if (cmd === "ROOMSTATE" && !this.joined) {
+      this.joined = true;
+      this.sys(`verbunden mit #${this.ch} – nur lesen`);
+    } else if (cmd === "CLEARMSG") {
+      const id = tags["target-msg-id"];
+      if (id) this.el.querySelectorAll(`[data-id="${CSS.escape(id)}"]`).forEach(e => e.remove());
+    } else if (cmd === "CLEARCHAT") {
+      if (text) this.el.querySelectorAll(`[data-u="${CSS.escape(text)}"]`).forEach(e => e.remove());
+      else { this.el.innerHTML = ""; this.sys("Chat wurde geleert"); }
+    } else if (cmd === "USERNOTICE") {
+      const sm = tags["system-msg"];
+      if (sm) this.add(`<div class="tmsg sys">${esc(sm)}${text ? ": " + tcText(text, tags.emotes) : ""}</div>`);
+    } else if (cmd === "NOTICE") {
+      this.sys(text);
+    }
+  }
+}
+
 function initTwitchDrawer() {
   const drawer = document.getElementById("tcDrawer");
   const badgeGroup = document.getElementById("tcBadgeGroup");
@@ -1743,6 +1949,17 @@ function initTwitchDrawer() {
   const streamIframe = document.getElementById("tcStreamIframe");
   const streamCloseBtn = document.getElementById("tcStreamCloseBtn");
   const streamTitle = document.getElementById("tcStreamTitle");
+  const streamOpen = document.getElementById("tcStreamOpen");
+  const modeBtn = document.getElementById("tcMode");
+  const directEl = document.getElementById("tcDirect");
+  const direct = new TwitchDirect(directEl);
+  // Vorgabe "Direkt": geht in jedem Browser. "Einbettung" = Twitch-eigener Chat.
+  let mode = localStorage.getItem("kers_twitch_mode") === "embed" ? "embed" : "direct";
+  function applyMode() {
+    modeBtn.textContent = mode === "direct" ? "Direkt" : "Einbettung";
+    modeBtn.classList.toggle("on", mode === "direct");
+  }
+  applyMode();
 
   let currentChannel = "";
 
@@ -1765,6 +1982,8 @@ function initTwitchDrawer() {
     if (!channel) {
       iframe.style.display = "none";
       iframe.src = "";
+      direct.close();
+      directEl.style.display = "none";
       placeholder.style.display = "block";
       if (streamIframe) streamIframe.src = "";
       if (streamBox) streamBox.style.display = "none";
@@ -1774,8 +1993,17 @@ function initTwitchDrawer() {
     const host = getHost();
     localStorage.setItem("kers_twitch_channel", channel);
     input.value = channel;
-    iframe.src = `https://www.twitch.tv/embed/${encodeURIComponent(channel)}/chat?parent=${encodeURIComponent(host)}&darkpopout`;
-    iframe.style.display = "block";
+    if (mode === "direct") {
+      iframe.src = "";
+      iframe.style.display = "none";
+      directEl.style.display = "block";
+      direct.open(channel);
+    } else {
+      direct.close();
+      directEl.style.display = "none";
+      iframe.src = `https://www.twitch.tv/embed/${encodeURIComponent(channel)}/chat?parent=${encodeURIComponent(host)}&darkpopout`;
+      iframe.style.display = "block";
+    }
     placeholder.style.display = "none";
 
     if (streamBox && streamBox.style.display === "block") {
@@ -1788,6 +2016,7 @@ function initTwitchDrawer() {
     const host = getHost();
     streamIframe.src = `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${encodeURIComponent(host)}&muted=true`;
     if (streamTitle) streamTitle.textContent = "Live: " + channel;
+    if (streamOpen) streamOpen.href = "https://www.twitch.tv/" + encodeURIComponent(channel);
   }
 
   function toggleStreamBox(show) {
@@ -1813,12 +2042,191 @@ function initTwitchDrawer() {
   if (closeBtn) closeBtn.addEventListener("click", () => toggleDrawer(false));
   if (streamCloseBtn) streamCloseBtn.addEventListener("click", () => toggleStreamBox(false));
   if (btn) btn.addEventListener("click", () => loadChatAndStream(input.value));
+  modeBtn.addEventListener("click", () => {
+    mode = mode === "direct" ? "embed" : "direct";
+    localStorage.setItem("kers_twitch_mode", mode);
+    applyMode();
+    if (currentChannel) loadChatAndStream(currentChannel);
+  });
   if (input) input.addEventListener("keydown", e => { if (e.key === "Enter") loadChatAndStream(input.value); });
 
   const saved = localStorage.getItem("kers_twitch_channel");
   if (saved) loadChatAndStream(saved);
 }
 initTwitchDrawer();
+
+// ── OBS (ab 0.3.1) ───────────────────────────────────────────────────────────
+// Die Verbindung zu OBS haelt der KERS-Server (obs-websocket) - hier nur Anzeige
+// und Knoepfe. Welche Bereiche ("Docks") stehen, merkt sich jedes Geraet selbst.
+// Eigene Browser-Docks aus OBS kommen dazu, wenn OBS auf dem PC mit KERS laeuft.
+const OBS_DOCKS = [["scenes", "Szenen"], ["sources", "Quellen"], ["audio", "Audio"],
+                   ["transitions", "Übergänge"], ["controls", "Stream/Aufnahme"], ["stats", "Statistik"]];
+let OBS = null, obsSel = null;
+const obsChats = {};
+try { obsSel = JSON.parse(localStorage.getItem("kers_obs_docks") || "null"); } catch (e) {}
+if (!Array.isArray(obsSel)) obsSel = ["scenes", "controls"];
+
+async function obsAction(a) {
+  try {
+    const r = await fetch("/api/obs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(a) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) setStatus("OBS: " + (j.error || r.status), "err");
+  } catch (e) { setStatus("OBS: keine Verbindung zum Server", "err"); }
+}
+function obsAlleDocks() {
+  return OBS_DOCKS.concat(((OBS && OBS.docks) || []).map(d => ["dock:" + d.title, d.title, d]));
+}
+let obsPickerHtml = "";
+function obsPicker() {
+  const p = document.getElementById("obsPicker");
+  // Nur neu zeichnen, wenn sich etwas geaendert hat - der OBS-Zustand kommt im
+  // Sekundentakt, die Haekchen sollen dabei nicht unter dem Finger springen.
+  const html = obsAlleDocks().map(([k, n]) =>
+      `<label><input type="checkbox" data-obsdock="${escA(k)}"${obsSel.includes(k) ? " checked" : ""}> ${esc(n)}</label>`).join("")
+    + (OBS && OBS.connected && !OBS.docks_local
+        ? `<div class="empty" style="width:100%">Eigene OBS-Docks gibt es nur, wenn OBS auf dem PC mit KERS läuft.</div>` : "");
+  if (html !== obsPickerHtml) { p.innerHTML = html; obsPickerHtml = html; }
+}
+function obsDb(v) { return v <= -60 ? "-∞" : (v > 0 ? "+" : "") + v.toFixed(1) + " dB"; }
+function obsDockHtml(key) {
+  const o = OBS;
+  if (key === "scenes")
+    return `<div class="btns-lbl">Szenen${o.studio ? " · Studio-Modus: Klick = Vorschau" : ""}</div><div class="btns obs-scenes">`
+      + o.scenes.map(n => `<button data-obsscene="${escA(n)}" class="${n === o.program ? "on" : ""}${o.studio && n === o.preview ? " pv" : ""}">${esc(n)}</button>`).join("")
+      + (o.studio ? `<button class="off-btn" data-obsact="studio_transition">Übergang ausführen</button>` : "") + `</div>`;
+  if (key === "sources")
+    return `<div class="btns-lbl">Quellen · ${esc(o.program)}</div>` + (o.items.length ? o.items.map(it =>
+        `<div class="obs-src${it.enabled ? "" : " off"}"><span>${esc(it.name)}</span>`
+      + `<button data-obsitem="${it.id}" data-en="${it.enabled ? 0 : 1}">${it.enabled ? "ausblenden" : "einblenden"}</button></div>`).join("")
+      : `<div class="empty">keine Quellen</div>`);
+  if (key === "audio")
+    return `<div class="btns-lbl">Audio</div>` + (o.inputs.length ? o.inputs.map(a =>
+        `<div class="obs-aud"><span class="an">${esc(a.name)}</span>`
+      + `<input type="range" min="-60" max="6" step="0.5" value="${Math.max(-60, a.db)}" data-obsvol="${escA(a.name)}">`
+      + `<span class="adb">${obsDb(a.db)}</span>`
+      + `<button data-obsmute="${escA(a.name)}" data-m="${a.muted ? 0 : 1}" class="${a.muted ? "muted" : ""}">${a.muted ? "stumm" : "an"}</button></div>`).join("")
+      : `<div class="empty">keine Audioquellen</div>`);
+  if (key === "transitions")
+    return `<div class="btns-lbl">Übergang</div><div class="btns">`
+      + o.transitions.map(n => `<button data-obstrans="${escA(n)}" class="${n === o.transition ? "on" : ""}">${esc(n)}</button>`).join("") + `</div>`;
+  if (key === "controls") {
+    const st = o.stream || {}, rc = o.record || {};
+    return `<div class="btns-lbl">Stream / Aufnahme</div><div class="obs-ctl">`
+      + `<button data-obsstream="${st.active ? "stop" : "start"}" class="${st.active ? "live" : ""}">${st.active ? "Stream beenden" : "Stream starten"}</button>`
+      + `<button data-obsrec="${rc.active ? "stop" : "start"}" class="${rc.active ? "live" : ""}">${rc.active ? "Aufnahme beenden" : "Aufnahme starten"}</button>`
+      + (rc.active ? `<button data-obsrec="${rc.paused ? "resume" : "pause"}" style="grid-column:span 2">${rc.paused ? "Aufnahme fortsetzen" : "Aufnahme pausieren"}</button>` : "")
+      + `<div class="tc">Stream ${st.active ? (st.reconnecting ? "verbindet neu …" : st.timecode || "") : "aus"} · Aufnahme ${rc.active ? (rc.paused ? "pausiert " : "") + (rc.timecode || "") : "aus"}</div></div>`;
+  }
+  if (key === "stats") {
+    const s = o.stats || {};
+    return `<div class="btns-lbl">Statistik</div><div class="obs-stats">`
+      + `<span>CPU <b>${s.cpu ?? "–"} %</b></span><span>FPS <b>${s.fps ?? "–"}</b></span>`
+      + `<span>Render-Aussetzer <b>${s.render_skipped ?? "–"}</b></span><span>Ausgabe-Aussetzer <b>${s.output_skipped ?? "–"}</b></span>`
+      + `<span>Speicher <b>${s.memory ?? "–"} MB</b></span><span>OBS <b>${esc(o.version || "")}</b></span></div>`;
+  }
+  return "";
+}
+function renderObs() {
+  if (!OBS) return;
+  const msg = document.getElementById("obsMsg"), box = document.getElementById("obsDocks"), st = document.getElementById("obsStatus");
+  if (!document.getElementById("obsPicker").hidden) obsPicker();
+  if (!OBS.enabled || !OBS.connected) {
+    st.textContent = OBS.enabled ? "getrennt" : "aus";
+    st.className = "";
+    for (const k in obsChats) { obsChats[k].close(); delete obsChats[k]; }
+    box.innerHTML = "";
+    msg.hidden = false;
+    msg.innerHTML = OBS.enabled ? esc(OBS.error || "verbinde…")
+      : `OBS-Steuerung ist aus.<button class="obs-mini" id="obsOn">Einschalten</button>`
+        + `<div style="margin-top:6px;opacity:.75">Nur am PC mit KERS. Adresse und Passwort stehen in /settings unter OBS.</div>`;
+    return;
+  }
+  msg.hidden = true;
+  const live = OBS.stream && OBS.stream.active, rec = OBS.record && OBS.record.active;
+  st.textContent = live ? "● LIVE " + (OBS.stream.timecode || "") : rec ? "● REC " + (OBS.record.timecode || "") : "verbunden";
+  st.className = live || rec ? "live" : "ok";
+  const gewaehlt = obsAlleDocks().filter(([k]) => obsSel.includes(k));
+  const keys = new Set(gewaehlt.map(([k]) => k));
+  box.querySelectorAll(":scope > .obs-dock").forEach(el => {
+    if (keys.has(el.dataset.dock)) return;
+    if (obsChats[el.dataset.dock]) { obsChats[el.dataset.dock].close(); delete obsChats[el.dataset.dock]; }
+    el.remove();
+  });
+  for (const [k, titel, dock] of gewaehlt) {
+    let el = [...box.children].find(e => e.dataset.dock === k);
+    if (!el) { el = document.createElement("div"); el.className = "obs-dock"; el.dataset.dock = k; box.appendChild(el); }
+    if (dock) {
+      // Browser-Dock: nur EINMAL anlegen - neu zeichnen hiesse neu laden
+      if (el.dataset.built) continue;
+      el.dataset.built = "1";
+      if (dock.twitch) {
+        el.innerHTML = `<div class="btns-lbl">${esc(titel)} · Twitch-Chat direkt</div><div class="tchat"></div>`;
+        obsChats[k] = new TwitchDirect(el.querySelector(".tchat"));
+        obsChats[k].open(dock.twitch);
+      } else {
+        el.innerHTML = `<div class="btns-lbl">${esc(titel)}</div><iframe class="obs-frame" src="${escA(dock.url)}"></iframe>`
+          + `<div class="obs-link"><a href="${escA(dock.url)}" target="_blank" rel="noopener">in neuem Tab öffnen ↗</a> – falls die Seite das Einbetten verbietet</div>`;
+      }
+      continue;
+    }
+    // Waehrend ein Lautstaerke-Regler gezogen wird, nicht darunter neu zeichnen
+    if (k === "audio" && el.contains(document.activeElement) && document.activeElement.type === "range") continue;
+    const html = obsDockHtml(k);
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }
+}
+let obsVolTimer = null;
+document.addEventListener("input", e => {
+  const v = e.target.closest("[data-obsvol]");
+  if (!v) return;
+  v.nextElementSibling.textContent = obsDb(+v.value);
+  clearTimeout(obsVolTimer);
+  obsVolTimer = setTimeout(() => obsAction({ action: "volume", input: v.dataset.obsvol, db: +v.value }), 120);
+});
+document.addEventListener("change", e => {
+  const c = e.target.closest("[data-obsdock]");
+  if (!c) return;
+  obsSel = obsSel.filter(k => k !== c.dataset.obsdock);
+  if (c.checked) obsSel.push(c.dataset.obsdock);
+  localStorage.setItem("kers_obs_docks", JSON.stringify(obsSel));
+  renderObs();
+});
+document.addEventListener("click", async e => {
+  const t = e.target;
+  if (t.id === "obsDockBtn") { const p = document.getElementById("obsPicker"); p.hidden = !p.hidden; if (!p.hidden) obsPicker(); return; }
+  if (t.id === "obsOn") {
+    const r = await fetch("/api/obs/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: true }) });
+    if (!r.ok) setStatus("OBS lässt sich nur am PC mit KERS einschalten", "err");
+    return;
+  }
+  const b = t.closest("button");
+  if (!b || !OBS) return;
+  if (b.dataset.obsscene) obsAction({ action: OBS.studio ? "preview" : "scene", name: b.dataset.obsscene });
+  else if (b.dataset.obsact) obsAction({ action: b.dataset.obsact });
+  else if (b.dataset.obsitem) obsAction({ action: "item", id: +b.dataset.obsitem, enabled: b.dataset.en === "1" });
+  else if (b.dataset.obsmute) obsAction({ action: "mute", input: b.dataset.obsmute, muted: b.dataset.m === "1" });
+  else if (b.dataset.obstrans) obsAction({ action: "transition", name: b.dataset.obstrans });
+  else if (b.dataset.obsstream) {
+    // Live gehen ist nicht rueckgaengig zu machen - deshalb immer nachfragen.
+    const start = b.dataset.obsstream === "start";
+    if (confirm(start ? "Stream in OBS jetzt STARTEN? Damit gehst du live." : "Stream in OBS beenden?"))
+      obsAction({ action: "stream", op: b.dataset.obsstream });
+  } else if (b.dataset.obsrec) {
+    if (b.dataset.obsrec !== "stop" || confirm("Aufnahme in OBS beenden?"))
+      obsAction({ action: "record", op: b.dataset.obsrec });
+  }
+});
+function startObs() {
+  let es = null, offen = false, poll = null;
+  const nimm = j => { OBS = j; renderObs(); };
+  const pollen = () => fetch("/api/obs").then(r => r.json()).then(nimm).catch(() => {});
+  try {
+    es = new EventSource("/api/obs/stream");
+    es.onmessage = ev => { try { offen = true; nimm(JSON.parse(ev.data)); } catch (err) {} };
+    es.onerror = () => { if (!offen && !poll) { es.close(); poll = setInterval(pollen, 2000); pollen(); } };
+  } catch (e) { poll = setInterval(pollen, 2000); pollen(); }
+}
+startObs();
 
 // ── K14: Datenanbindung — SSE (Push) mit Polling-Fallback ────────────────────
 // Der Stream liefert drivers + session + regie + settings in EINEM Payload, also

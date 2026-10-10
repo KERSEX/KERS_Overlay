@@ -24,6 +24,7 @@
 // Log: data\kers.log neben der EXE.
 
 #include "bridge.h"
+#include "data_source.h"
 #include "hud_state.h"
 #include "hud_window.h"
 #include "icon.h"
@@ -278,6 +279,10 @@ int main(int argc, char* argv[])
 
     // Der eingebaute Server. Mit --url wird stattdessen ein fremder beobachtet.
     const bool lokal = args.url.isEmpty();
+    // Fremder Server mit Code (ab 0.3.1): der einmal geholte Schluessel geht bei
+    // jeder Anfrage mit.
+    if (!lokal && !state.remoteKey.isEmpty())
+        hud::setAccessKey(state.remoteKey.toLatin1());
     server::KersServer kersServer(paths::dataDir());
     std::unique_ptr<app::ServerControl> serverCtl;
     if (lokal) {
@@ -329,6 +334,24 @@ int main(int argc, char* argv[])
     QObject::connect(&server, &app::ServerControl::errorOccurred, tray, [tray](const QString& msg) {
         tray->showMessage(QStringLiteral("KERS Server startet nicht"), msg, QSystemTrayIcon::Warning, 8000);
     });
+    if (lokal) {
+        // Zugriff: wer klopft an, wer ist neu dazugekommen - sichtbar, auch wenn
+        // das Schaltbrett zu ist.
+        QObject::connect(&kersServer.access(), &server::AccessGuard::attemptSeen, tray,
+                         [tray](const QString& ip, const QString& agent) {
+                             tray->showMessage(QStringLiteral("Fremdes Gerät ohne Code"),
+                                               QStringLiteral("%1 (%2) will auf KERS zugreifen. Den Code findest du "
+                                                              "im Schaltbrett unter „Zugriff“.")
+                                                   .arg(ip, server::AccessGuard::deviceNameFromAgent(agent)),
+                                               QSystemTrayIcon::Information, 6000);
+                         });
+        QObject::connect(&kersServer.access(), &server::AccessGuard::deviceAdded, tray,
+                         [tray](const QString& name, const QString& ip) {
+                             tray->showMessage(QStringLiteral("Gerät freigegeben"),
+                                               QStringLiteral("%1 (%2) hat den Code eingegeben.").arg(name, ip),
+                                               QSystemTrayIcon::Information, 5000);
+                         });
+    }
     if (lokal && !kersServer.isRunning() && !kersServer.errorString().isEmpty())
         tray->showMessage(QStringLiteral("KERS Server startet nicht"), kersServer.errorString(), QSystemTrayIcon::Warning, 8000);
     tray->showMessage(QStringLiteral("KERS HUD laeuft"),

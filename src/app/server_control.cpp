@@ -139,6 +139,7 @@ void RemoteStatus::refresh()
     QNetworkRequest req(QUrl(m_source.baseUrl() + QStringLiteral("/api/status")));
     req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
     req.setTransferTimeout(1500);
+    hud::applyAccessKey(req);
     auto* nam = m_source.findChild<QNetworkAccessManager*>();
     Q_UNUSED(nam);
     // Eigene kleine Abfrage statt DataSource::get: die dedupliziert pro Pfad und
@@ -215,6 +216,16 @@ void LocalServer::stop()
 {
     m_server.stop();
     announce();
+}
+
+server::AccessGuard* LocalServer::access()
+{
+    return &m_server.access();
+}
+
+quint16 LocalServer::httpPort() const
+{
+    return m_server.isRunning() ? m_server.httpPort() : m_httpPort;
 }
 
 QString LocalServer::baseUrl() const

@@ -14,6 +14,7 @@
 // der Farbschluessel sie anteilig mit weg), auf dem Desktop bleiben sie durchsichtig.
 #pragma once
 
+#include "design_scene.h"
 #include "hud_state.h"
 #include "theme.h"
 
@@ -75,6 +76,7 @@ private:
 
     HudState& m_state;
     QString m_qmlDir;
+    DesignScene m_design{QStringLiteral("obs")};
     Theme* m_theme;
     OverlayBridge* m_bridge;
     ObsController* m_hud;

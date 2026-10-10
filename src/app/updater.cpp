@@ -310,15 +310,18 @@ QString Updater::pruefen(const QString& pfad) const
         return QStringLiteral("Groesse passt nicht (%1 statt %2 Bytes) - der Download ist unvollstaendig.")
             .arg(info.size())
             .arg(m_info.size);
-    if (m_info.digest.startsWith(QLatin1String("sha256:"))) {
-        QFile f(pfad);
-        if (!f.open(QIODevice::ReadOnly))
-            return QStringLiteral("Heruntergeladene Datei nicht lesbar.");
-        QCryptographicHash h(QCryptographicHash::Sha256);
-        h.addData(&f);
-        if (QString::fromLatin1(h.result().toHex()) != m_info.digest.mid(7).toLower())
-            return QStringLiteral("Pruefsumme stimmt nicht - Datei verwerfen.");
-    }
+    // Ab 0.3.1 Pflicht: ohne SHA-256 von GitHub wird nichts getauscht. Bis 0.3.0
+    // wurde die Pruefung dann still uebersprungen - eine EXE ohne Pruefsumme ist
+    // aber genau die, bei der man nicht weiss, was man bekommt.
+    if (!m_info.digest.startsWith(QLatin1String("sha256:")))
+        return QStringLiteral("GitHub liefert fuer diese Fassung keine Pruefsumme - aus Sicherheitsgruenden nicht installiert.");
+    QFile f(pfad);
+    if (!f.open(QIODevice::ReadOnly))
+        return QStringLiteral("Heruntergeladene Datei nicht lesbar.");
+    QCryptographicHash h(QCryptographicHash::Sha256);
+    h.addData(&f);
+    if (QString::fromLatin1(h.result().toHex()) != m_info.digest.mid(7).toLower())
+        return QStringLiteral("Pruefsumme stimmt nicht - Datei verwerfen.");
     return QString();
 }
 

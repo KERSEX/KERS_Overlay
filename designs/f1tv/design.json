@@ -1,0 +1,50 @@
+{
+    "name": "F1 TV",
+    "author": "KERS",
+    "description": "Nachbau der F1-TV-Grafik: schmaler anthrazit Tower mit Kürzeln, roter P1, gelbes Safety-Car-Banner, Hotlap-Karten unten. Schrift: Titillium Web (frei); liegt „Formula1 Display“ in fonts\\, wird die genommen.",
+    "colors": {
+        "accent": "#e10600",
+        "textMain": "#ffffff",
+        "textMuted": "#9b9da8",
+        "panel": "#1d1e25",
+        "row": "#1d1e25",
+        "rowAlt": "#1d1e25",
+        "headerRow": "#2a2b33",
+        "towerHead1": "#1d1e25",
+        "towerHead2": "#1d1e25",
+        "headBg1": "#24252d",
+        "headBg2": "#1d1e25",
+        "panelBorder": "#ffffff"
+    },
+    "alpha": {
+        "panel": 0.90,
+        "row": 0.90,
+        "rowAlt": 0.90,
+        "headerRow": 0.95,
+        "towerHead1": 0.92,
+        "towerHead2": 0.92,
+        "headBg1": 0.95,
+        "headBg2": 0.95,
+        "panelBorder": 0.06
+    },
+    "shape": {
+        "panelRadius": 4,
+        "accentWidth": 3,
+        "rowHeight": 62
+    },
+    "fonts": {
+        "sans": ["Formula1 Display", "Formula1", "Titillium Web"],
+        "display": ["Formula1 Display", "Formula1", "Titillium Web"]
+    },
+    "extra": {
+        "posBg": "#14151a",
+        "p1Bg": "#e10600",
+        "lapBar": "#2a2b33",
+        "scYellow": "#ffd200",
+        "redFlag": "#e10600",
+        "gain": "#2ad04b",
+        "loss": "#e10600",
+        "out": "#7c7e88",
+        "rowHeight": 34
+    }
+}

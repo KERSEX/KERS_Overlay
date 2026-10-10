@@ -18,6 +18,15 @@ kers_test(tst_tracks)
 kers_test(tst_server)
 kers_test(tst_updater)
 kers_test(tst_local)
+kers_test(tst_access)
+kers_test(tst_champ)
+kers_test(tst_obs)
+kers_test(tst_design)
+# tst_design braucht eine GUI-Anwendung (Schriftdatenbank im Theme). Im statischen Qt
+# muss das offscreen-Plugin ausdruecklich hinein - sonst zeigt Windows eine Fehlermeldung
+# als Fenster, und der Test wartet ewig darauf.
+qt_import_plugins(tst_design INCLUDE Qt::QOffscreenIntegrationPlugin)
+target_link_libraries(tst_obs PRIVATE Qt6::WebSockets)
 # LocalServer, LocalFeed, LocalDataSource gehoeren zur App - Quellen direkt mitbauen
 target_sources(tst_local PRIVATE
     ${CMAKE_SOURCE_DIR}/src/app/server_control.cpp ${CMAKE_SOURCE_DIR}/src/app/server_control.h

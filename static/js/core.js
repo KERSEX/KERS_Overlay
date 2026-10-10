@@ -34,6 +34,7 @@ const DEFAULT_CFG = {
   tower_logo: "", tower_logo_pos: "left", tower_logo_h: 34,
   scale: 0, rows: 0, mapsize: 400, maprot: 110, mapflip: true, dotsize: 1.0,
   holds: 300, ltdur: 4.0, flbdur: 4.5, dmgcrit: 60, battlethresh: 1.5, preset: "voll",
+  champ_view: "drivers",
 
   // ⚠ Diese beiden stehen in main.py DEFAULT_SETTINGS und in overlay_settings.json,
   //   fehlen aber im DEFAULT_CFG von test.html. Da applySettings() nur ueber die Keys

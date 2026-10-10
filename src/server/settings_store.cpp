@@ -1,6 +1,7 @@
 #include "settings_store.h"
 
 #include "constants.h"
+#include "designs.h"
 #include "jsonfile.h"
 #include "pyconv.h"
 
@@ -20,7 +21,9 @@ const char* const kSettingsFile = "overlay_settings.json";
 const char* const kPresetsFile = "presets.json";
 const char* const kLayoutsFile = "layouts.json";
 const char* const kChampDefault = "championship.json";
-const QStringList kChampHidden = {"overlay_settings.json", "presets.json", "layouts.json", "tracks.json", "hud_state.json"};
+// Eigene Dateien im Datenordner, die keine WM-Staende sind (access/obs ab 0.3.1).
+const QStringList kChampHidden = {"overlay_settings.json", "presets.json", "layouts.json", "tracks.json",
+                                  "hud_state.json",        "access.json",  "obs.json"};
 
 const QStringList& camTasten()
 {
@@ -137,6 +140,10 @@ const QJsonObject& SettingsStore::defaults()
         {"trackname", true},
         {"layout", QJsonObject()},
         {"champ_file", ""}, {"preset", "voll"},
+        // WM-Stand: Fahrer, Teams oder im Wechsel (ab 0.3.1)
+        {"champ_view", "drivers"},
+        // Design des Desktop-HUD (ab 0.3.1): Ordnername, "" = Standard
+        {"design", ""},
     };
     return d;
 }
@@ -276,6 +283,16 @@ bool SettingsStore::apply(const QJsonObject& patch)
         }
         if (k == QLatin1String("penside")) {
             m_settings[k] = sv == QLatin1String("right") ? QStringLiteral("right") : QStringLiteral("left");
+            continue;
+        }
+        // Design: nur ein Name, den es gibt (eingebaut oder data\designs\<Ordner>)
+        if (k == QLatin1String("design")) {
+            const QString name = py::basename(v).trimmed();
+            m_settings[k] = (!name.isEmpty() && designs::exists(m_dataDir, name)) ? name : QString();
+            continue;
+        }
+        if (k == QLatin1String("champ_view")) {
+            m_settings[k] = (sv == QLatin1String("teams") || sv == QLatin1String("wechsel")) ? sv : QStringLiteral("drivers");
             continue;
         }
         if (k == QLatin1String("podiumstil")) {

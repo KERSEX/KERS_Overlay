@@ -601,6 +601,7 @@ Item {
         // Nur wenn NOCH NIE Daten kamen oder das letzte Ergebnis abgelaufen ist -
         // direkt nach einer Session bleiben die Standings stehen (CFG.holds).
         Rectangle {
+            id: warte
             anchors.fill: parent
             visible: !Kers.session.connected && !Kers.session.holdResult
             color: Qt.rgba(12 / 255, 12 / 255, 16 / 255, 0.93)
@@ -618,7 +619,9 @@ Item {
                     radius: 8
                     color: "#ffcc00"
                     SequentialAnimation on opacity {
-                        running: parent.parent.parent.visible
+                        // Ueber die id, nicht parent.parent.parent: beim Erzeugen ist die
+                        // Kette noch nicht verbunden - das war die TypeError-Warnung beim Start.
+                        running: warte.visible
                         loops: Animation.Infinite
                         NumberAnimation { to: 0.35; duration: 800 }
                         NumberAnimation { to: 1.0; duration: 800 }

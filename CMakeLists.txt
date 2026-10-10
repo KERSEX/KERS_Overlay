@@ -25,7 +25,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Widgets Network Qml Quick ZlibPrivate)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Widgets Network Qml Quick ZlibPrivate WebSockets)
 qt_standard_project_setup(REQUIRES 6.8)
 
 add_subdirectory(src/common)
@@ -44,6 +44,7 @@ qt_add_executable(KERS_Subsystems WIN32
     src/app/log_view.cpp
     src/app/updater.cpp
     src/app/subsystems_panel.cpp
+    src/app/access_dialog.cpp
     "${CMAKE_BINARY_DIR}/app.rc"
 )
 target_include_directories(KERS_Subsystems PRIVATE src/app)
@@ -65,8 +66,9 @@ include(cmake/qml.cmake)              # die Szene aus hud/qml als QML-Modul "Ker
 # Die woff2-Schriften bleiben drin: QFontDatabase nimmt sie nicht (das HUD laedt
 # die TTF), aber die Web-Seiten holen sie ueber /static/fonts/*.woff2.
 # championship.json ist die eingebettete WM-Vorlage (Rueckfall, wenn in data\ keine liegt).
+# designs/ (ab 0.3.1): die eingebauten Designs samt Schriften und QML -> :/designs/...
 file(GLOB_RECURSE KERS_ASSETS RELATIVE ${CMAKE_SOURCE_DIR} CONFIGURE_DEPENDS
-    static/* templates/*)
+    static/* templates/* designs/*)
 list(APPEND KERS_ASSETS championship.json)
 qt_add_resources(KERS_Subsystems "assets"
     PREFIX "/"

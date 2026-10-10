@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- KERS-VERSION: 0.0.2 — Einstellungen
+<!-- KERS-VERSION: 0.0.5 — Einstellungen
      Beim Aendern dieser Datei hochzaehlen. Wird in /settings angezeigt.
      ⚠ Der Marker wandert beim Kopieren test.html -> index.html mit. -->
 <html lang="de">
@@ -159,6 +159,12 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
               color:#cfe0ff;font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
 .psave button:active{transform:scale(.98)}
 .pempty{font-size:12px;color:var(--muted);padding:4px 2px}
+/* ── WM-Punkte (ab 0.3.1) ── */
+.ptsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:6px;margin-top:2px}
+.ptsgrid label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted);text-align:center}
+.ptsgrid input{width:100%;padding:8px 4px;border-radius:7px;border:1px solid var(--line);background:rgba(0,0,0,.35);
+               color:#fff;font:inherit;font-size:14px;text-align:center}
+.ptsgrid input::placeholder{color:rgba(255,255,255,.22)}
 /* ── Versionen ── */
 .vrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)}
 .vrow:last-child{border-bottom:none}
@@ -333,10 +339,52 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
   </div>
 
   <div class="grp">
+    <h2>Design (Desktop-HUD)</h2>
+    <p class="lhint">Wie das HUD und das OBS-Fenster aussehen. Die Browserquelle übernimmt nur die Farben.
+      Eigene Designs liegen als Ordner unter <code id="designDir">data\designs</code> — am einfachsten ein
+      vorhandenes kopieren und dort umbauen (Anleitung liegt als README.txt bei).</p>
+    <div class="row"><label>Design<small id="designDesc">—</small></label>
+      <div class="ctl"><select class="sel" id="designSel" data-sel="design"></select></div></div>
+    <div class="psave"><input id="designName" placeholder="Name für die Kopie, z. B. Mein F1 TV" maxlength="40">
+      <button type="button" id="designCopy">Als eigenes Design kopieren</button></div>
+    <div class="psave"><button type="button" id="designOpen" style="background:rgba(255,255,255,.06);color:var(--txt)">Designs-Ordner öffnen</button></div>
+    <div class="vnote" id="designNote"></div>
+  </div>
+
+  <div class="grp">
     <h2>WM-Stand</h2>
     <div class="row"><label>Datei<small>eine <code>.json</code> aus dem Ordner des Programms</small></label>
       <div class="ctl"><select class="sel" id="champSel" data-sel="champ_file"></select></div></div>
     <div class="vnote" id="champNote"></div>
+    <div class="row"><label>Anzeige<small>Fahrer-WM, Team-WM oder im Wechsel alle 8 Sekunden</small></label>
+      <div class="ctl"><select class="sel" data-sel="champ_view">
+        <option value="drivers">Fahrer</option>
+        <option value="teams">Teams</option>
+        <option value="wechsel">Wechsel</option>
+      </select></div></div>
+    <div class="row"><label>Punkte pro Platz<small>gelten für die gewählte Datei und stehen in ihr
+      (<code>points_system</code>) — alle Felder leer = Standard 25-18-15-12-10-8-6-4-2-1</small></label></div>
+    <div class="ptsgrid" id="ptsGrid"></div>
+    <div class="psave"><button type="button" id="ptsSave">Punkte speichern</button>
+      <button type="button" id="ptsStd" style="background:rgba(255,255,255,.06);color:var(--txt)">Standard</button></div>
+    <div class="vnote" id="ptsNote"></div>
+  </div>
+
+  <div class="grp">
+    <h2>OBS-Steuerung</h2>
+    <p class="lhint">Die Regie kann OBS steuern: Szenen, Quellen, Audio, Stream und Aufnahme. KERS verbindet sich
+      dafür über den WebSocket-Server von OBS (in OBS unter <em>Werkzeuge → WebSocket-Server-Einstellungen</em>
+      einschalten). Einstellen lässt sich das nur am PC mit KERS — das Passwort bleibt verschlüsselt auf diesem PC.</p>
+    <div class="row"><label>Verbinden<small id="obsState">—</small></label>
+      <div class="tgl" id="obsEnabled" title="KERS verbindet sich mit OBS"></div></div>
+    <div class="row"><label>Adresse<small>127.0.0.1, wenn OBS auf diesem PC läuft</small></label>
+      <div class="ctl"><input class="sel" id="obsHost" style="width:150px" maxlength="253"></div></div>
+    <div class="row"><label>Port<small>Vorgabe in OBS: 4455</small></label>
+      <div class="ctl"><input class="sel" id="obsPort" type="number" min="1" max="65535" style="width:100px"></div></div>
+    <div class="row"><label>Passwort<small id="obsPwHint">leer lassen, wenn OBS keins verlangt</small></label>
+      <div class="ctl"><input class="sel" id="obsPw" type="password" autocomplete="new-password" style="width:150px"></div></div>
+    <div class="psave"><button type="button" id="obsSave">Adresse/Passwort speichern</button></div>
+    <div class="vnote" id="obsNote"></div>
   </div>
 
   <div class="grp">
@@ -1020,7 +1068,7 @@ function renderColorCombos(){   // K18: Farbwähler mit leer-Zustand (leer = Fal
 }
 // renderChampUI zuletzt: renderInputs setzt die <select>-Werte, die Einträge des
 // WM-Dropdowns entstehen aber erst hier — sonst stünde beim ersten Durchlauf nichts drin.
-function renderAll(){ renderToggles(); renderInputs(); renderLayout(); renderEbenen(); renderUserLayouts(); renderPresets(); renderUserPresets(); renderColorCombos(); renderLogoUI(); renderChampUI(); renderTracks(); }
+function renderAll(){ renderToggles(); renderInputs(); renderLayout(); renderEbenen(); renderUserLayouts(); renderPresets(); renderUserPresets(); renderColorCombos(); renderLogoUI(); renderChampUI(); renderPoints(); renderDesignUI(); renderTracks(); }
 
 let delArmed = null, delArmTimer = null;   // Löschen: zwei Klicks statt confirm()-Dialog
 
@@ -1125,7 +1173,8 @@ document.addEventListener("change", e=>{   // String-Dropdowns (z.B. Trackmap-Po
   save({[k]: e.target.value});
   // save() hat S schon aktualisiert -> der Hinweis unter dem Feld stimmt sofort,
   // ohne auf den nächsten Abgleich mit dem Server zu warten.
-  if(k === "champ_file") renderChampUI();
+  if(k === "champ_file"){ renderChampUI(); loadPoints().then(()=>renderPoints(true)); }
+  if(k === "design") renderDesignUI();
 });
 document.getElementById("reset").addEventListener("click", async ()=>{
   const r = await fetch("/api/settings/reset",{method:"POST"});
@@ -1169,6 +1218,133 @@ function renderChampUI(){
     ? `Gelesen wird ${used} aus ${CHAMPS.dir}. Weitere .json einfach dort ablegen — die Liste zieht spätestens nach 15 Sekunden nach.`
     : `${used} liegt nicht in ${CHAMPS.dir} — der WM-Stand bleibt leer.`;
 }
+
+// ── WM-Punkte (ab 0.3.1) ─────────────────────────────────────────────────────
+// Gelten für die gerade gewählte Datei und stehen IN ihr ("points_system"), damit
+// eine Liga-Datei ihre Punkte beim Weitergeben mitnimmt. Leer = Standard.
+const PTS_N = 20;
+let PTS = null;                                      // letzte Antwort von /api/championship
+async function loadPoints(){
+  try{ PTS = await (await fetch("/api/championship")).json(); }catch(e){ PTS = null; }
+}
+function renderPoints(force){
+  const g = document.getElementById("ptsGrid");
+  if(!g) return;
+  if(!g.children.length)
+    g.innerHTML = Array.from({length: PTS_N}, (_, i) =>
+      `<label>P${i+1}<input type="number" min="0" max="100" step="1" inputmode="numeric" data-pts="${i+1}"></label>`).join("");
+  if(g.contains(document.activeElement) && !force) return;   // nicht unter den Fingern überschreiben
+  const eigen = !!(PTS && PTS.custom_points);
+  const sys = (PTS && PTS.points_system) || {};
+  g.querySelectorAll("input[data-pts]").forEach(inp => {
+    const v = sys[inp.dataset.pts];
+    inp.value = eigen && v !== undefined ? v : "";
+    inp.placeholder = !eigen && v !== undefined ? v : "";   // Standard grau als Vorschlag
+  });
+  document.getElementById("ptsNote").textContent = eigen ? "" : "Es gelten die Standard-Punkte.";
+}
+async function savePoints(standard){
+  const file = S.champ_file || "championship.json";
+  let ps = null;
+  if(!standard){
+    ps = {};
+    document.querySelectorAll("#ptsGrid input[data-pts]").forEach(inp => {
+      if(inp.value.trim() !== "") ps[inp.dataset.pts] = Number(inp.value);
+    });
+    if(!Object.keys(ps).length) ps = null;           // alles leer = Standard
+  }
+  const r = await fetch("/api/champfile/points", {method:"POST", headers:{"Content-Type":"application/json"},
+                        body: JSON.stringify({file, points_system: ps})});
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok){ document.getElementById("ptsNote").textContent = j.error || ("Fehler " + r.status); return; }
+  PTS = j.championship; renderPoints(true); flash();
+}
+document.getElementById("ptsSave").addEventListener("click", ()=>savePoints(false));
+document.getElementById("ptsStd").addEventListener("click", ()=>savePoints(true));
+
+// ── Design (ab 0.3.1) ───────────────────────────────────────────────────────
+// Das <select> traegt data-sel="design" -> der normale change-Handler speichert.
+let DESIGNS = { current: "kers", designs: [], dir: "", local: false };
+async function loadDesigns(){
+  try{ DESIGNS = await (await fetch("/api/designs")).json(); }catch(e){}
+}
+function renderDesignUI(){
+  const sel = document.getElementById("designSel");
+  if(!sel) return;
+  const html = (DESIGNS.designs || []).map(d =>
+    `<option value="${esc(d.id)}">${esc(d.name)}${d.builtin ? "" : " (eigenes)"}</option>`).join("");
+  if(sel.innerHTML !== html) sel.innerHTML = html;
+  const cur = S.design || DESIGNS.current || "kers";
+  if(document.activeElement !== sel) sel.value = cur;
+  const d = (DESIGNS.designs || []).find(x => x.id === sel.value);
+  document.getElementById("designDesc").textContent = d
+    ? (d.description || "") + (d.author ? " · " + d.author : "") : "—";
+  document.getElementById("designDir").textContent = DESIGNS.dir || "data\\designs";
+  document.getElementById("designCopy").disabled = !DESIGNS.local;
+  document.getElementById("designOpen").disabled = !DESIGNS.local;
+  if(!DESIGNS.local) document.getElementById("designNote").textContent = "Kopieren und Ordner öffnen geht nur am PC mit KERS.";
+}
+document.getElementById("designCopy").addEventListener("click", async ()=>{
+  const name = document.getElementById("designName").value.trim();
+  const note = document.getElementById("designNote");
+  if(!name){ note.textContent = "Erst einen Namen für die Kopie eintragen."; return; }
+  const r = await fetch("/api/designs/export", {method:"POST", headers:{"Content-Type":"application/json"},
+                        body: JSON.stringify({from: document.getElementById("designSel").value, name})});
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok){ note.textContent = j.error || ("Fehler " + r.status); return; }
+  note.textContent = `Kopiert nach ${j.dir} – und gleich ausgewählt.`;
+  document.getElementById("designName").value = "";
+  await loadDesigns();
+  await save({design: j.id});
+  renderDesignUI();
+});
+document.getElementById("designOpen").addEventListener("click", ()=>{
+  fetch("/api/designs/open", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
+});
+
+// ── OBS-Steuerung (ab 0.3.1) ────────────────────────────────────────────────
+// Die Verbindung haelt der KERS-Server. Speichern geht nur am PC mit KERS (der Server
+// antwortet sonst 403) - wer Host/Port umbiegen koennte, bekaeme OBS' Anmeldung.
+async function loadObs(){
+  let c = null, st = null;
+  try{ c = await (await fetch("/api/obs/config")).json(); st = await (await fetch("/api/obs")).json(); }catch(e){ return; }
+  const host = document.getElementById("obsHost"), port = document.getElementById("obsPort");
+  const en = document.getElementById("obsEnabled"), pw = document.getElementById("obsPw");
+  if(document.activeElement !== host) host.value = c.host || "127.0.0.1";
+  if(document.activeElement !== port) port.value = c.port || 4455;
+  en.classList.toggle("on", !!c.enabled);
+  pw.placeholder = c.has_password ? "•••••• (unverändert)" : "";
+  document.getElementById("obsPwHint").textContent = c.has_password
+    ? "gespeichert – leer lassen = behalten, neues eintippen = ersetzen"
+    : "leer lassen, wenn OBS keins verlangt";
+  document.getElementById("obsState").textContent = !c.enabled ? "aus"
+    : st.connected ? `verbunden${st.version ? " · OBS " + st.version : ""}` : (st.error || "verbinde …");
+}
+document.getElementById("obsSave").addEventListener("click", async ()=>{
+  const body = { host: document.getElementById("obsHost").value.trim(),
+                 port: parseInt(document.getElementById("obsPort").value, 10) || 4455 };
+  const pw = document.getElementById("obsPw").value;
+  if(pw) body.password = pw;
+  const r = await fetch("/api/obs/config", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
+  const j = await r.json().catch(()=>({}));
+  const note = document.getElementById("obsNote");
+  if(!r.ok){ note.textContent = j.error || ("Fehler " + r.status); return; }
+  note.textContent = "";
+  document.getElementById("obsPw").value = "";
+  flash();
+  setTimeout(loadObs, 1500);       // dem Verbindungsaufbau einen Moment geben
+});
+// Schalter: sofort uebernehmen wie die anderen Schalter der Seite
+document.getElementById("obsEnabled").addEventListener("click", async ()=>{
+  const an = !document.getElementById("obsEnabled").classList.contains("on");
+  const r = await fetch("/api/obs/config", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({enabled: an})});
+  const j = await r.json().catch(()=>({}));
+  document.getElementById("obsNote").textContent = r.ok ? "" : (j.error || ("Fehler " + r.status));
+  if(r.ok){ flash(); setTimeout(loadObs, 1200); }
+  loadObs();
+});
+loadObs();
+setInterval(loadObs, 5000);
 
 // ── Logo-Auswahl ─────────────────────────────────────────────────────────────
 // Galerie statt Dropdown: bei Logos sagt der Dateiname wenig, das Bild alles. Die Kacheln
@@ -1237,7 +1413,7 @@ document.addEventListener("keydown", e=>{
   if(e.key==="Enter" && e.target.id==="layoutName"){ e.preventDefault(); saveLayout(e.target.value); }
 });
 
-(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPresets(); await loadLayouts(); await loadTracks(); S = await (await fetch("/api/settings")).json(); await ladeLayoutListe(); klappgruppenAusMarkup(); renderAll(); loadVersions(); })();
+(async ()=>{ await loadLogos(); await loadChampFiles(); await loadPoints(); await loadDesigns(); await loadPresets(); await loadLayouts(); await loadTracks(); S = await (await fetch("/api/settings")).json(); await ladeLayoutListe(); klappgruppenAusMarkup(); renderAll(); loadVersions(); })();
 // Versionen nachziehen: erkennt, wenn eine Datei zwischendurch bearbeitet wurde (Hash/Datum)
 // oder wenn main.py neu gestartet und der "Neustart nötig"-Hinweis damit hinfällig ist.
 setInterval(loadVersions, 20000);
@@ -1254,6 +1430,8 @@ setInterval(async ()=>{
   if(document.getElementById("logoModal").classList.contains("open")) renderLogoGrid();   // offene Galerie mitziehen
   // Dasselbe für den WM-Stand: eine neu daneben gelegte .json taucht ohne Neuladen auf.
   await loadChampFiles(); renderChampUI();
+  await loadPoints(); renderPoints();
+  await loadDesigns(); renderDesignUI();     // neu abgelegte Design-Ordner tauchen auf
 }, 15000);
 </script>
 </body>

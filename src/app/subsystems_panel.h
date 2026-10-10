@@ -55,6 +55,9 @@ private:
     QWidget* buildPower();
     QWidget* buildHudGroup();
     QWidget* buildObsGroup();
+    QWidget* buildAccessGroup();
+    void refreshAccess();
+    void remoteAnmelden();
     QWidget* buildFooter();
     QSpinBox* spin(int lo, int hi, int value);
     static QLabel* dot(const QString& color);
@@ -118,6 +121,12 @@ private:
     QCheckBox* m_cbChroma = nullptr;
     QComboBox* m_cmbChromaColor = nullptr;
     QComboBox* m_cmbFassung = nullptr;
+    // Zugriff (ab 0.3.1)
+    QLabel* m_lblCode = nullptr;
+    QCheckBox* m_cbCode = nullptr;
+    QLabel* m_lblAccess = nullptr;
+    class QLineEdit* m_remoteCode = nullptr;
+    QLabel* m_lblRemote = nullptr;
     QPushButton* m_btnFassung = nullptr;
 
     Updater m_updater;

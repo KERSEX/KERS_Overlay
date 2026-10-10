@@ -18,6 +18,7 @@
 
 namespace kers::server {
 class KersServer;
+class AccessGuard;
 }
 
 namespace kers::app {
@@ -48,6 +49,8 @@ public:
     virtual void start() {}
     virtual void stop() {}
     virtual QString baseUrl() const = 0;
+    /// Zugriffsschutz des eingebauten Servers - nullptr bei einem fremden (--url).
+    virtual server::AccessGuard* access() { return nullptr; }
     /// Status sofort neu abfragen (nach Start/Stop). Meldet nur Aenderungen.
     virtual void refresh() {}
     /// Den aktuellen Stand auf jeden Fall melden - auch wenn sich nichts
@@ -107,6 +110,9 @@ public:
     void stop() override;
     QString baseUrl() const override;
     void refresh() override;
+    server::AccessGuard* access() override;
+    /// HTTP-Port, auf dem der Server laeuft bzw. laufen soll (fuer Links).
+    quint16 httpPort() const;
     /// Vor jedem Start den Server der Python-Fassung unter diesen Pfaden beenden
     /// (siehe alteServerBeenden). Leer = nie (Tests, Vorgabe).
     void setAlteServer(const QStringList& pfade) { m_alteServer = pfade; }

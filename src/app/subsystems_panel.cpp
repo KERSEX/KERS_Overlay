@@ -1,6 +1,10 @@
 #include "subsystems_panel.h"
 
+#include "access_dialog.h"
 #include "log_view.h"
+
+#include "access_guard.h"
+#include "data_source.h"
 
 #include "icon.h"
 #include "paths.h"
@@ -12,6 +16,11 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QSysInfo>
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -45,6 +54,12 @@ QComboBox, QSpinBox { background: #1b1b22; border: 1px solid rgba(255,255,255,0.
 QComboBox QAbstractItemView { background: #1b1b22; selection-background-color: #e10600; }
 QLabel#hint    { color: #a6a6b4; }
 QLabel#head    { font-size: 15px; font-weight: bold; letter-spacing: 2px; }
+QLabel#code    { font-size: 22px; font-weight: bold; letter-spacing: 5px; }
+QLineEdit      { background: #1b1b22; border: 1px solid rgba(255,255,255,0.12);
+                 border-radius: 6px; padding: 5px 6px; }
+QTreeWidget, QListWidget { background: #15151b; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; }
+QTreeWidget::item:selected, QListWidget::item:selected { background: #e10600; }
+QHeaderView::section { background: #1b1b22; color: #a6a6b4; border: none; padding: 4px 6px; }
 )";
 
 // Der grosse Hauptschalter faellt bewusst aus dem restlichen Stil heraus.
@@ -128,6 +143,7 @@ SubsystemsPanel::SubsystemsPanel(HudState& state, hud::HudWindow& hud, ServerCon
     outer->addWidget(buildPower());
     outer->addWidget(buildHudGroup());
     outer->addWidget(buildObsGroup());
+    outer->addWidget(buildAccessGroup());
     outer->addStretch(1);
     outer->addWidget(buildFooter());
 
@@ -542,6 +558,135 @@ void SubsystemsPanel::onObsCanvas()
     m_state.obsH = m_spObsH->value();
     if (hud::ObsWindow* obs = m_obs(false))
         obs->setCanvas(m_spObsW->value(), m_spObsH->value());
+}
+
+// ── Zugriff anderer Geraete (ab 0.3.1) ───────────────────────────────────────
+QWidget* SubsystemsPanel::buildAccessGroup()
+{
+    auto* group = new QGroupBox(QStringLiteral("ZUGRIFF (ANDERE GERÄTE)"));
+    auto* lay = new QVBoxLayout(group);
+    server::AccessGuard* guard = m_server.access();
+    if (!guard) {
+        // Fernanzeige (--url): der Code gehoert zum fremden Server
+        auto* hint = new QLabel(QStringLiteral("Dieses HUD zeigt %1. Verlangt der Server dort einen Code, "
+                                               "hier eingeben:").arg(m_server.baseUrl()));
+        hint->setObjectName(QStringLiteral("hint"));
+        hint->setWordWrap(true);
+        lay->addWidget(hint);
+        auto* row = new QHBoxLayout();
+        m_remoteCode = new QLineEdit();
+        m_remoteCode->setPlaceholderText(QStringLiteral("6-stelliger Code"));
+        m_remoteCode->setMaxLength(7);
+        auto* btn = new QPushButton(QStringLiteral("Anmelden"));
+        connect(btn, &QPushButton::clicked, this, &SubsystemsPanel::remoteAnmelden);
+        connect(m_remoteCode, &QLineEdit::returnPressed, this, &SubsystemsPanel::remoteAnmelden);
+        row->addWidget(m_remoteCode, 1);
+        row->addWidget(btn);
+        lay->addLayout(row);
+        m_lblRemote = new QLabel(m_state.remoteKey.isEmpty() ? QString()
+                                                             : QStringLiteral("Schlüssel gespeichert."));
+        m_lblRemote->setObjectName(QStringLiteral("hint"));
+        lay->addWidget(m_lblRemote);
+        return group;
+    }
+
+    auto* row = new QHBoxLayout();
+    row->addWidget(new QLabel(QStringLiteral("Code")));
+    m_lblCode = new QLabel();
+    m_lblCode->setObjectName(QStringLiteral("code"));
+    m_lblCode->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_lblCode->setToolTip(QStringLiteral("Den gibt ein Handy, Tablet oder zweiter PC einmal ein."));
+    row->addWidget(m_lblCode, 1);
+    auto* btnNeu = new QPushButton(QStringLiteral("Neuer Code"));
+    btnNeu->setToolTip(QStringLiteral("Freigegebene Geräte bleiben freigegeben - der neue Code gilt nur für neue."));
+    connect(btnNeu, &QPushButton::clicked, this, [guard] { guard->newCode(); });
+    row->addWidget(btnNeu);
+    lay->addLayout(row);
+
+    m_cbCode = new QCheckBox(QStringLiteral("Code für Handy, Tablet und zweiten PC verlangen"));
+    connect(m_cbCode, &QCheckBox::toggled, this, [this, guard](bool on) {
+        if (!on && QMessageBox::question(this, QStringLiteral("Zugriff"),
+                                         QStringLiteral("Ohne Code kann jedes Gerät im Netz Einstellungen ändern "
+                                                        "und die Kamera-Tasten auslösen.\n\nTrotzdem abschalten?"))
+                       != QMessageBox::Yes) {
+            setChecked(m_cbCode, true);
+            return;
+        }
+        guard->setEnabled(on);
+    });
+    lay->addWidget(m_cbCode);
+
+    auto* row2 = new QHBoxLayout();
+    m_lblAccess = new QLabel();
+    m_lblAccess->setObjectName(QStringLiteral("hint"));
+    row2->addWidget(m_lblAccess, 1);
+    auto* btnGeraete = new QPushButton(QStringLiteral("Geräte …"));
+    connect(btnGeraete, &QPushButton::clicked, this, [this, guard] {
+        auto* d = new AccessDialog(*guard, static_cast<LocalServer&>(m_server).httpPort(), this);
+        d->setAttribute(Qt::WA_DeleteOnClose);
+        d->show();
+    });
+    row2->addWidget(btnGeraete);
+    lay->addLayout(row2);
+
+    connect(guard, &server::AccessGuard::changed, this, &SubsystemsPanel::refreshAccess);
+    refreshAccess();
+    return group;
+}
+
+void SubsystemsPanel::refreshAccess()
+{
+    server::AccessGuard* guard = m_server.access();
+    if (!guard || !m_lblCode)
+        return;
+    QString code = guard->code();
+    code.insert(3, QLatin1Char(' '));
+    m_lblCode->setText(code);
+    m_lblCode->setStyleSheet(guard->enabled() ? QString() : QStringLiteral("color: #6a6a78;"));
+    setChecked(m_cbCode, guard->enabled());
+    int frei = 0, gesperrt = 0;
+    for (const auto& d : guard->devices())
+        (d.blocked ? gesperrt : frei)++;
+    QStringList teile;
+    teile << QStringLiteral("%1 Gerät(e) freigegeben").arg(frei);
+    if (gesperrt)
+        teile << QStringLiteral("%1 gesperrt").arg(gesperrt);
+    if (!guard->attempts().isEmpty())
+        teile << QStringLiteral("%1 Versuch(e) ohne Code").arg(guard->attempts().size());
+    m_lblAccess->setText(teile.join(QStringLiteral(" · ")));
+}
+
+void SubsystemsPanel::remoteAnmelden()
+{
+    const QString code = m_remoteCode->text().remove(QLatin1Char(' '));
+    if (code.isEmpty())
+        return;
+    auto* nam = new QNetworkAccessManager(this);
+    QNetworkRequest req(QUrl(m_server.baseUrl() + QStringLiteral("/api/login")));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    req.setTransferTimeout(5000);
+    const QJsonObject body{{"code", code}, {"name", QStringLiteral("KERS HUD %1").arg(QSysInfo::machineHostName())}};
+    m_lblRemote->setText(QStringLiteral("Melde an …"));
+    QNetworkReply* reply = nam->post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nam] {
+        reply->deleteLater();
+        nam->deleteLater();
+        const QJsonObject j = QJsonDocument::fromJson(reply->readAll()).object();
+        if (j.value(QLatin1String("ok")).toBool() && !j.value(QLatin1String("key")).toString().isEmpty()) {
+            m_state.remoteKey = j.value(QLatin1String("key")).toString();
+            hud::setAccessKey(m_state.remoteKey.toLatin1());
+            m_remoteCode->clear();
+            m_lblRemote->setText(QStringLiteral("Angemeldet – Schlüssel gespeichert."));
+            m_server.refresh();
+            return;
+        }
+        QString fehler = j.value(QLatin1String("error")).toString();
+        if (fehler == QLatin1String("Code falsch"))
+            fehler = QStringLiteral("Code falsch – noch %1 Versuch(e)").arg(j.value(QLatin1String("rest")).toInt());
+        if (fehler.isEmpty())
+            fehler = reply->errorString();
+        m_lblRemote->setText(fehler);
+    });
 }
 
 QSpinBox* SubsystemsPanel::spin(int lo, int hi, int value)

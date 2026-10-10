@@ -31,6 +31,8 @@ struct HudState {
     // Neu in der C++-Fassung: der Server laeuft im selben Prozess und startet
     // beim Programmstart von selbst (Knopf im Schaltbrett bleibt).
     bool serverAutostart = true;
+    // Ab 0.3.1: Schluessel fuer einen fremden Server (--url), siehe AccessGuard.
+    QString remoteKey;
 
     static HudState load(const QString& path);
     bool save(const QString& path) const;

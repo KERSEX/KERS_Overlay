@@ -19,6 +19,7 @@ qt_add_library(kers_hud STATIC
     bridge.cpp
     hud_window.cpp
     obs_window.cpp
+    design_scene.cpp
 )
 target_include_directories(kers_hud PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(kers_hud PUBLIC

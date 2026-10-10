@@ -15,6 +15,10 @@ mehr. Jeder Baustein lässt sich einzeln abschalten und frei platzieren.
 ohne zweiten Prozess. Einstellungen, WM-Stände und Fensterlage aus 0.2.x werden
 unverändert weiterbenutzt — siehe [Neu in 0.3.0](#neu-in-030).
 
+**Neu in 0.3.1:** Code-Schutz für fremde Geräte, Team-WM und eigene Punkte,
+OBS-Steuerung in der Regie, Twitch-Chat ohne Einbettung und eigene Designs —
+mit einem Nachbau der F1-TV-Grafik. Siehe [Neu in 0.3.1](#neu-in-031).
+
 ---
 
 ## So sieht es aus
@@ -69,6 +73,9 @@ dazu die Trackmap und zwei Battle-Boxen.
    erreichbar sein darf. Für Handy und zweiten PC (Regie, Settings) **Private
    Netzwerke** erlauben; nur am eigenen Rechner geht es auch ohne.
 
+5. Handy, Tablet oder zweiter PC fragen beim ersten Aufruf nach einem **Code** —
+   er steht im Schaltbrett unter *Zugriff*. Siehe [Zugriff](#zugriff-handy-tablet-zweiter-pc).
+
 Beim ersten Start legt die EXE daneben einen Ordner `data\` an. Dort liegen alle
 deine Daten — Einstellungen, Fensterlage, WM-Stände, Aufzeichnungen. Die EXE
 selbst enthält keine persönlichen Daten.
@@ -99,7 +106,84 @@ Läuft der Server, erreichst du diese Seiten unter `http://localhost:5100`
 |---|---|
 | `/` | Das komplette Overlay als Browserquelle |
 | `/regie` | Regie-Panel: Charts, WM-Stand, Battle- und Hotlap-Boxen von Hand ein- und ausblenden |
-| `/settings` | Alle Einstellungen: Branding, Farben, Deckkraft, welche Bausteine sichtbar sind, Layout |
+| `/settings` | Alle Einstellungen: Design, Branding, Farben, Deckkraft, welche Bausteine sichtbar sind, Layout, WM-Punkte, OBS |
+
+---
+
+## Zugriff (Handy, Tablet, zweiter PC)
+
+Ab 0.3.1 kommt nur noch **dieser PC** ohne Weiteres an die Seiten und die
+Kamera-Tasten. Jedes andere Gerät sieht beim ersten Aufruf eine Anmeldeseite und
+gibt dort einmal den 6-stelligen **Code** aus dem Schaltbrett ein (*Zugriff*).
+Danach bleibt es freigegeben.
+
+* **Geräte …** im Schaltbrett listet alle freigegebenen Geräte. Dort lässt sich
+  jedes sperren oder entfernen; Versuche ohne Code stehen darunter, ihre IP lässt
+  sich sperren. Gesperrt bleibt gesperrt — auch nach einem Neustart und auch, wenn
+  der Code abgeschaltet ist. Eine offene Regie fliegt beim Sperren sofort raus.
+* **Neuer Code** ändert nur den Code für neue Geräte; freigegebene bleiben drin.
+* **Link für OBS / zweiten PC:** Eine OBS-Browserquelle kann keinen Code
+  eintippen. Der Knopf legt ein Gerät an und gibt eine Adresse mit Schlüssel aus
+  (`http://<PC>:5100/?key=…`) — die kommt als URL in die Browserquelle.
+  Für einzelne Bausteine den Pfad tauschen und `?key=…` behalten.
+* **HUD auf einem zweiten PC** (`--url`): Im Schaltbrett dort steht unter
+  *Zugriff* ein Feld für den Code des Servers.
+* Abschalten lässt sich der Code im Schaltbrett — dann kann jedes Gerät im Netz
+  wieder alles, auch die Kamera-Tasten auslösen.
+
+Fremde Webseiten im Browser dieses PCs kommen ebenfalls nicht mehr an den Server
+(Prüfung von Herkunft und Inhaltstyp, Schutz gegen DNS-Rebinding).
+
+---
+
+## WM-Stand: Teams und eigene Punkte
+
+Der WM-Stand zeigt **Fahrer**, **Teams** oder beides **im Wechsel** (alle 8 s) —
+umschalten in `/settings` unter *WM-Stand* oder mit dem Knopf *WM: …* in der Regie.
+Die Team-Wertung ist die Summe der Fahrer eines Teams.
+
+Eigene Punkte trägst du in `/settings` für die gewählte WM-Datei ein (P1–P20);
+alle Felder leer = Standard 25-18-15-12-10-8-6-4-2-1. Sie landen in der Datei
+selbst, gehen beim Weitergeben also mit. Von Hand sieht das so aus:
+
+```json
+{
+  "title": "Fahrerwertung",
+  "points_system": { "1": 20, "2": 15, "3": 12 },
+  "drivers": [ { "name": "KERS", "team": "Red Bull", "base_points": 25, "in_game_name": "KERS_EX" } ],
+  "teams":   [ { "name": "Red Bull", "base_points": 40 } ],
+  "teams_title": "Konstrukteure"
+}
+```
+
+`teams` (optional) ersetzt die Basis-Summe eines Teams — für Ligen, in denen Fahrer
+gewechselt haben. `teams_title` (optional) ist die Überschrift der Team-Ansicht.
+Alte Dateien ohne diese Felder rechnen genau wie bisher.
+
+---
+
+## Designs
+
+Wie das HUD und das OBS-Fenster aussehen, legt ein **Design** fest — Auswahl in
+`/settings` unter *Design*. Eingebaut sind:
+
+* **KERS** — der bisherige Look.
+* **F1 TV** — Nachbau der F1-TV-Grafik: schmaler Tower mit Kürzeln, roter P1,
+  „LAP 7 / 20“, gelbes Safety-Car-Banner mit vollen Namen, Hotlap-Karten mit
+  Zielzeit unten. Schrift ist das freie *Titillium Web*; ein F1-Logo liefert KERS
+  nicht mit — dein eigenes Logo aus den Branding-Einstellungen steht oben im Tower.
+
+**Eigenes Design:** in `/settings` ein Design *Als eigenes Design kopieren*. Der
+Ordner liegt dann unter `data\designs\<Name>` — mit `design.json` (Farben,
+Deckkraft, Ecken, Schriften), einem Ordner `fonts\` für eigene Schriften und der
+kompletten Szene unter `qml\`. Jede Datei dort ersetzt die eingebaute. Nach einer
+Änderung im Schaltbrett **Neu laden**. Alles Weitere steht in der `README.txt` im
+Ordner.
+
+Die Browserquelle übernimmt von einem Design nur die Farben.
+
+> ⚠ Ein Design enthält QML, also Programmcode. Installiere nur Designs von Leuten,
+> denen du vertraust.
 
 ---
 
@@ -158,6 +242,19 @@ Zwei Wege:
 * **Browserquelle.** `http://localhost:5100/` mit transparentem Hintergrund, oder
   einzelne Bausteine über `/part/<name>`.
 
+**OBS aus der Regie steuern (ab 0.3.1).** In OBS unter *Werkzeuge →
+WebSocket-Server-Einstellungen* den Server einschalten, dann in `/settings` unter
+*OBS-Steuerung* **Verbinden** an (Adresse/Passwort nur nötig, wenn OBS auf einem
+anderen PC läuft bzw. eins verlangt). In der Regie erscheint die Karte **OBS**:
+Szenen umschalten, Quellen ein- und ausblenden, Audio, Übergänge, Stream und
+Aufnahme starten. Mit **Docks** wählst du, welche Bereiche dort stehen — dazu
+kommen deine eigenen Browser-Docks aus OBS (Twitch-Chats laufen dabei über den
+Direkt-Chat). Das OBS-Passwort bleibt verschlüsselt auf dem PC mit KERS.
+
+**Twitch-Chat in der Regie:** Vorgabe ist **Direkt** — KERS liest den Chat selbst
+(nur lesen). Das klappt auch in LibreWolf und anderen Browsern, die die
+Twitch-Einbettung sperren. Mit dem Knopf daneben geht es zurück zur Einbettung.
+
 Reicht deine Aufnahmemethode den Alphakanal nicht durch, gibt es die Rückfallebene
 *Chroma*: das Overlay bekommt einen einfarbigen Hintergrund (Magenta, weil die
 Farbe in einem Formel-1-Overlay nicht vorkommt), den du in OBS per Farbschlüssel
@@ -178,6 +275,21 @@ räumt beim ersten Start die alte 243-MB-Datei (`KERS_Subsystems.exe.bak`) weg.
 Der Server der alten Fassung (`data\main.exe` mit seinem Konsolenfenster) läuft
 nach dem Tausch noch weiter — 0.3.0 beendet ihn vor dem eigenen Serverstart von
 selbst, aber nur genau diesen aus dem eigenen Ordner.
+
+---
+
+## Neu in 0.3.1
+
+* **Zugriff mit Code** für alle Geräte außer diesem PC, Geräte- und IP-Sperren,
+  Link mit Schlüssel für OBS auf einem zweiten PC — siehe [Zugriff](#zugriff-handy-tablet-zweiter-pc).
+* **Team-WM und eigene Punkte** pro WM-Datei — siehe [WM-Stand](#wm-stand-teams-und-eigene-punkte).
+* **OBS-Steuerung in der Regie** mit wählbaren Docks, **Twitch-Chat direkt**
+  (auch in LibreWolf) — siehe [OBS](#obs).
+* **Designs** und der **F1-TV-Nachbau** — siehe [Designs](#designs).
+* **Updates nur noch mit Prüfsumme:** liefert GitHub für eine Fassung keine
+  SHA-256, wird sie nicht installiert.
+* `/test` und `/opti` sind nur noch auf diesem PC erreichbar; `/api/track/relearn`
+  geht nur noch per POST.
 
 ---
 
@@ -212,10 +324,10 @@ Das Werkzeug liegt portabel unter `D:\Tools` und `D:\Qt`, installiert wird nicht
 |---|---|
 | LLVM-MinGW (clang, lld) | `D:\Tools\llvm-mingw` |
 | CMake, Ninja | `D:\Tools\cmake`, `D:\Tools\ninja` |
-| Qt 6.11.2 statisch (qtbase, qtshadertools, qtdeclarative) | `D:\Qt\6.11.2-static` |
+| Qt 6.11.2 statisch (qtbase, qtshadertools, qtdeclarative, qtwebsockets) | `D:\Qt\6.11.2-static` |
 
 Das statische Qt baut `tools\build_qt_static.cmd` einmalig aus den Quellen
-(rund 15 Minuten). Danach:
+(rund 15 Minuten; einzelne Module mit `base`, `shader`, `decl`, `ws`). Danach:
 
 ```bat
 packaging\build.bat
@@ -285,6 +397,14 @@ Browserquelle in OBS der bessere Weg.
 
 **OBS findet das Fenster nicht.** *In OBS auffindbar* einschalten. Dafür erscheint
 das HUD dann auch in der Taskleiste.
+
+**Handy zeigt „KERS Subsystems — Code“.** Das Gerät ist noch nicht freigegeben:
+den Code aus dem Schaltbrett (*Zugriff*) eingeben. Steht dort „gesperrt“, unter
+*Geräte …* freigeben.
+
+**OBS-Karte in der Regie bleibt „getrennt“.** In OBS den WebSocket-Server
+einschalten (*Werkzeuge → WebSocket-Server-Einstellungen*), Port 4455. Verlangt
+OBS ein Passwort, dieses in `/settings` unter *OBS-Steuerung* eintragen.
 
 **„Port belegt" beim Start.** Auf 5100 oder 20777 läuft schon etwas — meist eine
 alte Python-Fassung aus einem anderen Ordner (`main.exe` bzw. `main.py`) oder ein

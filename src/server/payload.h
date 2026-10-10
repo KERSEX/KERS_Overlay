@@ -6,14 +6,19 @@
 #include "race_state.h"
 
 #include <QJsonObject>
+#include <QMap>
 
 namespace kers::server {
 
 /// Kompletter Live-Zustand fuers Overlay.
 QJsonObject buildLivePayload(const RaceState& st, const QJsonObject& settings, const QJsonObject& regie);
 
-/// WM-Stand aus championship.json plus Live-Hochrechnung (nur Top 10 bekommen Punkte).
+/// WM-Stand aus championship.json plus Live-Hochrechnung. Ab 0.3.1 mit Team-WM
+/// ("teams") und eigener Punkteliste ("points_system" in der Datei).
 QJsonObject calculateChampionship(const RaceState& st, const QString& champPath);
+
+/// "points_system" einer WM-Datei lesen: Position -> Punkte. Leer = Standard.
+QMap<int, double> pointsSystem(const QJsonObject& cfg);
 
 /// /api/track - die gelernte Kontur samt Lernfortschritt.
 QJsonObject trackJson(RaceState& st);

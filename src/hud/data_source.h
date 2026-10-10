@@ -18,7 +18,16 @@
 
 #include <functional>
 
+class QNetworkRequest;
+
 namespace kers::hud {
+
+/// Schluessel fuer einen fremden KERS-Server (ab 0.3.1, siehe AccessGuard).
+/// Gilt fuer alle Anfragen dieses Prozesses an --url: Daten, Live-Strom, Status.
+void setAccessKey(const QByteArray& key);
+QByteArray accessKey();
+/// Haengt den Schluessel als X-KERS-Key an (wenn einer gesetzt ist).
+void applyAccessKey(QNetworkRequest& req);
 
 class DataSource : public QObject {
     Q_OBJECT

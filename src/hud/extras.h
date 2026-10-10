@@ -152,6 +152,8 @@ class Championship : public QObject {
     KERS_PROP(bool, isVisible, false)
     KERS_PROP(QString, title, QString())
     KERS_PROP(bool, live, false)
+    /// Zeigt gerade die Team-WM (ab 0.3.1, Einstellung champ_view).
+    KERS_PROP(bool, teamView, false)
     Q_PROPERTY(QVariantList rows READ rows NOTIFY rowsChanged)
 public:
     static constexpr double POLL_MS = 3000;
@@ -162,16 +164,20 @@ public:
     /// Feste Tabelle statt Serverabfrage - fuer den Demo-Modus.
     void setDemoData(const QJsonObject& data) { m_demo = data; }
     void clearDemoData() { m_demo.reset(); }
-    void update(bool wanted, double nowMs);
+    /// view: "drivers" | "teams" | "wechsel" (alle 8 s umschalten)
+    void update(bool wanted, double nowMs, const QString& view = QStringLiteral("drivers"));
 
 signals:
     void rowsChanged();
 
 private:
     void onData(const QJsonObject& data);
+    void build();
 
     DataSource* m_source;
     QVariantList m_rows;
+    QJsonObject m_data;               // letzte Antwort - fuer den Wechsel ohne neue Abfrage
+    bool m_wantTeams = false;
     double m_last = 0.0;
     std::optional<QJsonObject> m_demo;
 };

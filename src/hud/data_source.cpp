@@ -7,6 +7,30 @@
 
 namespace kers::hud {
 
+namespace {
+QByteArray& schluessel()
+{
+    static QByteArray k;
+    return k;
+}
+}  // namespace
+
+void setAccessKey(const QByteArray& key)
+{
+    schluessel() = key.trimmed();
+}
+
+QByteArray accessKey()
+{
+    return schluessel();
+}
+
+void applyAccessKey(QNetworkRequest& req)
+{
+    if (!schluessel().isEmpty())
+        req.setRawHeader("X-KERS-Key", schluessel());
+}
+
 HttpDataSource::HttpDataSource(const QString& baseUrl, QObject* parent)
     : DataSource(parent)
     , m_nam(this)
@@ -29,6 +53,7 @@ void HttpDataSource::get(const QString& path, JsonCb cb)
     QNetworkRequest req(QUrl(m_base + path));
     req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
     req.setTransferTimeout(5000);
+    applyAccessKey(req);
     QNetworkReply* reply = m_nam.get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply, path, cb]() {
         m_busy.remove(path);
@@ -46,6 +71,7 @@ void HttpDataSource::post(const QString& path, const QJsonObject& body, PostCb c
     QNetworkRequest req(QUrl(m_base + path));
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     req.setTransferTimeout(5000);
+    applyAccessKey(req);
     QNetworkReply* reply = m_nam.post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::finished, this, [reply, cb]() {
         reply->deleteLater();

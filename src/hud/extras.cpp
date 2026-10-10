@@ -589,8 +589,15 @@ Championship::Championship(DataSource* source, QObject* parent)
 {
 }
 
-void Championship::update(bool wanted, double nowMs)
+void Championship::update(bool wanted, double nowMs, const QString& view)
 {
+    const bool teams = view == QLatin1String("teams")
+        || (view == QLatin1String("wechsel") && static_cast<qint64>(nowMs / 8000.0) % 2 == 1);
+    if (teams != m_wantTeams) {
+        m_wantTeams = teams;
+        if (!m_data.isEmpty())
+            build();
+    }
     if (!wanted) {
         if (isVisible()) {
             set_isVisible(false);
@@ -614,17 +621,26 @@ void Championship::update(bool wanted, double nowMs)
 
 void Championship::onData(const QJsonObject& data)
 {
-    const QJsonValue st = data.value(QLatin1String("standings"));
-    if (!st.isArray())
+    if (!data.value(QLatin1String("standings")).isArray())
         return;
-    const QJsonArray standings = st.toArray();
+    m_data = data;
+    build();
+}
+
+void Championship::build()
+{
+    const QJsonObject& data = m_data;
+    // Team-WM nur, wenn der Server sie liefert (ab 0.3.1) und es Teams gibt
+    const QJsonArray teamArr = data.value(QLatin1String("teams")).toArray();
+    const bool teams = m_wantTeams && !teamArr.isEmpty();
+    const QJsonArray standings = teams ? teamArr : data.value(QLatin1String("standings")).toArray();
     QVariantList rows;
     bool live = false;
     for (int i = 0; i < standings.size() && i < 12; ++i) {
         const QJsonObject s = standings.at(i).toObject();
         QVariantMap r;
         r.insert("pos", i + 1);
-        r.insert("name", js(s, "name"));
+        r.insert("name", teams ? js(s, "team") : js(s, "name"));
         r.insert("color", Theme::teamColors().value(js(s, "team"), QStringLiteral("#ffffff")));
         r.insert("points", jd(s, "total_points"));
         r.insert("livePoints", jd(s, "live_points"));
@@ -632,7 +648,9 @@ void Championship::onData(const QJsonObject& data)
             live = true;
         rows.append(r);
     }
-    set_title(js(data, "title").isEmpty() ? QStringLiteral("Championship") : js(data, "title"));
+    const QString titel = js(data, teams ? "teams_title" : "title");
+    set_title(titel.isEmpty() ? QStringLiteral("Championship") : titel);
+    set_teamView(teams);
     set_live(live);
     set_isVisible(true);
     if (rows != m_rows) {

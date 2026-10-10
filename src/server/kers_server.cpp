@@ -6,6 +6,7 @@
 #include "pyconv.h"
 
 #include <QDateTime>
+#include <QJsonDocument>
 #include <QDir>
 #include <QNetworkDatagram>
 #include <QDebug>
@@ -31,15 +32,27 @@ KersServer::KersServer(const QString& dataDir, const QString& builtinTracks, QOb
     , m_dataDir(dataDir)
     , m_clock(&wallSec)
     , m_settings(dataDir)
+    , m_access(QDir(dataDir).filePath(QStringLiteral("access.json")))
     , m_tracks(builtinTracks, QDir(dataDir).filePath(QStringLiteral("tracks.json")))
     , m_regie(regieStart())
     , m_recorder(QDir(dataDir).filePath(QStringLiteral("recordings")))
     , m_http([this](const HttpRequest& r) { return handle(r); })
     , m_sse([this] { return livePayload(); }, [this] { return m_state->lastPacketTime(); }, [this] { return now(); })
+    , m_obs(QDir(dataDir).filePath(QStringLiteral("obs.json")))
 {
     m_state = std::make_unique<RaceState>(m_settings, m_tracks);
     m_state->setClock(m_clock);
     connect(&m_udp, &QUdpSocket::readyRead, this, &KersServer::onUdp);
+    // Gesperrt oder entfernt: offene Live-Stroeme sofort kappen, nicht erst beim
+    // naechsten Neuverbinden.
+    connect(&m_access, &AccessGuard::accessRevoked, this,
+            [this](const QString& ip, const QString& id) {
+                m_sse.closeMatching(ip, id);
+                m_obsChannel.closeMatching(ip, id);
+            });
+    // OBS-Zustand an alle offenen Regie-Seiten
+    connect(&m_obs, &ObsLink::stateChanged, this,
+            [this] { m_obsChannel.send(QJsonDocument(m_obs.state()).toJson(QJsonDocument::Compact)); });
 }
 
 KersServer::~KersServer()
@@ -86,6 +99,7 @@ bool KersServer::start(quint16 httpPort, quint16 udpPort, const QHostAddress& bi
     m_httpPort = m_http.port();
     m_udpPort = m_udp.localPort();
     m_running = true;
+    m_obs.start();
     qInfo().noquote() << QStringLiteral("[HTTP] Server laeuft auf Port %1").arg(m_httpPort);
     qInfo().noquote() << QStringLiteral("[UDP] Listening on :%1 (F1 26 / Format 2026)").arg(m_udpPort);
     emit runningChanged(true);
@@ -97,6 +111,8 @@ void KersServer::stop()
     if (!m_running)
         return;
     m_sse.closeAll();
+    m_obsChannel.closeAll();
+    m_obs.stop();
     m_http.close();
     m_udp.close();
     if (m_recorder.active())

@@ -1,10 +1,11 @@
 @echo off
 REM Baut Qt 6.11.2 STATISCH aus dem Quelltext - einmalig, dauert gut eine Stunde.
 REM
-REM   tools\build_qt_static.cmd            alle drei Stufen
+REM   tools\build_qt_static.cmd            alle vier Stufen
 REM   tools\build_qt_static.cmd base       nur qtbase
 REM   tools\build_qt_static.cmd shader     nur qtshadertools   (braucht installiertes qtbase)
 REM   tools\build_qt_static.cmd decl       nur qtdeclarative   (braucht qtbase UND qtshadertools)
+REM   tools\build_qt_static.cmd ws         nur qtwebsockets    (ab 0.3.1: OBS-Steuerung, braucht qtbase)
 REM
 REM Reihenfolge ist Pflicht: qtdeclarative baut Qt Quick nur, wenn das Werkzeug
 REM "qsb" aus qtshadertools schon installiert ist - sonst baut es STILL ohne
@@ -38,7 +39,8 @@ if /I "%STAGE%"=="all"    goto base
 if /I "%STAGE%"=="base"   goto base
 if /I "%STAGE%"=="shader" goto shader
 if /I "%STAGE%"=="decl"   goto decl
-echo [FEHLER] Unbekannte Stufe "%STAGE%" (all, base, shader, decl)
+if /I "%STAGE%"=="ws"     goto ws
+echo [FEHLER] Unbekannte Stufe "%STAGE%" (all, base, shader, decl, ws)
 exit /b 2
 
 :base
@@ -81,6 +83,21 @@ echo === [%DATE% %TIME%] qtdeclarative: build
 cmake --build . --parallel
 if errorlevel 1 goto fehler
 echo === [%DATE% %TIME%] qtdeclarative: install
+cmake --install .
+if errorlevel 1 goto fehler
+popd
+if /I "%STAGE%"=="decl" goto fertig
+
+:ws
+echo === [%DATE% %TIME%] qtwebsockets: configure
+if not exist "%B%\ws" mkdir "%B%\ws"
+pushd "%B%\ws"
+call "%PREFIX%\bin\qt-configure-module.bat" "%SRC%\qtwebsockets-everywhere-src-%VER%"
+if errorlevel 1 goto fehler
+echo === [%DATE% %TIME%] qtwebsockets: build
+cmake --build . --parallel
+if errorlevel 1 goto fehler
+echo === [%DATE% %TIME%] qtwebsockets: install
 cmake --install .
 if errorlevel 1 goto fehler
 popd

@@ -139,9 +139,30 @@ QJsonObject DemoFeed::championship() const
         r["live_points"] = std::max(0, 25 - i * 3);
         rows.append(r);
     }
+    // Team-WM wie der Server sie rechnet: Summe je Team, sortiert
+    QMap<QString, QPair<double, double>> summe;
+    for (const QJsonValue& v : std::as_const(rows)) {
+        const QJsonObject r = v.toObject();
+        auto& s = summe[r.value("team").toString()];
+        s.first += r.value("total_points").toDouble() - r.value("live_points").toDouble();
+        s.second += r.value("live_points").toDouble();
+    }
+    QList<QJsonObject> teamListe;
+    for (auto it = summe.begin(); it != summe.end(); ++it)
+        teamListe.append(QJsonObject{{"team", it.key()}, {"base_points", it.value().first},
+                                     {"live_points", it.value().second},
+                                     {"total_points", it.value().first + it.value().second}});
+    std::sort(teamListe.begin(), teamListe.end(), [](const QJsonObject& a, const QJsonObject& b) {
+        return a.value("total_points").toDouble() > b.value("total_points").toDouble();
+    });
+    QJsonArray teams;
+    for (const QJsonObject& t : teamListe)
+        teams.append(t);
     QJsonObject out;
     out["title"] = QStringLiteral("Fahrerwertung");
+    out["teams_title"] = QStringLiteral("Teamwertung");
     out["standings"] = rows;
+    out["teams"] = teams;
     return out;
 }
 

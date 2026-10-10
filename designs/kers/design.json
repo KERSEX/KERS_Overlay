@@ -1,0 +1,40 @@
+{
+    "name": "KERS",
+    "author": "KERS",
+    "description": "Der KERS-Look: dunkle Panels, rote Akzente, Teko und Inter.",
+    "colors": {
+        "accent": "#e10600",
+        "textMain": "#ffffff",
+        "textMuted": "#a6a6b4",
+        "panel": "#0e0e13",
+        "row": "#181821",
+        "rowAlt": "#101017",
+        "headerRow": "#0a0a0f",
+        "towerHead1": "#16161e",
+        "towerHead2": "#282832",
+        "headBg1": "#1b1b22",
+        "headBg2": "#111116",
+        "panelBorder": "#ffffff"
+    },
+    "alpha": {
+        "panel": 0.94,
+        "row": 0.988,
+        "rowAlt": 0.988,
+        "headerRow": 0.994,
+        "towerHead1": 1.0,
+        "towerHead2": 1.0,
+        "headBg1": 1.0,
+        "headBg2": 1.0,
+        "panelBorder": 0.09
+    },
+    "shape": {
+        "panelRadius": 10,
+        "accentWidth": 3,
+        "rowHeight": 62
+    },
+    "fonts": {
+        "sans": "Inter",
+        "display": "Teko"
+    },
+    "extra": {}
+}

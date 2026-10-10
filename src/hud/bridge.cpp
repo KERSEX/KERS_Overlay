@@ -337,7 +337,7 @@ void OverlayBridge::updateParts(const QJsonObject& data, const QJsonObject& sess
     m_pitProj->update(drivers, focus, session, connected, m_cfg.b("pitproj"));
     m_trackmap->update(drivers, focus, connected, session, m_cfg.b("map"), wall);
     m_charts->update(m_regie->chart(), wall);
-    m_champ->update(m_regie->champ(), wall);
+    m_champ->update(m_regie->champ(), wall, m_cfg.s("champ_view"));
 }
 
 void OverlayBridge::updateRedFlag(const QJsonObject& data, double now)
@@ -405,12 +405,15 @@ void OverlayBridge::updateSession(const QJsonObject& session, const QJsonObject&
 
     // Quali: Pole-Zeit und Elimination-Schnitt
     double pole = 0.0;
+    QString poleName;
     int elimCut = 0;
     if (isQuali) {
         for (const QJsonObject& d : drivers) {
             const double b = jd(d, "best_lap");
-            if (b > 0 && (pole == 0.0 || b < pole))
+            if (b > 0 && (pole == 0.0 || b < pole)) {
                 pole = b;
+                poleName = js(d, "name");
+            }
         }
         const int type = ji(session, "type");
         elimCut = type == 5 ? 16 : (type == 6 ? 10 : 0);
@@ -424,6 +427,10 @@ void OverlayBridge::updateSession(const QJsonObject& session, const QJsonObject&
     st->set_connected(connected);
     st->set_holdResult(hold);
     st->set_isQuali(isQuali);
+    st->set_sessionName(js(session, "type_name"));
+    st->set_currentLap(ji(session, "current_lap"));
+    st->set_totalLaps(totalLaps);
+    st->set_timeLeft(ji(session, "time_left"));
     st->set_title(title);
     st->set_subtitle(subtitle);
     st->set_flagText(flagText);
@@ -435,6 +442,7 @@ void OverlayBridge::updateSession(const QJsonObject& session, const QJsonObject&
     st->set_scStatus(scStatus);
     st->set_redFlag(connected && now < m_redFlagUntil);
     st->set_poleTime(pole);
+    st->set_poleName(poleName);
     st->set_elimCut(elimCut);
     st->set_ticker(tickerChips(session));
 }

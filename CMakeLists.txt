@@ -25,7 +25,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Widgets Network Qml Quick ZlibPrivate WebSockets)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Widgets Network Qml Quick QuickPrivate ZlibPrivate WebSockets)
 qt_standard_project_setup(REQUIRES 6.8)
 
 add_subdirectory(src/common)
@@ -54,6 +54,7 @@ target_link_libraries(KERS_Subsystems PRIVATE
     kers_common
     Qt6::Widgets
     Qt6::Quick
+    Qt6::QuickPrivate       # Bild-Cache beim Beenden leeren (main.cpp, BildCacheLeeren)
     Qt6::Network
 )
 # Keine libc++/libunwind/winpthread-DLLs neben der EXE - alles hinein.

@@ -38,6 +38,7 @@
 #include "theme.h"
 #include "updater.h"
 
+#include <QAbstractEventDispatcher>
 #include <QApplication>
 #include <QDesktopServices>
 #include <QDir>
@@ -49,6 +50,8 @@
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QDebug>
+
+#include <QtQuick/private/qquickpixmapcache_p.h>
 
 #include <memory>
 
@@ -224,6 +227,29 @@ int runServerOnly(QApplication& app, const Args& args)
     return rc;
 }
 
+/// ⚠ Qts Bild-Cache fuer QML (QQuickPixmapCache) ist ein statisches Objekt mit
+/// einem Aufraeum-Timer. Der laeuft, solange freigegebene Bilder (Teamlogos,
+/// Reifen ...) auf ihr Verfallsdatum warten. Abgebaut wird der Cache aber erst
+/// NACH main(), wenn es QApplication nicht mehr gibt - mit laufendem Timer meldet
+/// Qt dann bei jedem Beenden "QObject::~QObject: Timers cannot be stopped from
+/// another thread" (seit 0.3.0, harmlos, aber Rauschen im Log; gefunden mit lldb
+/// ueber die vtable des Objekts). Deshalb direkt vor QApplication: Cache leeren
+/// und den Timer von ihm selbst stoppen lassen - sein timerEvent() beendet ihn,
+/// sobald kein Bild mehr wartet.
+struct BildCacheLeeren {
+    ~BildCacheLeeren()
+    {
+        QQuickPixmapCache* cache = QQuickPixmapCache::instance();
+        cache->purgeCache();
+        if (QAbstractEventDispatcher* d = QAbstractEventDispatcher::instance()) {
+            for (const auto& t : d->timersForObject(cache)) {
+                QTimerEvent ev(t.timerId);
+                QCoreApplication::sendEvent(cache, &ev);
+            }
+        }
+    }
+};
+
 }  // namespace
 
 int main(int argc, char* argv[])
@@ -236,6 +262,8 @@ int main(int argc, char* argv[])
 
     claimTaskbarIdentity();
     QApplication app(argc, argv);
+    // Wird als Letztes vor `app` abgebaut - nach HUD, OBS-Fenster und Server.
+    BildCacheLeeren bildCacheLeeren;
     app.setApplicationName(QStringLiteral("KERS Subsystems"));
     app.setOrganizationName(QStringLiteral("KERS"));
     app.setApplicationVersion(paths::appVersion());
@@ -386,5 +414,9 @@ int main(int argc, char* argv[])
     });
     const int rc = app.exec();
     delete panel;
+    // ⚠ Das OBS-Fenster haengt an der Bruecke des HUD - also VOR dem HUD abbauen.
+    // Blieb es bis zum Schluss stehen, rechnete seine Szene nach dem HUD mit
+    // Kers == null weiter: rund 230 TypeErrors im Log bei jedem Beenden.
+    delete obs;
     return rc;
 }

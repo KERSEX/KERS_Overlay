@@ -62,7 +62,9 @@ function updateHotlapBox(box, d) {
 
   // s3 erst bekannt, wenn die Runde komplett ist (last_lap - s1 - s2). In Sektor 3
   // waere last_lap noch die VORIGE Runde -> kein S3 (ab 0.3.1, sonst erfundener Bestsektor).
-  const s3 = (d.sector !== 2 && d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0) ? d.last_lap - d.sector1 - d.sector2 : 0;
+  // Die Nachlauf-Kopie (_fertig_zeit) stammt aus Sektor 3 und rechnet weiter.
+  const s3 = ((d._fertig_zeit > 0 || d.sector !== 2) && d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0)
+    ? d.last_lap - d.sector1 - d.sector2 : 0;
   const secs = [d.sector1, d.sector2, s3];
 
   // Grosse Zeit = LIVE hochzaehlende Rundenzeit. Basiswert + Zeitstempel merken; der
@@ -95,6 +97,56 @@ function updateHotlapBox(box, d) {
     el.className = "val " + cls + " " + hlSecClass(secs[i], d.index, i);
   });
 }
+// ── Nachlauf (ab 0.3.1): die fertige Runde noch 5 s stehen lassen ─────────────
+// Wer ueber die Linie faehrt, behaelt seine Box mit der gefahrenen Zeit - auch wenn
+// er gleich die naechste fliegende Runde anhaengt (vorher sprang die Box an der Linie
+// sofort auf 0:00). Abgebrochene Runden (von der Liste gefallen, ohne die Linie zu
+// kreuzen) gehen ohne Nachlauf. Gleiche Regeln wie im HUD (src/hud/parts_hotlaps.cpp).
+const HL_HOLD_MS = 5000;
+let hlLaeuft = {};   // idx -> Stand des letzten Datenpakets auf fliegender Runde
+let hlFertig = {};   // idx -> { d, bis, platz, alteLast, fest }
+let hlPlatz = {};    // idx -> Box, in der er zuletzt stand
+function hlRundeVorbei(vorher, jetzt) {
+  const lv = vorher.lap_num || 0, lj = jetzt.lap_num || 0;
+  if (lv > 0 && lj > 0) return lj > lv;
+  const cv = vorher.current_lap_time || 0;   // ohne Rundenzaehler: die Uhr springt zurueck
+  return cv > 10 && (jetzt.current_lap_time || 0) + 5 < cv;
+}
+function hlNachlauf(drivers, hot, anzahl) {
+  const now = performance.now();
+  const jetzt = {};
+  drivers.forEach(x => { jetzt[x.index] = x; });
+  Object.keys(hlLaeuft).forEach(k => {
+    const vorher = hlLaeuft[k], j = jetzt[k];
+    if (!j || !hlRundeVorbei(vorher, j)) return;
+    const alt = vorher.last_lap || 0;
+    let zeit = j.last_lap || 0;
+    const fest = zeit > 0 && Math.abs(zeit - alt) > 0.0005;
+    if (!fest) zeit = vorher.current_lap_time || 0;   // vorlaeufig, bis last_lap nachkommt
+    if (!(zeit > 0)) return;
+    // Stand VOR der Linie - danach hat das Spiel S1/S2 schon fuer die neue Runde geleert.
+    hlFertig[k] = { d: Object.assign({}, vorher, { last_lap: zeit, _fertig_zeit: zeit,
+                                                   current_lap_time: 0, position: j.position }),
+                    bis: now + HL_HOLD_MS, platz: (k in hlPlatz) ? hlPlatz[k] : anzahl,
+                    alteLast: alt, fest: fest };
+  });
+  hlLaeuft = {};
+  hot.forEach(d => { hlLaeuft[d.index] = d; });
+  Object.keys(hlFertig).forEach(k => {
+    const f = hlFertig[k], j = jetzt[k];
+    if (f.bis <= now) { delete hlFertig[k]; return; }
+    if (!j) return;
+    if (!f.fest && j.last_lap > 0 && Math.abs(j.last_lap - f.alteLast) > 0.0005) {
+      f.d.last_lap = j.last_lap; f.d._fertig_zeit = j.last_lap; f.fest = true;
+    }
+    f.d.position = j.position;                       // die NEUE Position zeigen
+  });
+  // Gehaltene Boxen an ihrer alten Stelle einsetzen; die laufende Runde wartet.
+  const out = hot.filter(d => !(d.index in hlFertig));
+  Object.keys(hlFertig).map(k => hlFertig[k]).sort((a, b) => a.platz - b.platz)
+    .forEach(f => out.splice(Math.min(f.platz, out.length), 0, f.d));
+  return out;
+}
 function updateHotlapBoxes(drivers, active) {
   const boxes = document.querySelectorAll("#hotlap-area .hotlap-box");
   // Fahrer auf fliegender Runde (On-Track/Hotlap), sortiert nach Streckenfortschritt:
@@ -102,8 +154,11 @@ function updateHotlapBoxes(drivers, active) {
   let hot = [];
   if (active) {
     hot = drivers.filter(d => qualiStatus(d) === "track" && !d.dnf && !d.dsq)
-                 .sort((a, b) => (b.lap_distance || 0) - (a.lap_distance || 0)).slice(0, boxes.length);
-  }
+                 .sort((a, b) => (b.lap_distance || 0) - (a.lap_distance || 0));
+    hot = hlNachlauf(drivers, hot, boxes.length).slice(0, boxes.length);
+  } else { hlLaeuft = {}; hlFertig = {}; }
+  hlPlatz = {};
+  hot.forEach((d, k) => { hlPlatz[d.index] = k; });
   boxes.forEach((box, k) => {
     const d = hot[k];
     if (!d) { hideHotlapBox(box); return; }

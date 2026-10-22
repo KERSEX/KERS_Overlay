@@ -214,7 +214,8 @@ private:
 };
 
 /// S3 der laufenden Runde, sofern die Runde schon abgeschlossen ist
-/// (last_lap - S1 - S2, wie in core.js). Vor dem Rundenende 0.
+/// (last_lap - S1 - S2, wie in core.js). Vor dem Rundenende 0 - auch, solange
+/// das Auto noch in Sektor 3 steht (dort waere last_lap die vorige Runde).
 double s3Live(const QJsonObject& d);
 
 }  // namespace kers::hud

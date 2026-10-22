@@ -507,7 +507,7 @@ function renderTower(data, drivers) {
     // (Boxen-Erkennung + Pit-Timer -> pit.js)
 
 
-    const s3 = (d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0)
+    const s3 = (d.sector !== 2 && d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0)
       ? d.last_lap - d.sector1 - d.sector2 : 0;
     // Rundenende erkennen: beim Überfahren der Start/Ziel-Linie setzt das Spiel sector1/
     // sector2 der NEUEN Runde schon auf 0 -> für S3 der GERADE beendeten Runde die zuletzt

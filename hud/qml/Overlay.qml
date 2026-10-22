@@ -371,8 +371,17 @@ Item {
         scale: root.ls("danger")
         x: root.lx("danger", root.fbW(dangerTeil),
                    Math.round((root.width - root.fbW(dangerTeil)) / 2))
+        // ⚠ Gefahrenzone und Hotlap-Karten sitzen beide unten mittig. In den
+        // letzten drei Minuten von Q1/Q2 - genau dann, wenn die meisten Karten
+        // stehen - lag der Countdown mitten auf ihnen. Stehen die Karten auf
+        // ihrem eingebauten Platz, weicht die Gefahrenzone jetzt um deren Hoehe
+        // nach oben aus (12 px Luft). Mit eigenem Layout-Eintrag gilt wie immer
+        // der eigene Platz.
+        readonly property real ausweichen:
+            hotlapsTeil.visible && root.fbH(hotlapsTeil) > 4 && !root.hat(root.teil("hotlaps"), "dy")
+            ? root.fbH(hotlapsTeil) : 0
         baseY: root.ly("danger", root.fbH(dangerTeil),
-                       root.height - 40 - root.fbH(dangerTeil))
+                       root.height - 40 - root.fbH(dangerTeil) - ausweichen)
         z: root.lz("danger", 46)
     }
 

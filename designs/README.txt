@@ -63,6 +63,9 @@ design.json
 
   "extra"    beliebige eigene Werte. In QML als  Theme.extra.<name>  lesbar,
              z. B. "posBg": "#14151a"  →  Theme.extra.posBg
+             Das F1-TV-Design liest u. a. focus (Markierung des Kamera-
+             Fahrers), focusBg (dessen Zeile, #AARRGGBB mit Deckkraft) und
+             purple (Schnellste Runde).
 
 
 In QML verfügbar
@@ -76,3 +79,17 @@ In QML verfügbar
           redFlag, poleTime …), Kers.settings, Kers.hotlaps, Kers.battles,
           Kers.championship …
   Am einfachsten: die eingebaute Datei als Vorlage nehmen und umbauen.
+
+  Je Tower-Zeile (Kers.drivers) u. a.: position, name, teamColor, teamLogo,
+  isFocused (= Fahrer unter der Kamera), gapToLeader, bestLap, compound,
+  qualiStatus ("track" = Hotlap, "out", "inlap", "box"), inPit, dnf …
+
+  Je Hotlap-Karte (Kers.hotlaps.boxes) u. a.: position, name, ticking,
+  timeBase/timeAt (laufende Uhr), staticTime, sectors, sectorClasses
+  ("sp" lila, "sg" grün, "sy" gelb), focused, und für die Zielzeit:
+     targetTime, targetName   Ziel am nächsten Sektor (Pole bzw. Cut-Linie)
+     targetSector             1, 2 oder 3 (= die Linie)
+     finished                 Runde fertig – die Karte steht noch 5 s
+     finalDelta, hasFinal     Delta der fertigen Runde aufs Ziel
+     lapClass                 "sp" neue Bestzeit, "sg" persönliche, sonst ""
+  Die F1-TV-Dateien (parts\Hotlaps.qml, parts\F1TowerRow.qml) zeigen, wie.

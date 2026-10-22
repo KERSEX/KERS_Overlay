@@ -211,7 +211,7 @@ function qualiStatus(d) {
   let onPace  = false;   // fertiger Sektor nahe der Bestpace -> bewiesen schnell
   if (pb) {
     // Fertige Sektoren dieser Runde gegen die persoenlichen Bestsektoren.
-    const s3 = (d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0) ? d.last_lap - d.sector1 - d.sector2 : 0;
+    const s3 = (d.sector !== 2 && d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0) ? d.last_lap - d.sector1 - d.sector2 : 0;
     let ab = 0, have = false;
     [d.sector1, d.sector2, s3].forEach((v, i) => { if (v > 0 && pb[i] < Infinity) { ab += v - pb[i]; have = true; } });
     if (have) { if (ab > TOL) tooSlow = true; else onPace = true; }
@@ -396,7 +396,7 @@ function deriveShared(data) {
   drivers.forEach(d => {
     mergeBestSectors(d);   // Bestsektoren vom Spiel uebernehmen
 
-    const s3live = (d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0)
+    const s3live = (d.sector !== 2 && d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0)
       ? d.last_lap - d.sector1 - d.sector2 : 0;
 
     // Rundenende erkennen: beim Ueberfahren der Start/Ziel-Linie setzt das Spiel sector1/

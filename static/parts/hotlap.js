@@ -60,8 +60,9 @@ function updateHotlapBox(box, d) {
   setTyreIcon(box.querySelector(".hl-tyre"), d.compound);
   box.classList.toggle("invalid", !!d.lap_invalid);
 
-  // s3 erst bekannt, wenn die Runde komplett ist (last_lap - s1 - s2)
-  const s3 = (d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0) ? d.last_lap - d.sector1 - d.sector2 : 0;
+  // s3 erst bekannt, wenn die Runde komplett ist (last_lap - s1 - s2). In Sektor 3
+  // waere last_lap noch die VORIGE Runde -> kein S3 (ab 0.3.1, sonst erfundener Bestsektor).
+  const s3 = (d.sector !== 2 && d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0) ? d.last_lap - d.sector1 - d.sector2 : 0;
   const secs = [d.sector1, d.sector2, s3];
 
   // Grosse Zeit = LIVE hochzaehlende Rundenzeit. Basiswert + Zeitstempel merken; der

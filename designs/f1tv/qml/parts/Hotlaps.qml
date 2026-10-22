@@ -7,12 +7,20 @@
 //      S1          S2          S3
 //   ▔▔▔▔▔▔▔    ▔▔▔▔▔▔▔    ▔▔▔▔▔▔▔   (gruen/gelb/lila je Sektor)
 //
+// Rechts steht das Ziel wie im Fernsehen: die Pole - oder, wer gerade
+// ausscheiden wuerde, die Zeit an der Cut-Linie -, und zwar als Zwischenzeit am
+// naechsten Sektor (rechnet die Bruecke, siehe parts_hotlaps.cpp). Nach der
+// Linie bleibt die Karte 5 s stehen: gefahrene Zeit (lila = Bestzeit der
+// Session, gruen = persoenliche), rechts das Delta aufs Ziel, vorn die neue
+// Position. Die Karte des Kamera-Fahrers hat einen weissen Rahmen.
+//
 // Ersetzt parts/Hotlaps.qml. Gleiche Daten (Kers.hotlaps.boxes), gleiche Groessen-
 // Schnittstelle zu Overlay.qml (ein Row, dessen Breite/Hoehe zaehlt).
 
 import QtQuick
 import ".."
 import "../Fmt.js" as Fmt
+import "F1.js" as F1
 
 Row {
     id: area
@@ -27,30 +35,6 @@ Row {
         repeat: true
         interval: 50
         onTriggered: area.clock = Date.now()
-    }
-
-    /** Wer haelt die Pole? Steht rechts in jeder Karte unter der Zielzeit. */
-    readonly property string poleName: Kers.session.poleName
-
-    function nachname(n) {
-        var w = String(n || "").trim().split(/\s+/);
-        var letzt = w[w.length - 1];
-        return (w.length > 1 && /^[^0-9#]+$/.test(letzt)) ? letzt : String(n || "");
-    }
-    function reifenFarbe(c) {
-        switch (c) {
-        case "S": return "#ff3333";
-        case "M": return "#ffd400";
-        case "H": return "#f2f2f2";
-        case "I": return "#2bd04b";
-        case "W": return "#2e8bff";
-        }
-        return Theme.textMuted;
-    }
-    /** Laufende Zeit mit Zehnteln wie im Fernsehen: 1:31.3 */
-    function zehntel(s) {
-        var t = Fmt.time(Math.floor(s * 10) / 10);
-        return t.length > 2 ? t.slice(0, -2) : t;
     }
 
     Repeater {
@@ -72,6 +56,13 @@ Row {
             required property real staticTime
             required property var sectors
             required property var sectorClasses
+            required property bool focused
+            required property bool finished
+            required property string lapClass
+            required property real finalDelta
+            required property bool hasFinal
+            required property real targetTime
+            required property string targetName
 
             width: 330
             height: 114
@@ -80,12 +71,30 @@ Row {
             Component.onCompleted: opacity = 1
             Behavior on opacity { NumberAnimation { duration: 400 } }
 
+            /** Farbe der grossen Zeit: rot bei ungueltiger Runde, nach der Linie
+             *  lila/gruen fuer Bestzeit der Session/persoenliche Bestzeit. */
+            readonly property color zeitFarbe: card.invalid ? "#ff5a5a"
+                                             : card.finished && card.lapClass !== ""
+                                               ? Fmt.sectorColor(card.lapClass, false)
+                                               : Theme.textMain
+
             Rectangle {
                 anchors.fill: parent
                 radius: Theme.panelRadius
                 color: Theme.panelBg
                 border.width: 1
                 border.color: Theme.panelBorder
+            }
+            // Kamera-Fahrer: weisser Rahmen UEBER dem Inhalt (sonst verdecken
+            // Positionskasten und Teamlinie ihn an den Kanten).
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.panelRadius
+                color: "transparent"
+                border.width: 2
+                border.color: area.ex.focus || "#ffffff"
+                visible: card.focused
+                z: 5
             }
 
             // ── Kopf ────────────────────────────────────────────────────────
@@ -98,7 +107,9 @@ Row {
                     width: 32
                     height: parent.height
                     topLeftRadius: Theme.panelRadius
-                    color: area.ex.posBg || "#14151a"
+                    color: card.finished && card.position === 1 ? (area.ex.p1Bg || Theme.accent)
+                                                                : (area.ex.posBg || "#14151a")
+                    Behavior on color { ColorAnimation { duration: 300 } }
                     Text {
                         anchors.centerIn: parent
                         text: card.position > 0 ? card.position : "–"
@@ -122,7 +133,7 @@ Row {
                     x: 68
                     width: parent.width - 68 - 30
                     anchors.verticalCenter: parent.verticalCenter
-                    text: area.nachname(card.name)
+                    text: F1.nachname(card.name)
                     elide: Text.ElideRight
                     color: Theme.textMain
                     font { family: Theme.display; pixelSize: 17; weight: Font.Bold; letterSpacing: 0.5
@@ -132,7 +143,7 @@ Row {
                     anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                     visible: card.tyreIcon !== ""
                     text: card.tyreIcon
-                    color: area.reifenFarbe(card.tyreIcon)
+                    color: F1.reifenFarbe(card.tyreIcon, Theme.textMuted)
                     font { family: Theme.display; pixelSize: 15; weight: Font.Black }
                 }
                 Rectangle {                          // Teamfarbe unter dem Kopf
@@ -142,29 +153,30 @@ Row {
                 }
             }
 
-            // ── Zeit links, Ziel rechts ─────────────────────────────────────
+            // ── Zeit links, Ziel bzw. Delta rechts ──────────────────────────
             Text {
                 x: 14
                 y: kopf.height + 4
                 text: card.ticking
-                      ? area.zehntel(card.timeBase + Math.max(0, area.clock - card.timeAt) / 1000)
+                      ? F1.zehntel(card.timeBase + Math.max(0, area.clock - card.timeAt) / 1000)
                       : (card.staticTime > 0 ? Fmt.time(card.staticTime) : "–")
-                color: card.invalid ? "#ff5a5a" : Theme.textMain
+                color: card.zeitFarbe
                 font { family: Theme.display; pixelSize: 32; weight: Font.Bold; features: ({ "tnum": 1 }) }
             }
             Column {
                 anchors { right: parent.right; rightMargin: 14 }
                 y: kopf.height + 7
-                visible: Kers.session.poleTime > 0
+                visible: card.finished ? card.hasFinal : card.targetTime > 0
                 Text {
                     anchors.right: parent.right
-                    text: Fmt.time(Kers.session.poleTime)
-                    color: Theme.textMain
+                    text: card.finished ? F1.delta(card.finalDelta) : Fmt.time(card.targetTime)
+                    color: !card.finished ? Theme.textMain
+                         : card.finalDelta <= 0 ? (area.ex.gain || "#2ad04b") : "#ffd200"
                     font { family: Theme.display; pixelSize: 18; weight: Font.Bold; features: ({ "tnum": 1 }) }
                 }
                 Text {
                     anchors.right: parent.right
-                    text: area.nachname(area.poleName)
+                    text: F1.nachname(card.targetName)
                     color: Theme.textMuted
                     font { family: Theme.display; pixelSize: 12; weight: Font.DemiBold; letterSpacing: 1
                            capitalization: Font.AllUppercase }

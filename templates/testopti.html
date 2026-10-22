@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- KERS-VERSION: 0.0.2 — Overlay (Sparfassung) — Kopie von test.html, auf Leistung getrimmt
+<!-- KERS-VERSION: 0.0.3 — Overlay (Sparfassung) — Kopie von test.html, auf Leistung getrimmt
      Beim Aendern dieser Datei hochzaehlen. Wird in /settings angezeigt.
 
      Unterschiede zu test.html (sonst identisch, damit /test und /opti vergleichbar bleiben):
@@ -1754,7 +1754,7 @@ function qualiStatus(d) {
   let onPace  = false;   // fertiger Sektor nahe der Bestpace -> bewiesen schnell
   if (pb) {
     // Fertige Sektoren dieser Runde gegen die persönlichen Bestsektoren.
-    const s3 = (d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0) ? d.last_lap - d.sector1 - d.sector2 : 0;
+    const s3 = (d.sector !== 2 && d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0) ? d.last_lap - d.sector1 - d.sector2 : 0;
     let ab = 0, have = false;
     [d.sector1, d.sector2, s3].forEach((v, i) => { if (v > 0 && pb[i] < Infinity) { ab += v - pb[i]; have = true; } });
     if (have) { if (ab > TOL) tooSlow = true; else onPace = true; }
@@ -2303,7 +2303,7 @@ function render(data) {
     // DNF/DSQ während des Stopps -> laufende Card sofort entfernen (kein Ergebnis anzeigen).
     if ((d.dnf || d.dsq) && pt.card) { pt.card.remove(); pt.card = null; }
 
-    const s3 = (d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0)
+    const s3 = (d.sector !== 2 && d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0)
       ? d.last_lap - d.sector1 - d.sector2 : 0;
     // Rundenende erkennen: beim Überfahren der Start/Ziel-Linie setzt das Spiel sector1/
     // sector2 der NEUEN Runde schon auf 0 -> für S3 der GERADE beendeten Runde die zuletzt
@@ -2743,8 +2743,9 @@ function updateHotlapBox(box, d) {
   setTyreIcon(box.querySelector(".hl-tyre"), d.compound);
   box.classList.toggle("invalid", !!d.lap_invalid);
 
-  // s3 erst bekannt, wenn die Runde komplett ist (last_lap - s1 - s2)
-  const s3 = (d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0) ? d.last_lap - d.sector1 - d.sector2 : 0;
+  // s3 erst bekannt, wenn die Runde komplett ist (last_lap - s1 - s2). In Sektor 3
+  // waere last_lap noch die VORIGE Runde -> kein S3 (ab 0.3.1, sonst erfundener Bestsektor).
+  const s3 = (d.sector !== 2 && d.last_lap > 0 && d.sector1 > 0 && d.sector2 > 0) ? d.last_lap - d.sector1 - d.sector2 : 0;
   const secs = [d.sector1, d.sector2, s3];
 
   // Große Zeit = LIVE hochzählende Rundenzeit. Basiswert + Zeitstempel merken; der

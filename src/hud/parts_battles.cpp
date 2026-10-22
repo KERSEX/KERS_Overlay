@@ -22,7 +22,7 @@ namespace {
 const QStringList& battleRoles()
 {
     static const QStringList roles = {
-        "slot", "driverIndex", "position", "name", "teamColor",
+        "slot", "driverIndex", "position", "name", "teamColor", "teamLogo",
         "tyreIcon", "tyreStamp", "gap", "isLead", "barWidth", "barColor", "fresh",
     };
     return roles;
@@ -320,6 +320,7 @@ void Battles::renderBox(BattleBox* box, const Group& group)
         v.insert("position", ji(d, "position"));
         v.insert("name", js(d, "name"));
         v.insert("teamColor", Theme::teamColors().value(js(d, "team"), QStringLiteral("#ffffff")));
+        v.insert("teamLogo", teamLogos().value(js(d, "team")));   // ab 0.3.1, fuer F1 TV
         v.insert("tyreIcon", istReifenIcon(compound) ? compound : QString());
         v.insert("tyreStamp", box->m_tyreStamp.value(idx).second);
         v.insert("gap", lead ? -1.0 : gap);

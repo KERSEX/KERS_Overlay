@@ -17,7 +17,8 @@ unverändert weiterbenutzt — siehe [Neu in 0.3.0](#neu-in-030).
 
 **Neu in 0.3.1:** Code-Schutz für fremde Geräte, Team-WM und eigene Punkte,
 OBS-Steuerung in der Regie, Twitch-Chat ohne Einbettung und eigene Designs —
-mit einem Nachbau der F1-TV-Grafik. Siehe [Neu in 0.3.1](#neu-in-031).
+mit einem Nachbau der F1-TV-Grafik. Hotlap-Karten bleiben nach der Linie 5 s
+stehen. Siehe [Neu in 0.3.1](#neu-in-031).
 
 ---
 
@@ -172,6 +173,14 @@ Wie das HUD und das OBS-Fenster aussehen, legt ein **Design** fest — Auswahl i
   „LAP 7 / 20“, gelbes Safety-Car-Banner mit vollen Namen, Hotlap-Karten mit
   Zielzeit unten. Schrift ist das freie *Titillium Web*; ein F1-Logo liefert KERS
   nicht mit — dein eigenes Logo aus den Branding-Einstellungen steht oben im Tower.
+  * **Zielzeit wie im Fernsehen:** Wer gerade weiterkäme, fährt gegen die Pole,
+    wer ausscheiden würde (oder noch keine Zeit hat), gegen die Zeit an der
+    Cut-Linie, und zwar als Zwischenzeit am nächsten Sektor. Nach der Linie
+    zeigt die Karte 5 s lang die Zeit (lila = Bestzeit, grün = persönliche),
+    das Delta aufs Ziel und die neue Position.
+  * **Kamera-Fahrer:** hellere Zeile mit weißem Strich und kleinem Pfeil im
+    Tower, weißer Rahmen um seine Hotlap-Karte.
+  * Battle-Boxen, Schnellste Runde und Gefahrenzone („DROP ZONE“) im selben Stil.
 
 **Eigenes Design:** in `/settings` ein Design *Als eigenes Design kopieren*. Der
 Ordner liegt dann unter `data\designs\<Name>` — mit `design.json` (Farben,
@@ -285,7 +294,19 @@ selbst, aber nur genau diesen aus dem eigenen Ordner.
 * **Team-WM und eigene Punkte** pro WM-Datei — siehe [WM-Stand](#wm-stand-teams-und-eigene-punkte).
 * **OBS-Steuerung in der Regie** mit wählbaren Docks, **Twitch-Chat direkt**
   (auch in LibreWolf) — siehe [OBS](#obs).
-* **Designs** und der **F1-TV-Nachbau** — siehe [Designs](#designs).
+* **Designs** und der **F1-TV-Nachbau** mit Zielzeit wie im Fernsehen (Pole bzw.
+  Cut-Linie, als Zwischenzeit), Markierung des Kamera-Fahrers, Battle-Boxen,
+  Schnellster Runde und Gefahrenzone im F1-TV-Stil — siehe [Designs](#designs).
+* **Hotlap-Karten bleiben stehen:** Nach der Linie steht die gefahrene Zeit 5 s
+  lang da, auch wenn der Fahrer gleich die nächste schnelle Runde anhängt. Bisher
+  sprang die Karte dann sofort auf 0:00. Eine abgebrochene Runde verschwindet
+  dagegen sofort; bisher stand dort 4 s lang die vorige Runde als „fertig“.
+* **Gefahrenzone über den Hotlap-Karten** statt mitten auf ihnen.
+* **Kein erfundener S3 mehr:** Solange ein Auto in Sektor 3 war, wurde aus der
+  vorigen Runde ein S3 „gerechnet“ und konnte als lila Bestsektor hängen bleiben.
+  Behoben im HUD und in der Browserquelle.
+* Der Server liefert pro Fahrer zusätzlich `best_lap_sectors` (die Sektoren genau
+  der Bestrunde).
 * **Updates nur noch mit Prüfsumme:** liefert GitHub für eine Fassung keine
   SHA-256, wird sie nicht installiert.
 * `/test` und `/opti` sind nur noch auf diesem PC erreichbar; `/api/track/relearn`

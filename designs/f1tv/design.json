@@ -45,6 +45,9 @@
         "gain": "#2ad04b",
         "loss": "#e10600",
         "out": "#7c7e88",
+        "purple": "#8f2ad8",
+        "focus": "#ffffff",
+        "focusBg": "#29ffffff",
         "rowHeight": 34
     }
 }

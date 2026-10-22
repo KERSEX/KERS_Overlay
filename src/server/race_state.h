@@ -56,6 +56,7 @@ struct Driver {
     int gear = 0;
     int dmg_fl = 0, dmg_fr = 0, dmg_rw = 0, tyre_wear = 0;
     std::array<double, 3> best_sectors{0, 0, 0};
+    std::array<double, 3> best_lap_sectors{0, 0, 0};   // Sektoren GENAU der Bestrunde (ab 0.3.1)
     bool name_hidden = false;
 
     QJsonObject toJson() const;

@@ -326,7 +326,8 @@ void OverlayBridge::updateParts(const QJsonObject& data, const QJsonObject& sess
     m_battles->update(drivers, data, session,
                       m_regie->battles() && m_cfg.b("battles") && connected && !isQuali && lap >= 3);
     // Hotlap-Boxen: Regie-Schalter, verbunden, Quali, kein eingefrorenes Ergebnis.
-    m_hotlaps->update(drivers, focus, m_regie->hotlap() && connected && isQuali && !qualiResult);
+    m_hotlaps->update(drivers, focus, m_session->elimCut(),
+                      m_regie->hotlap() && connected && isQuali && !qualiResult);
 
     m_onboard->update(drivers, focus, connected, session, m_cfg.b("onboard"));
     m_lowerThird->update(drivers, focus, session, connected, m_cfg.b("lowerthird"));

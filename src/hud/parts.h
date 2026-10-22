@@ -234,21 +234,40 @@ class Hotlaps : public QObject {
     Q_PROPERTY(QObject* boxes READ boxes CONSTANT)
 public:
     static constexpr int MAX_BOXES = 4;
-    static constexpr double FINISH_HOLD_MS = 4000;
+    static constexpr double FINISH_HOLD_MS = 5000;   // so lange steht die fertige Runde
 
     Hotlaps(SharedState& shared, Config& cfg, QObject* parent = nullptr);
     QObject* boxes() const { return m_rows; }
-    void update(const QList<QJsonObject>& drivers, int focusIndex, bool active);
+    /// `elimCut` = letzter Platz, der weiterkommt (Q1 16, Q2 10, sonst 0).
+    void update(const QList<QJsonObject>& drivers, int focusIndex, int elimCut, bool active);
+    /// Uhr des Nachlaufs (Wanduhr in ms) - fuer Tests austauschbar.
+    void setClock(std::function<double()> uhr) { m_uhr = std::move(uhr); }
 
 private:
+    /// Wogegen gefahren wird: Bestrunde eines anderen Fahrers.
+    struct Ziel {
+        double runde = 0.0;                   // dessen Bestzeit
+        QString name;
+        std::array<double, 3> sek{0, 0, 0};   // Sektoren genau dieser Runde ...
+        bool sekOk = false;                   // ... falls bekannt (sonst nur die Rundenzeit)
+    };
     struct Fertig {
-        QJsonObject fahrer;
-        double bis;
-        int platz;
+        QJsonObject fahrer;        // Stand vor der Linie, last_lap = gefahrene Zeit
+        double bis = 0.0;          // wallMs, bis dahin steht die Karte
+        int platz = MAX_BOXES;     // dort stand sie - dort bleibt sie
+        double alteLast = 0.0;     // last_lap VOR der Linie
+        bool zeitFest = false;     // last_lap war schon nachgezogen
+        Ziel ziel;                 // vor der Linie eingefroren (fuers Delta)
+        double poleVorher = 0.0;
+        double bestVorher = 0.0;
     };
     int boxWunsch() const;
     void nachlaufPflegen(const QList<QJsonObject>& drivers, const QList<QJsonObject>& hot);
+    void nachlaufStarten(int idx, const QJsonObject& vorher, const QJsonObject& jetzt, double now);
     QList<QJsonObject> mitNachlauf(QList<QJsonObject> hot) const;
+    void zieleBestimmen(const QList<QJsonObject>& drivers, int elimCut);
+    Ziel zielAus(const QJsonObject& d) const;
+    const Ziel& zielFuer(const QJsonObject& d) const;
     QString secClass(double v, int idx, int i) const;
 
     SharedState& m_shared;
@@ -259,6 +278,9 @@ private:
     QHash<int, QJsonObject> m_laeuft;
     QHash<int, Fertig> m_fertig;
     QHash<int, int> m_letzterPlatz;
+    Ziel m_pole;
+    Ziel m_cut;
+    std::function<double()> m_uhr = wallMs;
 };
 
 // ── Onboard ──────────────────────────────────────────────────────────────────

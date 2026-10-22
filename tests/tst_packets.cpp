@@ -432,6 +432,10 @@ private slots:
         QCOMPARE(a.best_sectors[0], 28.5);
         QCOMPARE(a.best_sectors[1], 26.0);
         QCOMPARE(a.best_sectors[2], 65.0);
+        // Sektoren genau der Bestrunde (Runde 2) - S1 ist dort leer geblieben
+        QCOMPARE(a.best_lap_sectors[0], 0.0);
+        QCOMPARE(a.best_lap_sectors[1], 26.0);
+        QCOMPARE(a.best_lap_sectors[2], 65.0);
         QCOMPARE(f.st->session().fastest_lap_time, 79.5);
         QCOMPARE(f.st->session().fastest_lap_driver, QStringLiteral("Leclerc"));
         Pkt bad(11, T::SIZE_HISTORY);
@@ -565,7 +569,7 @@ private slots:
                               "driver_status", "pit_time", "overtake_active", "overtake_available", "lap_invalid",
                               "penalties", "pen_dt", "corner_warnings", "pit_stops", "stints", "lap_num",
                               "lap_distance", "laps_down", "sector", "grid_position", "speed", "throttle", "brake",
-                              "gear", "dmg_fl", "dmg_fr", "dmg_rw", "tyre_wear", "best_sectors", "name_hidden", "index"})
+                              "gear", "dmg_fl", "dmg_fr", "dmg_rw", "tyre_wear", "best_sectors", "best_lap_sectors", "name_hidden", "index"})
             QVERIFY2(d0.contains(QLatin1String(k)), k);
         QVERIFY(!d0.contains("pos_xz"));
 

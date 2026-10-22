@@ -10,10 +10,14 @@
 //
 // Die Zeile sitzt selbst auf ihrem Platz (y = slot * rowH) und gleitet beim
 // Positionswechsel dorthin - wie im eingebauten Tower.
+//
+// Der Kamera-Fahrer bekommt eine hellere Zeile, einen weissen Strich und einen
+// kleinen Pfeil rechts neben dem Tower (ab 0.3.1).
 
 import QtQuick
 import ".."
 import "../Fmt.js" as Fmt
+import "F1.js" as F1
 
 Item {
     id: row
@@ -66,36 +70,6 @@ Item {
         }
     }
 
-    /** Drei Buchstaben aus dem Namen - das Spiel liefert keine Kuerzel.
-     *  "Max Verstappen" -> VER, "PEDROESCROD98" -> PED, "MERCEDES #44" -> MER */
-    function kuerzel(n) {
-        var w = String(n || "").toUpperCase().split(/\s+/)
-            .map(function (s) { return s.replace(/[^A-ZÄÖÜ]/g, ""); })
-            .filter(function (s) { return s.length > 0; });
-        if (w.length === 0)
-            return String(n || "").toUpperCase().slice(0, 3);
-        var t = w[w.length - 1];
-        if (t.length < 3 && w.length > 1)
-            t = w[0];
-        return t.slice(0, 3);
-    }
-    /** Nachname, wenn der Name aus mehreren Woertern besteht, sonst alles. */
-    function nachname(n) {
-        var w = String(n || "").trim().split(/\s+/);
-        var letzt = w[w.length - 1];
-        return (w.length > 1 && /^[^0-9#]+$/.test(letzt)) ? letzt : String(n || "");
-    }
-    function reifenFarbe(c) {
-        switch (c) {
-        case "S": return "#ff3333";
-        case "M": return "#ffd400";
-        case "H": return "#f2f2f2";
-        case "I": return "#2bd04b";
-        case "W": return "#2e8bff";
-        }
-        return Theme.textMuted;
-    }
-
     readonly property string wertText: {
         if (quali) {
             if (bestLap > 0) {
@@ -121,12 +95,46 @@ Item {
     }
     readonly property bool wertFett: (!quali && inPit) || (quali && poleTime > 0 && bestLap > 0 && bestLap - poleTime < 0.0005)
 
-    // Kamera-Fahrer: leicht aufgehellt
+    // ── Kamera-Fahrer ("auf wen bin ich drauf") ──────────────────────────────
+    // Hellere Zeile, weisser Strich an der Positionsspalte und ein kleiner
+    // Pfeil, der von aussen auf die Zeile zeigt. Farben ueber design.json:
+    // extra.focus (Strich + Pfeil), extra.focusBg (Zeile, #AARRGGBB).
     Rectangle {
         anchors.fill: parent
         anchors.leftMargin: 34
-        color: Qt.rgba(1, 1, 1, 0.07)
+        color: row.ex.focusBg || Qt.rgba(1, 1, 1, 0.16)
         visible: row.isFocused
+    }
+    Rectangle {
+        x: 34
+        width: 3
+        height: parent.height
+        color: row.ex.focus || "#ffffff"
+        visible: row.isFocused
+        z: 2
+    }
+    // Nur die markierte Zeile legt den Pfeil an - nicht 22 Canvas-Flaechen.
+    Loader {
+        x: row.width + 3
+        anchors.verticalCenter: parent.verticalCenter
+        active: row.isFocused
+        sourceComponent: Canvas {
+            width: 8
+            height: 14
+            readonly property color farbe: row.ex.focus || "#ffffff"
+            onFarbeChanged: requestPaint()
+            onPaint: {
+                var c = getContext("2d");
+                c.reset();
+                c.fillStyle = farbe;
+                c.beginPath();
+                c.moveTo(width, 0);
+                c.lineTo(0, height / 2);
+                c.lineTo(width, height);
+                c.closePath();
+                c.fill();
+            }
+        }
     }
 
     // ── Position ─────────────────────────────────────────────────────────────
@@ -173,7 +181,7 @@ Item {
         width: row.namenModus ? row.width - 68 - 12 : 56
         height: parent.height
         verticalAlignment: Text.AlignVCenter
-        text: row.namenModus ? row.nachname(row.name) : row.kuerzel(row.name)
+        text: row.namenModus ? F1.nachname(row.name) : F1.kuerzel(row.name)
         elide: Text.ElideRight
         color: row.raus ? (row.ex.out || "#7c7e88") : Theme.textMain
         font { family: Theme.display; pixelSize: 16; weight: Font.Bold; letterSpacing: 0.4
@@ -204,7 +212,7 @@ Item {
         anchors { right: mark.left; rightMargin: 7; verticalCenter: parent.verticalCenter }
         text: row.wertText
         color: row.wertFarbe
-        font { family: Theme.display; pixelSize: row.wertFett ? 15 : 15
+        font { family: Theme.display; pixelSize: 15
                weight: row.wertFett ? Font.Bold : Font.Medium; features: ({ "tnum": 1 }) }
     }
 
@@ -220,7 +228,7 @@ Item {
             anchors.centerIn: parent
             visible: row.quali && row.compound !== "" && row.compound !== "?"
             text: row.compound
-            color: row.reifenFarbe(row.compound)
+            color: F1.reifenFarbe(row.compound, Theme.textMuted)
             font { family: Theme.display; pixelSize: 13; weight: Font.Black }
         }
         Rectangle {

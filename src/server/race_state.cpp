@@ -76,6 +76,7 @@ QJsonObject Driver::toJson() const
     o["dmg_rw"] = dmg_rw;
     o["tyre_wear"] = tyre_wear;
     o["best_sectors"] = QJsonArray{best_sectors[0], best_sectors[1], best_sectors[2]};
+    o["best_lap_sectors"] = QJsonArray{best_lap_sectors[0], best_lap_sectors[1], best_lap_sectors[2]};
     o["name_hidden"] = name_hidden;
     return o;
 }
@@ -682,6 +683,7 @@ void RaceState::handleSessionHistory(const QByteArray& d)
     };
     Driver& dr = driver(carIdx);
 
+    static const int secOff[3][2] = {{4, 6}, {7, 9}, {10, 12}};
     const int off = lapOff(u8(d, base + 3));                // m_bestLapTimeLapNum
     if (off >= 0) {
         const uint32_t ms = u32(d, off);
@@ -692,10 +694,15 @@ void RaceState::handleSessionHistory(const QByteArray& d)
                 m_session.fastest_lap_time = lapS;
                 m_session.fastest_lap_driver = dr.name;
             }
+            // Die Sektoren DIESER Runde - daraus rechnen die Hotlap-Karten die
+            // Zwischenzeit, gegen die gerade gefahren wird (F1-TV-Zielzeit).
+            for (int k = 0; k < 3; ++k) {
+                const double t = u8(d, off + secOff[k][1]) * 60 + u16(d, off + secOff[k][0]) / 1000.0;
+                dr.best_lap_sectors[k] = (t > 0 && t < 300) ? t : 0.0;
+            }
         }
     }
     // Bestsektoren: jeder Sektor kann in einer ANDEREN Runde gefallen sein.
-    static const int secOff[3][2] = {{4, 6}, {7, 9}, {10, 12}};
     std::array<double, 3> secs{0, 0, 0};
     bool any = false;
     for (int k = 0; k < 3; ++k) {

@@ -84,6 +84,14 @@ QVariant Config::value(const QString& key) const
 // ── Hilfsgroessen ────────────────────────────────────────────────────────────
 double s3Live(const QJsonObject& d)
 {
+    // ⚠ Steht das Auto noch IN Sektor 3, sind sector1/sector2 schon die der
+    // laufenden Runde, last_lap aber die vorige. Die Differenz sah aus wie ein
+    // S3, war aber erfunden - und floss auf dem Hotlap als Bestsektor in
+    // secBest/pb (lila S3, den nie jemand gefahren ist). Die Nachlauf-Kopie der
+    // Hotlap-Boxen traegt _fertig_zeit (= last_lap der eben beendeten Runde)
+    // und rechnet weiter.
+    if (ji(d, "sector") == 2 && !d.contains(QLatin1String("_fertig_zeit")))
+        return 0.0;
     const double last = jd(d, "last_lap");
     const double s1 = jd(d, "sector1");
     const double s2 = jd(d, "sector2");

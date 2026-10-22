@@ -11,6 +11,8 @@ import json, sys
 from collections import Counter
 
 TOL = 1e-6
+# Felder, die erst die C++-Fassung liefert - der Python-Server kennt sie nicht.
+NUR_CPP = {"best_lap_sectors"}
 
 
 def num(x):
@@ -27,6 +29,8 @@ def diff(a, b, pfad, out):
         return
     if isinstance(a, dict):
         for k in sorted(set(a) | set(b)):
+            if k not in a and k in NUR_CPP:
+                continue
             if k not in a:
                 out.append((f"{pfad}.{k}", "<fehlt>", b[k]))
             elif k not in b:

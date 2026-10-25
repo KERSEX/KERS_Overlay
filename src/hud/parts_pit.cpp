@@ -4,6 +4,7 @@
 // (test.html). Hier laeuft sie wie in pit.js als eigene Schleife.
 #include "parts.h"
 
+#include "models.h"
 #include "theme.h"
 
 #include <algorithm>
@@ -15,7 +16,7 @@ namespace {
 const QStringList& pitRoles()
 {
     static const QStringList roles = {
-        "slot", "cardId", "name", "teamColor", "live", "t0", "finalTime",
+        "slot", "cardId", "name", "teamColor", "teamLogo", "live", "t0", "finalTime",
         "oldTyre", "newTyre", "showArrow", "newWing", "exitPos",
     };
     return roles;
@@ -95,6 +96,7 @@ int PitCards::start(const QJsonObject& d, const QList<QJsonObject>& drivers)
     c.insert("cardId", cardId);
     c.insert("name", js(d, "name"));
     c.insert("teamColor", Theme::teamColors().value(js(d, "team"), QStringLiteral("#ffffff")));
+    c.insert("teamLogo", teamLogos().value(js(d, "team")));   // ab 0.3.1, fuer F1 TV
     c.insert("live", true);
     c.insert("t0", wallMs());
     c.insert("finalTime", 0.0);

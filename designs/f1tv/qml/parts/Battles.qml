@@ -2,11 +2,11 @@
 //
 //   ┌──────────────────────────┐
 //   │      BATTLE FOR P4       │
-//   │ 4  [Logo] PIA            S │
-//   │ 5  [Logo] LEC   +0.412   M │
+//   │ 4  [Logo] PIASTRI        S │
+//   │ 5  [Logo] LECLERC +0.412 M │
 //   └──────────────────────────┘
 //
-// Wie ein kleiner Tower: Positionsspalte, Teamlogo, Kuerzel, Abstand zum
+// Wie ein kleiner Tower: Positionsspalte, Teamlogo, voller Name, Abstand zum
 // Vordermann, Reifenbuchstabe. Ersetzt parts/Battles.qml, gleiche Daten
 // (Kers.battles.boxes) und dieselbe Anordnung (Reihe oder Spalte aus /settings).
 
@@ -31,13 +31,13 @@ Grid {
             required property var modelData
             readonly property var box: modelData
 
-            width: visible ? 250 : 0
+            width: visible ? 300 : 0
             height: card.height
             visible: box.isVisible || card.opacity > 0
 
             Rectangle {
                 id: card
-                width: 250
+                width: 300
                 height: header.height + sub.height + rows.height
                 radius: Theme.panelRadius
                 color: Theme.panelBg

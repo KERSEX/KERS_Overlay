@@ -10,7 +10,6 @@
 import QtQuick
 import ".."
 import "../Fmt.js" as Fmt
-import "F1.js" as F1
 
 Item {
     id: dz
@@ -65,7 +64,7 @@ Item {
             Text {
                 id: nameText
                 anchors.centerIn: parent
-                text: F1.nachname(dz.src.name)
+                text: dz.src.name
                 color: Theme.textMain
                 font { family: Theme.display; pixelSize: 16; weight: Font.Bold; letterSpacing: 0.5
                        capitalization: Font.AllUppercase }

@@ -98,6 +98,8 @@ class MessageBanner : public QObject {
     KERS_PROP(QString, icon, QString())
     KERS_PROP(QString, text, QString())
     KERS_PROP(QString, accent, QStringLiteral("#00e676"))
+    /// "rc" = Rennleitung/Safety Car, "strategy" = Undercut (ab 0.3.1, fuer F1 TV)
+    KERS_PROP(QString, kind, QStringLiteral("rc"))
 public:
     static constexpr int SHOW_MS = 2800;
     static constexpr int GAP_MS = 450;
@@ -107,13 +109,14 @@ public:
 
     /// CFG.msgs - Meldungen lassen sich in den Settings abschalten.
     void setEnabled(bool on);
-    void push(const QString& icon, const QString& text, const QString& accent);
+    void push(const QString& icon, const QString& text, const QString& accent,
+              const QString& kind = QStringLiteral("rc"));
     /// Sofort still: laufende Meldung weg, Warteschlange leer, Uhren aus.
     void leeren();
 
 private:
     struct Msg {
-        QString icon, text, accent;
+        QString icon, text, accent, kind;
     };
     void next();
     void hide();

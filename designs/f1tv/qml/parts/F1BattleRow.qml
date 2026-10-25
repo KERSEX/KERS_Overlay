@@ -1,6 +1,6 @@
 // Eine Zeile einer F1-TV-Battle-Box (Design "F1 TV", ab 0.3.1).
 //
-//   [Pos] [Logo] KÜRZEL   −5 Rnd  +0.412  M
+//   [Pos] [Logo] VOLLER NAME   −5 Rnd  +0.412  M
 //   ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔  (Abstandsbalken, fuellt sich, je naeher der Vordermann)
 //
 // Gleitet wie die Tower-Zeile ueber `slot` an ihren Platz.
@@ -71,9 +71,11 @@ Item {
 
     Text {
         x: 68
+        width: rechts.x - 68 - 8
         height: parent.height
         verticalAlignment: Text.AlignVCenter
-        text: F1.kuerzel(row.name)
+        elide: Text.ElideRight
+        text: row.name
         color: Theme.textMain
         font { family: Theme.display; pixelSize: 16; weight: Font.Bold; letterSpacing: 0.4
                capitalization: Font.AllUppercase }
@@ -81,6 +83,7 @@ Item {
 
     // ── Rechts: frischere Reifen, Abstand, Reifen ────────────────────────────
     Row {
+        id: rechts
         anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
         spacing: 8
         Text {

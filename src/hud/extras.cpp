@@ -1,5 +1,6 @@
 #include "extras.h"
 
+#include "models.h"
 #include "theme.h"
 
 #include <QJsonValue>
@@ -636,12 +637,28 @@ void Championship::build()
     const QJsonArray standings = teams ? teamArr : data.value(QLatin1String("standings")).toArray();
     QVariantList rows;
     bool live = false;
+    // Platz OHNE die Punkte des laufenden Rennens - daraus der Positionswechsel,
+    // den die F1-TV-Tabelle als Pfeil zeigt (ab 0.3.1).
+    auto basisPlatz = [&standings](int i) {
+        const QJsonObject s = standings.at(i).toObject();
+        const double basis = jd(s, "total_points") - jd(s, "live_points");
+        int platz = 1;
+        for (int k = 0; k < standings.size(); ++k) {
+            const QJsonObject o = standings.at(k).toObject();
+            const double b = jd(o, "total_points") - jd(o, "live_points");
+            if (b > basis || (b == basis && k < i))
+                ++platz;
+        }
+        return platz;
+    };
     for (int i = 0; i < standings.size() && i < 12; ++i) {
         const QJsonObject s = standings.at(i).toObject();
         QVariantMap r;
         r.insert("pos", i + 1);
         r.insert("name", teams ? js(s, "team") : js(s, "name"));
         r.insert("color", Theme::teamColors().value(js(s, "team"), QStringLiteral("#ffffff")));
+        r.insert("logo", teamLogos().value(js(s, "team")));
+        r.insert("change", basisPlatz(i) - (i + 1));   // ohne Live-Punkte immer 0
         r.insert("points", jd(s, "total_points"));
         r.insert("livePoints", jd(s, "live_points"));
         if (jd(s, "live_points") > 0)

@@ -131,11 +131,12 @@ void MessageBanner::setEnabled(bool on)
         m_queue.clear();
 }
 
-void MessageBanner::push(const QString& icon, const QString& text, const QString& accent)
+void MessageBanner::push(const QString& icon, const QString& text, const QString& accent,
+                         const QString& kind)
 {
     if (!m_enabled)
         return;
-    m_queue.append(Msg{icon, text, accent});
+    m_queue.append(Msg{icon, text, accent, kind});
     if (m_queue.size() > MAX_QUEUE)
         m_queue.removeFirst();
     next();
@@ -161,6 +162,7 @@ void MessageBanner::next()
     set_icon(m.icon);
     set_text(m.text);
     set_accent(m.accent);
+    set_kind(m.kind);
     set_isVisible(true);
     m_timer.start(SHOW_MS);
 }
@@ -277,7 +279,7 @@ void Undercut::update(const QList<QJsonObject>& drivers, const QJsonObject& sess
                                           1, ji(session, "current_lap")});
                 m_banner->push(QStringLiteral(u"⛏"),   // ⛏
                                QStringLiteral("UNDERCUT-VERSUCH: %1 auf %2").arg(js(d, "name"), js(*ahead, "name")),
-                               QStringLiteral("#ffcc00"));
+                               QStringLiteral("#ffcc00"), QStringLiteral("strategy"));
             }
         }
         m_inPit[idx] = inPit;
@@ -300,11 +302,11 @@ void Undercut::update(const QList<QJsonObject>& drivers, const QJsonObject& sess
             if (pbb < pa)
                 m_banner->push(QStringLiteral(u"✓"),
                                QStringLiteral("UNDERCUT FUNKTIONIERT: %1 vor %2").arg(u.bn, u.an),
-                               QStringLiteral("#00e676"));
+                               QStringLiteral("#00e676"), QStringLiteral("strategy"));
             else
                 m_banner->push(QStringLiteral(u"✗"),   // ✗
                                QStringLiteral("UNDERCUT GESCHEITERT: %1 bleibt vor %2").arg(u.an, u.bn),
-                               QStringLiteral("#ff5a5a"));
+                               QStringLiteral("#ff5a5a"), QStringLiteral("strategy"));
             continue;
         }
         keep.append(u);

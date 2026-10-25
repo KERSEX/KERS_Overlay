@@ -2,13 +2,12 @@
 //
 //   [ FASTEST LAP ][ HAMILTON ][ 1:31.529 ]
 //
-// Lila Block, Nachname, Zeit. Ersetzt parts/FastestLapBanner.qml - gleiche Daten
+// Lila Block, voller Name, Zeit. Ersetzt parts/FastestLapBanner.qml - gleiche Daten
 // (Kers.fastestLap) und Schnittstelle (baseY, Ein-/Ausblenden von oben).
 
 import QtQuick
 import ".."
 import "../Fmt.js" as Fmt
-import "F1.js" as F1
 
 Item {
     id: flb
@@ -45,7 +44,7 @@ Item {
             Text {
                 id: nameText
                 anchors.centerIn: parent
-                text: F1.nachname(flb.src.name)
+                text: flb.src.name
                 color: Theme.textMain
                 font { family: Theme.display; pixelSize: 18; weight: Font.Bold; letterSpacing: 0.5
                        capitalization: Font.AllUppercase }

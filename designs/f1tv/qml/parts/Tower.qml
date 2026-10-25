@@ -8,6 +8,10 @@
 // Aufbau von oben: Marke (eigenes Logo bzw. Titel aus /settings - ein F1-Logo
 // liefert KERS nicht mit), Runden- bzw. Zeitleiste ("LAP 7 / 20", "Q2 0:49"),
 // bei Safety Car / VSC / roter Flagge ein Banner, dann die Zeilen (F1TowerRow.qml).
+//
+// Ab 0.3.1 immer mit vollen Namen (breiter, extra.towerWidth) und Reifen mit
+// Alter. Im Rennen wechselt der Wert alle extra.gapWechsel Sekunden (Vorgabe 8)
+// zwischen Abstand zum Fuehrenden und Intervall zum Vordermann.
 
 import QtQuick
 import ".."
@@ -26,8 +30,15 @@ Item {
     readonly property string banner: Kers.session.redFlag ? "rf"
                                    : Kers.session.scStatus === "sc" ? "sc"
                                    : Kers.session.scStatus === "vsc" ? "vsc" : ""
-    /** Unter Safety Car zeigt F1 TV volle Nachnamen statt Abstaenden. */
-    readonly property bool namenModus: !quali && (banner === "sc" || banner === "vsc")
+    /** Rennen: Intervall zum Vordermann statt Abstand zum Fuehrenden - wechselt per Uhr. */
+    property bool intervall: false
+    Timer {
+        running: !tower.quali && Kers.session.connected
+        repeat: true
+        interval: (tower.ex.gapWechsel > 0 ? tower.ex.gapWechsel : 8) * 1000
+        onTriggered: tower.intervall = !tower.intervall
+        onRunningChanged: if (!running) tower.intervall = false
+    }
 
     readonly property int rowCount: Kers.drivers.count
     property int maxRowsSeen: 0
@@ -37,7 +48,7 @@ Item {
     readonly property int towerRows: Kers.settings.rows > 0 ? Kers.settings.rows
                                                            : Math.max(22, maxRowsSeen)
 
-    readonly property real panelWidth: namenModus ? 262 : 236
+    readonly property real panelWidth: ex.towerWidth > 0 ? ex.towerWidth : 340
 
     visible: Kers.settings.showTower
     width: panelWidth * panel.scale
@@ -55,7 +66,6 @@ Item {
         height: kopf.height + band.height + body.height + fuss.height
         transformOrigin: Item.TopLeft
         scale: tower.autoFit * (Kers.settings.scale > 0 ? Kers.settings.scale : 1) * tower.groesse
-        Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
 
         Rectangle {
             anchors.fill: parent
@@ -174,7 +184,7 @@ Item {
                     width: body.width
                     rowH: tower.rowH
                     quali: tower.quali
-                    namenModus: tower.namenModus
+                    intervall: tower.intervall
                     poleTime: Kers.session.poleTime
                 }
             }

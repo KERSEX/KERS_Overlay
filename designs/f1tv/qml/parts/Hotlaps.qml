@@ -1,6 +1,6 @@
 // Quali: Hotlap-Karten im Stil der F1-TV-Grafik (Design "F1 TV", ab 0.3.1).
 //
-//   [P] [Logo] NACHNAME                       S
+//   [P] [Logo] VOLLER NAME                    S
 //   ─────────────────── Teamfarbe ───────────────
 //   1:31.3                          1:31.529
 //                                   HAMILTON
@@ -133,7 +133,7 @@ Row {
                     x: 68
                     width: parent.width - 68 - 30
                     anchors.verticalCenter: parent.verticalCenter
-                    text: F1.nachname(card.name)
+                    text: card.name
                     elide: Text.ElideRight
                     color: Theme.textMain
                     font { family: Theme.display; pixelSize: 17; weight: Font.Bold; letterSpacing: 0.5
@@ -165,6 +165,7 @@ Row {
             }
             Column {
                 anchors { right: parent.right; rightMargin: 14 }
+                width: 150
                 y: kopf.height + 7
                 visible: card.finished ? card.hasFinal : card.targetTime > 0
                 Text {
@@ -175,8 +176,10 @@ Row {
                     font { family: Theme.display; pixelSize: 18; weight: Font.Bold; features: ({ "tnum": 1 }) }
                 }
                 Text {
-                    anchors.right: parent.right
-                    text: F1.nachname(card.targetName)
+                    width: parent.width
+                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideRight
+                    text: card.targetName
                     color: Theme.textMuted
                     font { family: Theme.display; pixelSize: 12; weight: Font.DemiBold; letterSpacing: 1
                            capitalization: Font.AllUppercase }

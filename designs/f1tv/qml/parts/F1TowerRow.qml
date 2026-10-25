@@ -1,6 +1,6 @@
 // Eine Zeile des F1-TV-Towers (Design "F1 TV", ab 0.3.1).
 //
-//   [Pos] [Logo] VOLLER NAME [+5] (⏱) ....... +0.7   (12) ▌
+//   [Pos] [Logo] VOLLER NAME [+5] (⏱) ....... +0.7   (12) ▌   (12) = Reifensymbol
 //
 // Position in eigener dunkler Spalte (P1 rot), kurz nach einem Ueberholmanoever
 // ein gruenes ▲ bzw. rotes ▼ statt der Zahl. Dahinter immer der volle Name (KERS'
@@ -11,8 +11,8 @@
 // Fuehrenden und Abstand zum Vordermann - die P1-Zeile sagt dann "Leader" bzw.
 // "Interval", wie im Fernsehen. "IN PIT" in Teamfarbe, "Out" bei Ausfall.
 // Quali: Bestzeit bzw. Rueckstand auf die Pole. Rechts immer der Reifen als
-// "(12)" - Halbkreise in der Farbe der Mischung, dazwischen das Alter in Runden
-// (F1Reifen.qml) -, ganz aussen der gruene Strich bei DRS/Overtake.
+// rundes Symbol wie bei Pirelli: Boegen in der Farbe der Mischung, in der Mitte
+// das Alter in Runden (F1Reifen.qml) -, ganz aussen der gruene Strich bei DRS/Overtake.
 //
 // Die Zeile sitzt selbst auf ihrem Platz (y = slot * rowH) und gleitet beim
 // Positionswechsel dorthin - wie im eingebauten Tower. Der Kamera-Fahrer bekommt
@@ -71,7 +71,7 @@ Item {
 
     // Spalten rechts (Breite des Werts, des Reifens) - der Name nimmt den Rest.
     readonly property int wertW: 64
-    readonly property int reifenW: 32
+    readonly property int reifenW: 28
 
     // ── Positionswechsel: drei Sekunden lang Pfeil statt Zahl ────────────────
     property bool pfeil: false
@@ -292,7 +292,7 @@ Item {
         }
     }
 
-    // ── Reifen: "(12)" - Halbkreise in der Farbe der Mischung, dazwischen das Alter
+    // ── Reifen: rundes Symbol, Boegen in der Farbe der Mischung, Alter in der Mitte
     F1Reifen {
         id: reifen
         anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }

@@ -1,6 +1,6 @@
 // Eine Zeile des F1-TV-Towers (Design "F1 TV", ab 0.3.1).
 //
-//   [Pos] [Logo] VOLLER NAME [+5] (⏱) ....... +0.7   S 12 ▌
+//   [Pos] [Logo] VOLLER NAME [+5] (⏱) ....... +0.7   (12) ▌
 //
 // Position in eigener dunkler Spalte (P1 rot), kurz nach einem Ueberholmanoever
 // ein gruenes ▲ bzw. rotes ▼ statt der Zahl. Dahinter immer der volle Name (KERS'
@@ -10,8 +10,9 @@
 // Wert im Rennen: wechselt mit dem Tower (`intervall`) zwischen Abstand zum
 // Fuehrenden und Abstand zum Vordermann - die P1-Zeile sagt dann "Leader" bzw.
 // "Interval", wie im Fernsehen. "IN PIT" in Teamfarbe, "Out" bei Ausfall.
-// Quali: Bestzeit bzw. Rueckstand auf die Pole. Rechts immer der Reifen mit
-// seinem Alter in Runden, ganz aussen der gruene Strich bei DRS/Overtake.
+// Quali: Bestzeit bzw. Rueckstand auf die Pole. Rechts immer der Reifen als
+// "(12)" - Halbkreise in der Farbe der Mischung, dazwischen das Alter in Runden
+// (F1Reifen.qml) -, ganz aussen der gruene Strich bei DRS/Overtake.
 //
 // Die Zeile sitzt selbst auf ihrem Platz (y = slot * rowH) und gleitet beim
 // Positionswechsel dorthin - wie im eingebauten Tower. Der Kamera-Fahrer bekommt
@@ -70,7 +71,7 @@ Item {
 
     // Spalten rechts (Breite des Werts, des Reifens) - der Name nimmt den Rest.
     readonly property int wertW: 64
-    readonly property int reifenW: 40
+    readonly property int reifenW: 32
 
     // ── Positionswechsel: drei Sekunden lang Pfeil statt Zahl ────────────────
     property bool pfeil: false
@@ -291,26 +292,13 @@ Item {
         }
     }
 
-    // ── Reifen mit Alter ─────────────────────────────────────────────────────
-    Item {
+    // ── Reifen: "(12)" - Halbkreise in der Farbe der Mischung, dazwischen das Alter
+    F1Reifen {
         id: reifen
-        anchors { right: parent.right; rightMargin: 8; top: parent.top; bottom: parent.bottom }
-        width: row.reifenW
-        readonly property bool bekannt: "SMHIW".indexOf(row.compound) >= 0 && row.compound !== ""
+        anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+        compound: row.compound
+        alter: row.tyreAge
         opacity: row.raus ? 0.45 : 1
-        Text {
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            text: reifen.bekannt ? row.compound : "–"
-            color: F1.reifenFarbe(row.compound, Theme.textMuted)
-            font { family: Theme.display; pixelSize: 14; weight: Font.Black }
-        }
-        Text {
-            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            visible: reifen.bekannt
-            text: row.tyreAge
-            color: Theme.textMuted
-            font { family: Theme.display; pixelSize: 14; weight: Font.DemiBold; features: ({ "tnum": 1 }) }
-        }
     }
 
     // DRS/Overtake: gruener Strich ganz aussen

@@ -173,7 +173,8 @@ Wie das HUD und das OBS-Fenster aussehen, legt ein **Design** fest — Auswahl i
   „LAP 7 / 20“, gelbes Safety-Car-Banner, Hotlap-Karten mit Zielzeit unten.
   Schrift ist das freie *Titillium Web*; ein F1-Logo liefert KERS nicht mit —
   dein eigenes Logo aus den Branding-Einstellungen steht oben im Tower.
-  * **Tower:** rechts immer der Reifen mit seinem Alter in Runden. Im Rennen
+  * **Tower:** rechts immer der Reifen wie im Fernsehen — zwei Halbkreise in der
+    Farbe der Mischung, dazwischen das Alter in Runden: „(12)“. Im Rennen
     wechselt der Abstand alle 8 s zwischen Führendem und Vordermann — die
     P1-Zeile zeigt dann „Leader“ bzw. „Interval“. Lila Stoppuhr beim Fahrer mit
     der schnellsten Runde.

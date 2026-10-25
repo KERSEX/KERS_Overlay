@@ -103,3 +103,5 @@ In QML verfügbar
      finalDelta, hasFinal     Delta der fertigen Runde aufs Ziel
      lapClass                 "sp" neue Bestzeit, "sg" persönliche, sonst ""
   Die F1-TV-Dateien (parts\Hotlaps.qml, parts\F1TowerRow.qml) zeigen, wie.
+  Fertige Bauteile dort: parts\F1Reifen.qml (Reifen als "(12)") und
+  parts\F1.js (Kürzel, Nachname, Reifenfarbe, Zeitformate).

@@ -15,6 +15,9 @@ mehr. Jeder Baustein lässt sich einzeln abschalten und frei platzieren.
 ohne zweiten Prozess. Einstellungen, WM-Stände und Fensterlage aus 0.2.x werden
 unverändert weiterbenutzt — siehe [Neu in 0.3.0](#neu-in-030).
 
+**Neu in 0.3.2:** Monitor für das HUD im Schaltbrett auswählen. Siehe
+[Neu in 0.3.2](#neu-in-032).
+
 **Neu in 0.3.1:** Code-Schutz für fremde Geräte, Team-WM und eigene Punkte,
 OBS-Steuerung in der Regie, Twitch-Chat ohne Einbettung und eigene Designs —
 mit einem Nachbau der F1-TV-Grafik. Hotlap-Karten bleiben nach der Linie 5 s
@@ -298,6 +301,15 @@ räumt beim ersten Start die alte 243-MB-Datei (`KERS_Subsystems.exe.bak`) weg.
 Der Server der alten Fassung (`data\main.exe` mit seinem Konsolenfenster) läuft
 nach dem Tausch noch weiter — 0.3.0 beendet ihn vor dem eigenen Serverstart von
 selbst, aber nur genau diesen aus dem eigenen Ordner.
+
+---
+
+## Neu in 0.3.2
+
+* **Monitor wählen:** Bei mehreren Bildschirmen legt die Auswahl *Bildschirm* im
+  Schaltbrett das HUD direkt auf den gewünschten Monitor — siehe
+  [Die beiden Fenster](#die-beiden-fenster).
+* Die GFL-Logos sind nicht mehr eingebaut; die EXE ist dadurch rund 1,7 MB kleiner.
 
 ---
 

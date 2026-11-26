@@ -96,6 +96,11 @@ zeigt, was Server und HUD melden — das, was früher im Konsolenfenster des
 Servers stand. Dieselben Zeilen stehen in `data\kers.log`.
 Es hat außerdem ein Symbol im Infobereich der Taskleiste.
 
+**Mehrere Monitore:** Im Schaltbrett unter *Bildschirm* den Monitor wählen — das
+HUD legt sich bildschirmfüllend darauf und sperrt sich. Gleiche Modelle
+unterscheidet die Lage zum Hauptbildschirm (links, rechts, oben, unten). Beim
+nächsten Start erscheint es wieder dort.
+
 ---
 
 ## Bedienung im Browser

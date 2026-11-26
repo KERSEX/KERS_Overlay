@@ -16,6 +16,7 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
+#include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
@@ -28,6 +29,8 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QDebug>
+
+#include <cstdlib>
 
 namespace kers::app {
 
@@ -306,6 +309,27 @@ QWidget* SubsystemsPanel::buildPower()
     row->addWidget(btnReload, 1);
     lay->addLayout(row);
 
+    // Mehrere Monitore: das HUD direkt auf einen bestimmten legen. Gespeichert wird
+    // dafuer nichts extra - die Fensterlage merkt sich HudState ohnehin.
+    auto* monitor = new QHBoxLayout();
+    monitor->addWidget(new QLabel(QStringLiteral("Bildschirm:")));
+    m_cmbScreen = new QComboBox();
+    m_cmbScreen->setToolTip(QStringLiteral(
+        "Legt das HUD bildschirmfuellend auf diesen Monitor und sperrt es -\n"
+        "wie 'An Bildschirm anpassen', nur ohne es vorher hinzuziehen."));
+    monitor->addWidget(m_cmbScreen, 1);
+    lay->addLayout(monitor);
+    fuelleBildschirme();
+    connect(m_cmbScreen, &QComboBox::activated, this, [this](int i) {
+        for (QScreen* s : QGuiApplication::screens())
+            if (s->name() == m_cmbScreen->itemData(i).toString())
+                aufBildschirm(s);
+    });
+    // Monitor an-/abgesteckt oder HUD von Hand verschoben -> Liste nachziehen.
+    connect(qGuiApp, &QGuiApplication::screenAdded, this, &SubsystemsPanel::fuelleBildschirme);
+    connect(qGuiApp, &QGuiApplication::screenRemoved, this, &SubsystemsPanel::fuelleBildschirme);
+    connect(&m_hud, &QWindow::screenChanged, this, &SubsystemsPanel::fuelleBildschirme);
+
     m_btnLayout = new QPushButton(QStringLiteral("Layout bearbeiten"));
     m_btnLayout->setCheckable(true);
     m_btnLayout->setToolTip(QStringLiteral(
@@ -372,14 +396,45 @@ void SubsystemsPanel::applyPower(bool on)
 
 void SubsystemsPanel::fillScreen()
 {
-    // Auf den Bildschirm legen, auf dem das HUD gerade steht - und sperren:
-    // unverriegelt laege jetzt eine bildschirmgrosse Klickflaeche ueber allem.
-    QScreen* screen = m_hud.screen() ? m_hud.screen() : this->screen();
-    const QRect geo = screen->geometry();
+    // Auf den Bildschirm legen, auf dem das HUD gerade steht.
+    aufBildschirm(m_hud.screen() ? m_hud.screen() : this->screen());
+}
+
+void SubsystemsPanel::aufBildschirm(QScreen* ziel)
+{
+    // Bildschirmfuellend auflegen - und sperren: unverriegelt laege jetzt eine
+    // bildschirmgrosse Klickflaeche ueber allem.
+    const QRect geo = ziel->geometry();
     m_hud.applyGeometry(geo.x(), geo.y(), geo.width(), geo.height());
     m_hud.setLocked(true);
     if (!m_state.visible)
         m_hud.setHudVisible(true);
+}
+
+void SubsystemsPanel::fuelleBildschirme()
+{
+    m_cmbScreen->clear();
+    const QList<QScreen*> alle = QGuiApplication::screens();
+    QScreen* haupt = QGuiApplication::primaryScreen();
+    for (int i = 0; i < alle.size(); ++i) {
+        QScreen* s = alle.at(i);
+        // Echte Aufloesung statt der skalierten (150 % zeigt sonst 2560x1440 bei 4K).
+        const QSize px = s->size() * s->devicePixelRatio();
+        // Zwei gleiche Monitore heissen gleich - die Lage zum Hauptbildschirm unterscheidet sie.
+        const QPoint d = s->geometry().center() - haupt->geometry().center();
+        const QString lage = s == haupt ? QStringLiteral("Hauptbildschirm")
+                           : std::abs(d.x()) >= std::abs(d.y()) ? (d.x() < 0 ? QStringLiteral("links") : QStringLiteral("rechts"))
+                                                               : (d.y() < 0 ? QStringLiteral("oben") : QStringLiteral("unten"));
+        m_cmbScreen->addItem(QStringLiteral("%1: %2 (%3x%4) - %5")
+                                 .arg(i + 1)
+                                 .arg(s->model().isEmpty() ? s->name() : s->model())
+                                 .arg(px.width())
+                                 .arg(px.height())
+                                 .arg(lage),
+                             s->name());
+        if (s == m_hud.screen())
+            m_cmbScreen->setCurrentIndex(i);
+    }
 }
 
 void SubsystemsPanel::centerHud()

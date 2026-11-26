@@ -70,6 +70,8 @@ private:
     void layoutEditUmschalten(bool on);
     void layoutZuruecksetzen();
     void centerHud();
+    void aufBildschirm(QScreen* ziel);
+    void fuelleBildschirme();
     void onGeometrySpin();
     void onObsCanvas();
     void setChroma();
@@ -109,6 +111,7 @@ private:
     QPushButton* m_btnLayout = nullptr;
     QCheckBox* m_cbLocked = nullptr;
     QComboBox* m_cmbHz = nullptr;
+    QComboBox* m_cmbScreen = nullptr;
     QSpinBox* m_spX = nullptr;
     QSpinBox* m_spY = nullptr;
     QSpinBox* m_spW = nullptr;

@@ -313,24 +313,30 @@ selbst, aber nur genau diesen aus dem eigenen Ordner.
   mit einer eigenen 3D-Ansicht der Strecke — Autos in Teamfarben, Strecke mit
   Höhenprofil, Namensschilder. Oben steht, was man sieht: `FIGHT FOR P6`,
   `OVERTAKE FOR P3 · NAME`, `PIT STOP · NAME`, `HOT LAP · NAME`, `LEADER · NAME`
-  oder `OVERVIEW`, rechts die Kamera.
-* **Kameras:** Übersicht (ganze Strecke, gedreht wie die Minimap), Heli,
-  Verfolger, Onboard und feste TV-Kameras an der Kurvenaußenseite.
+  oder `P5 · NAME`, rechts die Kamera.
+* **Kameras:** Vogel (fast senkrecht von oben, Fahrtrichtung oben), Verfolger
+  (schräg von hinten oben), Heli (hoch, seitlich, Teleobjektiv), Onboard
+  (T-Kamera über dem Helm: Halo, Lenkrad, Vorderreifen), Heck (Blick zurück über
+  den Heckflügel) und feste TV-Kameras an der Kurvenaußenseite. Die Autos neigen
+  sich mit dem Höhenprofil.
+* **Auto-Kamera:** je Motiv wechselt die Einstellung alle 8 s — im Kampf TV,
+  Heckkamera des Vorderen (zeigt den Angreifer), Verfolger, Onboard des
+  Angreifers.
 * **Auto-Regie:** sucht selbst Kämpfe (< 1 s), frische Überholmanöver,
   Boxenstopps, den Führenden und in der Quali die schnellen Runden. Sie zeigt
   **nie ein Auto, das gerade im Spielbild ist** — also nicht das Kamera-Auto und
   nichts im Umkreis von rund 300 m Strecke bzw. 150 m Luftlinie. Unter Safety
   Car, VSC, in der Einführungsrunde und in den ersten zwei Runden gibt es keine
-  Kämpfe (das Feld ist dann ohnehin dicht). Ist das Kamera-Auto unbekannt (z. B.
-  beim Zuschauen), zeigt sie nur die Übersicht.
+  Kämpfe (das Feld ist dann ohnehin dicht). Ist das Kamera-Auto unbekannt oder
+  alles in der Nähe, blendet sich das Bild-im-Bild aus.
 * **Steuerung in der Regie**, Karte *VirtualCam*: an/aus, Kamera (Auto,
-  Übersicht, Heli, Verfolger, Onboard, TV) und Ziel (Auto-Regie oder ein
+  Vogel, Heli, Verfolger, Onboard, Heck, TV) und Ziel (Auto-Regie oder ein
   bestimmter Fahrer — der darf dann auch im Spielbild sein). *Alles ausblenden*
   schaltet das Bild-im-Bild mit aus.
 * **Bildrate** in den Einstellungen (*VirtualCam*): 20, 25, 30, 40, 60 oder 120
   Bilder pro Sekunde, Vorgabe 30. Bei 30 kostet das Bild-im-Bild etwa 5–10 %
   eines CPU-Kerns.
-* **Platz:** unten links neben dem Tower; verschieben und skalieren wie jeder
+* **Platz:** unten links; verschieben und skalieren wie jeder
   andere Baustein über *Layout bearbeiten*.
 * Der Server liest dafür aus dem Motion-Paket jetzt auch Höhe und Fahrtrichtung
   (`pos_y`, `heading` je Fahrer in `/api/live`).

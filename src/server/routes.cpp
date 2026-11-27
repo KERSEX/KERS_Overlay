@@ -580,7 +580,7 @@ HttpResponse KersServer::route(const HttpRequest& req, const AccessGuard::Result
                 if (d.contains(QLatin1String(k)))
                     m_regie[QLatin1String(k)] = py::truthy(d.value(QLatin1String(k)));
             const QString kamera = d.value("vcam_kamera").toString();
-            if (QStringList{"auto", "vogel", "heli", "verfolger", "onboard", "tv"}.contains(kamera))
+            if (QStringList{"auto", "vogel", "heli", "verfolger", "onboard", "heck", "tv"}.contains(kamera))
                 m_regie["vcam_kamera"] = kamera;
             // Ziel: Fahrer-Index 0..23, -1 = Auto-Regie. Alles andere bleibt liegen.
             const QJsonValue ziel = d.value("vcam_ziel");

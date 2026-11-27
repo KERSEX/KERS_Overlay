@@ -417,7 +417,7 @@ void DemoFeed::emitPayload()
     regie["battles"] = true;
     regie["hotlap"] = true;
     // VirtualCam: Demo + Layout-Vorschau zeigen das Bild-im-Bild. Fuer Screenshots je
-    // Kamera KERS_DEMO_VCAM=vogel|heli|verfolger|onboard|tv, "aus" fuer den Lastvergleich.
+    // Kamera KERS_DEMO_VCAM=vogel|heli|verfolger|onboard|heck|tv, "aus" fuer den Lastvergleich.
     const QString vcamDemo = qEnvironmentVariable("KERS_DEMO_VCAM", QStringLiteral("auto"));
     regie["vcam"] = vcamDemo != QLatin1String("aus");
     regie["vcam_kamera"] = vcamDemo;

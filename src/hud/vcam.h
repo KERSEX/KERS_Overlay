@@ -40,7 +40,7 @@ struct VcCar {
 
 /// Was gezeigt wird.
 struct VcMotiv {
-    enum Art { Keins, Uebersicht, Fahrer, Fuehrender, Kampf, Ueberholen, Box, Hotlap };
+    enum Art { Keins, Fahrer, Fuehrender, Kampf, Ueberholen, Box, Hotlap };   // Keins = Bild aus
     Art art = Keins;
     QList<int> autos;       // Fahrer-Indizes, vorn zuerst
     int fuerPlatz = 0;      // Kampf/Ueberholen: um welchen Platz
@@ -67,8 +67,6 @@ public:
     static constexpr double HALT_MIN_MS = 8000;
     static constexpr double HALT_MAX_MS = 25000;
     static constexpr double UEBERHOL_MS = 6000;
-    static constexpr double UEBERSICHT_ALLE_MS = 90000;
-    static constexpr double UEBERSICHT_MS = 6000;
     static constexpr double KAMPF_S = 1.0;
     static constexpr double KAMPF_ENG_S = 0.6;
 
@@ -96,11 +94,13 @@ private:
 
     VcMotiv m_motiv;
     double m_seit = 0;
-    double m_letzteUebersicht = -1;
     QHash<int, int> m_platz;
     QList<Manoever> m_manoever;
     QSet<int> m_gesperrt;
 };
+
+/// Kamera bei "Auto": je Motiv eine Folge von Einstellungen, alle HALT_MIN_MS die naechste.
+QString vcAutoKamera(VcMotiv::Art art, double gehaltenMs);
 
 /// Feste TV-Kamera an der Strecke.
 struct VcTvCam {
@@ -121,7 +121,7 @@ class VirtualCam : public QObject {
 public:
     VirtualCam(SharedState& shared, Config& cfg, Trackmap* track, QObject* parent = nullptr);
 
-    /// Je Payload. kameraWunsch: auto|vogel|heli|verfolger|onboard|tv; ziel = Fahrer-Index, -1 = Auto-Regie.
+    /// Je Payload. kameraWunsch: auto|vogel|heli|verfolger|onboard|heck|tv; ziel = Fahrer-Index, -1 = Auto-Regie.
     void update(const QList<QJsonObject>& drivers, const QJsonObject& session, int focus, bool connected,
                 bool an, const QString& kameraWunsch, int ziel);
 
@@ -140,7 +140,9 @@ private:
         QVector3D letzte;           // fuer den Kurs aus der Bewegung
         QVector4D farbe;
         double frac = -1;
+        double neigung = 0;         // Steigung aus dem Hoehenprofil (rad, Nase hoch > 0)
     };
+    static QMatrix4x4 modell(const Zustand& z);
     void tick();
     void baueStrecke();
     void profilRechnen();
@@ -163,6 +165,8 @@ private:
     int m_ziel = -1;
     VcDirector m_regie;
     VcMotiv m_motiv;
+    QList<int> m_motivAutos;        // sortiert - neue Autos = Kamerafolge von vorn
+    double m_motivSeit = 0;
     QString m_kameraArt;
 
     // Hoehenprofil (Rundenanteil-Bins) + Streckennetz
@@ -176,7 +180,7 @@ private:
     QList<double> m_konturFrac;
     QList<VcTvCam> m_tv;
     int m_tvAktiv = -1;
-    std::shared_ptr<const VcMesh> m_streckenNetz, m_streckenNetzWeit;
+    std::shared_ptr<const VcMesh> m_streckenNetz;
     std::shared_ptr<const VcMesh> m_autoNetz;
 
     // Kamera

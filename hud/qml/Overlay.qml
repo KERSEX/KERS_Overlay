@@ -423,7 +423,7 @@ Item {
         objectName: "virtualcam"
         transformOrigin: Item.TopLeft
         scale: root.ls("virtualcam")
-        x: root.lx("virtualcam", root.fbW(virtualcamTeil), 420)
+        x: root.lx("virtualcam", root.fbW(virtualcamTeil), 24)
         y: root.ly("virtualcam", root.fbH(virtualcamTeil),
                    root.height - root.fbH(virtualcamTeil) - 28)
         z: root.lz("virtualcam", 44)

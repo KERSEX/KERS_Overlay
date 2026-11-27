@@ -44,8 +44,17 @@ std::shared_ptr<const VcMesh> vcCarMesh()
     const QColor reifen(14, 14, 16);
     vcAddBox(*m, {0, 0.32f, 0}, {1.5f, 0.28f, 4.4f}, {}, true);              // Unterboden/Chassis
     vcAddBox(*m, {0, 0.55f, -0.35f}, {1.45f, 0.42f, 1.9f}, {}, true);        // Seitenkaesten
-    vcAddBox(*m, {0, 0.85f, -1.0f}, {0.5f, 0.55f, 1.7f}, {}, true);          // Motorabdeckung/Airbox
-    vcAddBox(*m, {0, 0.98f, 0.45f}, {0.42f, 0.12f, 0.95f}, dunkel, false);   // Halo/Cockpit
+    vcAddBox(*m, {0, 0.85f, -0.55f}, {0.45f, 0.55f, 0.4f}, {}, true);        // Airbox/Ueberrollbuegel (Onboard sitzt auf der Vorderkante)
+    vcAddBox(*m, {0, 0.72f, -1.3f}, {0.4f, 0.3f, 1.1f}, {}, true);           // Motorabdeckung, faellt nach hinten ab
+    // Cockpit so, dass die Onboard-Kamera (T-Kamera ueber dem Helm) Halo, Lenkrad und Helm sieht
+    vcAddBox(*m, {0, 0.6f, 0.85f}, {0.66f, 0.3f, 1.3f}, {}, true);           // Monocoque vor dem Fahrer
+    vcAddBox(*m, {0, 0.9f, 0.08f}, {0.26f, 0.26f, 0.3f}, QColor(228, 230, 236), false);   // Helm
+    vcAddBox(*m, {0, 0.8f, 0.5f}, {0.28f, 0.14f, 0.04f}, dunkel, false);     // Lenkrad
+    const QColor halo(44, 46, 54);                                             // heller als die Reifen
+    for (const float x : {0.27f, -0.27f})                                      // Halo: Buegel links/rechts
+        vcAddBox(*m, {x, 0.97f, 0.25f}, {0.045f, 0.045f, 0.8f}, halo, false);
+    vcAddBox(*m, {0, 0.97f, 0.68f}, {0.585f, 0.045f, 0.06f}, halo, false);   // Halo vorn
+    vcAddBox(*m, {0, 0.85f, 0.72f}, {0.06f, 0.2f, 0.06f}, halo, false);     // Halo-Mittelstrebe
     vcAddBox(*m, {0, 0.38f, 2.3f}, {0.36f, 0.26f, 1.6f}, {}, true);          // Nase
     vcAddBox(*m, {0, 0.12f, 3.2f}, {1.95f, 0.06f, 0.5f}, dunkel, false);     // Frontfluegel
     vcAddBox(*m, {0, 1.02f, -2.45f}, {1.1f, 0.32f, 0.14f}, {}, true);        // Heckfluegel

@@ -59,7 +59,6 @@ void VcDirector::reset()
 {
     m_motiv = VcMotiv{};
     m_seit = 0;
-    m_letzteUebersicht = -1;
     m_platz.clear();
     m_manoever.clear();
     m_gesperrt.clear();
@@ -174,7 +173,6 @@ QList<QPair<int, VcMotiv>> VcDirector::kandidaten(const QList<VcCar>& autos, con
             }
         }
     }
-    k.append({0, VcMotiv{VcMotiv::Uebersicht, {}, 0}});
     std::stable_sort(k.begin(), k.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
     return k;
 }
@@ -184,8 +182,6 @@ bool VcDirector::gueltig(const VcMotiv& m, const QList<VcCar>& autos, const QSet
 {
     if (m.art == VcMotiv::Keins)
         return false;
-    if (m.art == VcMotiv::Uebersicht)
-        return true;
     QList<const VcCar*> cs;
     for (int idx : m.autos) {
         const VcCar* c = finde(autos, idx);
@@ -215,18 +211,15 @@ bool VcDirector::gueltig(const VcMotiv& m, const QList<VcCar>& autos, const QSet
 VcMotiv VcDirector::waehle(const QList<VcCar>& autos, int focus, bool quali, double streckeM, double nowMs)
 {
     merkeUeberholen(autos, nowMs, streckeM);
-    if (m_letzteUebersicht < 0)
-        m_letzteUebersicht = nowMs;
 
-    // Fokus unbekannt (Zuschauen: Index 255) -> man weiss nicht, was im Spielbild
-    // ist. Dann kein einzelnes Auto, nur die Uebersicht.
+    // Fokus unbekannt (Index 255) -> man weiss nicht, was im Spielbild ist. Dann
+    // lieber gar nichts zeigen (Keins = Bild-im-Bild aus).
     const VcCar* fokus = finde(autos, focus);
     if (!fokus) {
         m_gesperrt.clear();
-        if (m_motiv.art != VcMotiv::Uebersicht) {
-            m_motiv = VcMotiv{VcMotiv::Uebersicht, {}, 0};
+        if (m_motiv.art != VcMotiv::Keins) {
+            m_motiv = VcMotiv{};
             m_seit = nowMs;
-            m_letzteUebersicht = nowMs;
         }
         return m_motiv;
     }
@@ -256,17 +249,13 @@ VcMotiv VcDirector::waehle(const QList<VcCar>& autos, int focus, bool quali, dou
         if (m == m_motiv)
             rangJetzt = r;
 
+    // Nichts frei (alle im Spielbild) -> Keins, das Bild geht aus.
     VcMotiv neu = m_motiv;
-    if (m_motiv.art == VcMotiv::Uebersicht) {
-        if (gehalten >= UEBERSICHT_MS || m_seit == 0)
-            neu = k.first().second;
-    } else if (!gueltig(m_motiv, autos, gesperrt, quali, nowMs)) {
-        neu = k.first().second;
-    } else if (gehalten >= HALT_MIN_MS) {
+    if (!gueltig(m_motiv, autos, gesperrt, quali, nowMs)) {
+        neu = k.isEmpty() ? VcMotiv{} : k.first().second;
+    } else if (gehalten >= HALT_MIN_MS && !k.isEmpty()) {
         if (k.first().first > rangJetzt) {
             neu = k.first().second;
-        } else if (nowMs - m_letzteUebersicht > UEBERSICHT_ALLE_MS && rangJetzt <= 2) {
-            neu = VcMotiv{VcMotiv::Uebersicht, {}, 0};
         } else if (gehalten >= HALT_MAX_MS) {
             for (const auto& [r, m] : k) {
                 if (m != m_motiv) {
@@ -276,13 +265,25 @@ VcMotiv VcDirector::waehle(const QList<VcCar>& autos, int focus, bool quali, dou
             }
         }
     }
-    if (neu != m_motiv || m_motiv.art == VcMotiv::Keins) {
+    if (neu != m_motiv) {
         m_motiv = neu;
         m_seit = nowMs;
-        if (neu.art == VcMotiv::Uebersicht)
-            m_letzteUebersicht = nowMs;
     }
     return m_motiv;
+}
+
+QString vcAutoKamera(VcMotiv::Art art, double gehaltenMs)
+{
+    // Kampf: TV, Heckkamera des Vorderen (zeigt den Angreifer), Verfolger, Onboard des Angreifers.
+    static const QStringList kampf = {"tv", "heck", "verfolger", "onboard"};
+    static const QStringList runde = {"verfolger", "onboard", "tv", "heli"};
+    static const QStringList box = {"heli", "vogel"};
+    static const QStringList fahrer = {"heli", "verfolger", "onboard", "tv", "vogel"};
+    const QStringList& folge = (art == VcMotiv::Kampf || art == VcMotiv::Ueberholen) ? kampf
+                               : art == VcMotiv::Hotlap                               ? runde
+                               : art == VcMotiv::Box                                  ? box
+                                                                                      : fahrer;
+    return folge.at(int(std::max(0.0, gehaltenMs) / VcDirector::HALT_MIN_MS) % folge.size());
 }
 
 // ── TV-Kameras ───────────────────────────────────────────────────────────────
@@ -410,20 +411,15 @@ void VirtualCam::update(const QList<QJsonObject>& drivers, const QJsonObject& se
     const VcCar* manuell = finde(m_autos, ziel);
     m_motiv = manuell ? VcMotiv{VcMotiv::Fahrer, {ziel}, manuell->pos}
                       : m_regie.waehle(m_autos, focus, m_quali, m_streckeM, now);
-    if (m_kameraWunsch != QLatin1String("auto")) {
-        m_kameraArt = m_kameraWunsch;
-    } else {
-        switch (m_motiv.art) {
-        case VcMotiv::Kampf:
-        case VcMotiv::Ueberholen:
-            m_kameraArt = (manuell || now - m_regie.seit() < VcDirector::HALT_MIN_MS) ? QStringLiteral("tv")
-                                                                                       : QStringLiteral("verfolger");
-            break;
-        case VcMotiv::Hotlap: m_kameraArt = QStringLiteral("verfolger"); break;
-        case VcMotiv::Uebersicht: m_kameraArt = QStringLiteral("vogel"); break;
-        default: m_kameraArt = QStringLiteral("heli"); break;
-        }
+    // Andere Autos -> Kamerafolge von vorn; Kampf -> Ueberholen derselben Autos laeuft weiter.
+    QList<int> motivAutos = m_motiv.autos;
+    std::sort(motivAutos.begin(), motivAutos.end());
+    if (motivAutos != m_motivAutos) {
+        m_motivAutos = motivAutos;
+        m_motivSeit = now;
     }
+    m_kameraArt = m_kameraWunsch != QLatin1String("auto") ? m_kameraWunsch
+                                                          : vcAutoKamera(m_motiv.art, now - m_motivSeit);
 
     // Bildunterschrift
     auto name = [this](int idx) {
@@ -438,17 +434,18 @@ void VirtualCam::update(const QList<QJsonObject>& drivers, const QJsonObject& se
     case VcMotiv::Hotlap: t = QStringLiteral("HOT LAP · %1").arg(name(m_motiv.autos.value(0))); break;
     case VcMotiv::Fuehrender: t = QStringLiteral("LEADER · %1").arg(name(m_motiv.autos.value(0))); break;
     case VcMotiv::Fahrer: t = QStringLiteral("P%1 · %2").arg(m_motiv.fuerPlatz).arg(name(m_motiv.autos.value(0))); break;
-    default: t = QStringLiteral("OVERVIEW"); break;
+    default: break;
     }
     set_titel(t);
     static const QHash<QString, QString> kameraNamen = {
-        {"vogel", "OVERVIEW CAM"}, {"heli", "HELI CAM"}, {"verfolger", "CHASE CAM"},
-        {"onboard", "ONBOARD"}, {"tv", "TV CAM"}};
+        {"vogel", "BIRD'S EYE"}, {"heli", "HELI CAM"}, {"verfolger", "CHASE CAM"},
+        {"onboard", "ONBOARD"}, {"heck", "REAR CAM"}, {"tv", "TV CAM"}};
     set_kamera(kameraNamen.value(m_kameraArt, m_kameraArt.toUpper()));
 
     // Sichtbar + Uhr
     // Eingefrorenes Quali-Ergebnis: nichts faehrt mehr, Bild-im-Bild weg.
-    const bool sichtbar = an && connected && !m_autos.isEmpty() && !jb(session, "_quali_result");
+    // Keins (alles im Spielbild, Fokus unbekannt) -> aus.
+    const bool sichtbar = an && connected && m_motiv.art != VcMotiv::Keins && !jb(session, "_quali_result");
     set_isVisible(sichtbar);
     static const QList<int> erlaubt = {20, 25, 30, 40, 60, 120};
     const int fps = erlaubt.contains(m_cfg.i("vcam_fps")) ? m_cfg.i("vcam_fps") : 30;
@@ -516,7 +513,6 @@ void VirtualCam::baueStrecke()
         }
     }
     m_streckenNetz = vcStreckenNetz(m_kontur, start);
-    m_streckenNetzWeit = vcStreckenNetz(m_kontur, start, 34.f);   // Uebersicht: 12 m waeren ~2 px
     const auto alt = m_tv.size();
     m_tv = vcTvKameras(m_kontur, m_konturFrac, 260.0);
     if (m_tv.size() != alt)
@@ -526,74 +522,80 @@ void VirtualCam::baueStrecke()
     m_gebautMs = double(m_uhr.elapsed());
 }
 
+QMatrix4x4 VirtualCam::modell(const Zustand& z)
+{
+    QMatrix4x4 m;
+    m.translate(z.ist);
+    m.rotate(float(z.kursIst * 180.0 / PI), 0.f, 1.f, 0.f);
+    m.rotate(float(-z.neigung * 180.0 / PI), 1.f, 0.f, 0.f);   // Drehung um x: -Winkel = Nase hoch
+    return m;
+}
+
 void VirtualCam::kameraRechnen(double dt, bool schnitt)
 {
     QList<const Zustand*> zs;
     for (int idx : m_motiv.autos)
         if (m_zustand.contains(idx))
             zs.append(&m_zustand[idx]);
-    QString art = m_kameraArt;
     if (zs.isEmpty())
-        art = QStringLiteral("vogel");
+        return;                          // nichts zu zeigen - update() hat das Bild schon aus
+    const QString& art = m_kameraArt;
 
     QVector3D ziel;
     for (const Zustand* z : zs)
         ziel += z->ist;
-    if (!zs.isEmpty())
-        ziel /= float(zs.size());
-    const Zustand* hinten = zs.isEmpty() ? nullptr : zs.last();      // Angreifer im Kampf
-    // Mitfahrende Kameras haengen fest am (schon geglaetteten) Auto - nur ihre
-    // Blickrichtung zieht weich nach: Heli traege, Verfolger zuegig, Onboard sofort.
-    // (Positionen extra zu glaetten liesse sie bei 300 km/h 20 m hinterherhinken.)
-    if (hinten) {
-        const double kKurs = art == QLatin1String("heli") ? 1.5 : art == QLatin1String("verfolger") ? 5.0 : 1000.0;
+    ziel /= float(zs.size());
+    float spanne = 0;                    // wie weit die Motiv-Autos auseinander sind
+    for (const Zustand* z : zs)
+        spanne = std::max(spanne, (z->ist - ziel).length() * 2.f);
+    const Zustand* vorn = zs.first();
+    const Zustand* hinten = zs.last();   // Angreifer im Kampf
+    const QVector3D oben(0, 1, 0);
+    const bool amAuto = art == QLatin1String("onboard") || art == QLatin1String("heck");
+
+    if (amAuto) {
+        // Fest am Auto, mit Neigung. Onboard = T-Kamera ueber dem Helm: Blick nach vorn
+        // ueber Halo, Lenkrad und Vorderreifen. Heck = auf der Airbox, Blick zurueck ueber
+        // den Heckfluegel (im Kampf am Vorderen - zeigt den Angreifer).
+        const bool heck = art == QLatin1String("heck");
+        const Zustand& z = heck ? *vorn : *hinten;
+        const QMatrix4x4 m = modell(z);
+        m_augeSoll = m.map(heck ? QVector3D(0, 1.45f, -0.35f) : QVector3D(0, 1.25f, -0.42f));
+        m_ziel3Soll = m.map(heck ? QVector3D(0, -0.67f, -12.35f) : QVector3D(0, -0.69f, 9.58f));   // 10-11 Grad nach unten
+        m_fovSoll = heck ? 58.f : 52.f;
+        m_kamKurs = z.kursIst;
+        schnitt = true;                  // haengt starr am Auto, nichts nachziehen
+    } else {
+        // Blickrichtung zieht weich nach: Verfolger zuegig, Vogel ruhig, Heli traege.
+        const double kKurs = art == QLatin1String("heli") ? 0.4 : art == QLatin1String("vogel") ? 1.0 : 1.5;
         if (schnitt)
             m_kamKurs = hinten->kursIst;
         else
             m_kamKurs += winkelDiff(hinten->kursIst, m_kamKurs) * (1.0 - std::exp(-dt * kKurs));
     }
-    const QVector3D vor = hinten ? vorwaerts(m_kamKurs) : QVector3D(0, 0, 1);
-    const QVector3D oben(0, 1, 0);
+    const QVector3D vor = vorwaerts(m_kamKurs);
+    const QVector3D rechts(-vor.z(), 0, vor.x());
 
-    if (art == QLatin1String("vogel")) {
-        // Ganze Strecke, leicht schraeg, gedreht wie die Minimap (Karte-"oben" = Bild-oben).
-        QVector3D u(0, 0, -1);
-        if (const auto o = m_track ? m_track->mapOben() : std::nullopt)
-            u = QVector3D(float(o->x()), 0, float(o->y()));
-        const QVector3D r(-u.z(), 0, u.x());
-        QList<QVector3D> quelle = m_kontur;
-        if (quelle.isEmpty())
-            for (const Zustand& z : m_zustand)
-                quelle.append(z.ist);
-        float minR = 1e9f, maxR = -1e9f, minU = 1e9f, maxU = -1e9f, y = 0;
-        for (const QVector3D& p : quelle) {
-            const float pr = QVector3D::dotProduct(p, r), pu = QVector3D::dotProduct(p, u);
-            minR = std::min(minR, pr); maxR = std::max(maxR, pr);
-            minU = std::min(minU, pu); maxU = std::max(maxU, pu);
-            y += p.y();
-        }
-        y = quelle.isEmpty() ? 0.f : y / float(quelle.size());
-        const QVector3D mitte = r * ((minR + maxR) / 2) + u * ((minU + maxU) / 2) + QVector3D(0, y, 0);
+    if (amAuto) {
+        // oben erledigt
+    } else if (art == QLatin1String("vogel")) {
+        // Fast senkrecht von oben (ganz senkrecht kippt lookAt), Fahrtrichtung = Bild-oben.
+        const float h = std::max(45.f, (spanne + 20.f) * 1.5f);
+        m_augeSoll = ziel - vor * (h * 0.18f) + oben * h;
+        m_ziel3Soll = ziel + vor * 2.f;
         m_fovSoll = 40.f;
-        const float t = std::tan(float(m_fovSoll * PI / 360.0));
-        const float d = std::max({(maxR - minR) / 2 * 1.12f / (t * 16.f / 9.f), (maxU - minU) / 2 * 1.2f / t, 150.f});
-        m_augeSoll = mitte + QVector3D(0, d, 0) - u * (d * 0.35f);
-        m_ziel3Soll = mitte;
-    } else if (art == QLatin1String("heli")) {
+    } else if (art == QLatin1String("verfolger")) {
         m_augeSoll = ziel - vor * 40.f + oben * 30.f;
         m_ziel3Soll = ziel + vor * 8.f;
         m_fovSoll = 40.f;
-    } else if (art == QLatin1String("verfolger")) {
-        m_augeSoll = hinten->ist - vor * 11.f + oben * 3.6f;
-        m_ziel3Soll = hinten->ist + vor * 25.f + oben * 0.8f;
-        m_fovSoll = 55.f;
-    } else if (art == QLatin1String("onboard")) {
-        m_augeSoll = hinten->ist + vor * 0.3f + oben * 1.05f;
-        m_ziel3Soll = hinten->ist + vor * 40.f + oben * 0.9f;
-        m_fovSoll = 70.f;
+    } else if (art == QLatin1String("heli")) {
+        // Wie ein Hubschrauber: hoch, seitlich, langes Tele - fliegt weich hinterher (unten).
+        m_augeSoll = ziel - vor * 70.f + rechts * 80.f + oben * 110.f;
+        m_ziel3Soll = ziel;
+        const float abstand = (m_augeSoll - m_ziel3Soll).length();
+        m_fovSoll = std::clamp(float(2.0 * std::atan((spanne + 28.f) * 0.6f / abstand) * 180.0 / PI), 6.f, 40.f);
     } else {   // tv
         const double L = m_streckeM > 0 ? m_streckeM : 5000.0;
-        const Zustand* vorn = zs.first();
         auto voraus = [&](const VcTvCam& c) {
             double d = c.frac - std::max(0.0, vorn->frac);
             d -= std::floor(d);
@@ -623,11 +625,9 @@ void VirtualCam::kameraRechnen(double dt, bool schnitt)
         } else {
             m_augeSoll = m_tv[m_tvAktiv].p;
             m_ziel3Soll = ziel + oben * 1.f;
-            float spanne = 16.f;
-            for (const Zustand* z : zs)
-                spanne = std::max(spanne, (z->ist - ziel).length() * 2.f + 14.f);
             const float abstand = std::max(1.f, (m_augeSoll - m_ziel3Soll).length());
-            m_fovSoll = std::clamp(float(2.0 * std::atan(spanne * 0.6f / abstand) * 180.0 / PI), 5.f, 45.f);
+            m_fovSoll = std::clamp(float(2.0 * std::atan(std::max(16.f, spanne + 14.f) * 0.6f / abstand) * 180.0 / PI),
+                                   5.f, 45.f);
         }
     }
 
@@ -637,11 +637,10 @@ void VirtualCam::kameraRechnen(double dt, bool schnitt)
         m_fov = m_fovSoll;
         return;
     }
-    // Uebersicht faehrt weich, TV-Kamera steht fest und schwenkt leicht verzoegert,
-    // die mitfahrenden haengen am Auto (siehe oben).
-    const bool vogel = art == QLatin1String("vogel"), tv = art == QLatin1String("tv");
-    const float kAuge = vogel ? 3.f : 1000.f;
-    const float kZiel = vogel ? 3.f : tv ? 10.f : 1000.f;
+    // TV-Kamera steht fest und schwenkt leicht verzoegert, der Heli fliegt hinterher,
+    // die mitfahrenden haengen am (schon geglaetteten) Auto.
+    const float kAuge = art == QLatin1String("heli") ? 2.5f : 1000.f;
+    const float kZiel = art == QLatin1String("tv") ? 10.f : 1000.f;
     m_auge += (m_augeSoll - m_auge) * float(1.0 - std::exp(-dt * kAuge));
     m_ziel3 += (m_ziel3Soll - m_ziel3) * float(1.0 - std::exp(-dt * kZiel));
     m_fov += (m_fovSoll - m_fov) * float(1.0 - std::exp(-dt * 4.0));
@@ -670,6 +669,11 @@ void VirtualCam::tick()
         else
             z.ist += (soll - z.ist) * float(k);
         z.kursIst += winkelDiff(z.kursSoll, z.kursIst) * k;
+        if (z.frac >= 0 && m_streckeM > 0) {
+            const double d = 10.0 / m_streckeM;                                  // +-10 m
+            const double soll = std::atan2(hoehe(z.frac + d) - hoehe(z.frac - d + 1.0), 20.0);
+            z.neigung += (soll - z.neigung) * k;
+        }
     }
 
     // Kamera - Schnitt bei neuem Motiv oder neuer Kameraart
@@ -687,21 +691,20 @@ void VirtualCam::tick()
     f.view.lookAt(m_auge, m_ziel3, QVector3D(0, 1, 0));
     f.fovY = m_fov;
     const float abstand = (m_auge - m_ziel3).length();
-    f.nearZ = std::clamp(abstand * 0.05f, 0.25f, 200.f);    // Tiefenpuffer-Aufloesung in der Uebersicht
+    // Am Auto: Halo und Helm liegen Zentimeter vor der Linse.
+    const bool onboard = m_kameraArt == QLatin1String("onboard"), heck = m_kameraArt == QLatin1String("heck");
+    f.nearZ = (onboard || heck) ? 0.05f : std::clamp(abstand * 0.05f, 0.25f, 200.f);
     f.farZ = std::max(6000.f, abstand * 4.f);
-    const bool weit = m_kameraArt == QLatin1String("vogel") || m_motiv.autos.isEmpty();
-    f.track = weit ? m_streckenNetzWeit : m_streckenNetz;
+    f.track = m_streckenNetz;
     f.car = m_autoNetz;
-    const bool onboard = m_kameraArt == QLatin1String("onboard");
-    const int versteckt = onboard && !m_motiv.autos.isEmpty() ? m_motiv.autos.last() : -1;
+    // Das Kamera-Auto bekommt kein Schild (es steht hinter/unter der Linse).
+    const int eigenes = m_motiv.autos.isEmpty() ? -1
+                        : onboard              ? m_motiv.autos.last()
+                        : heck                 ? m_motiv.autos.first()
+                                               : -1;
     for (auto it = m_zustand.cbegin(); it != m_zustand.cend(); ++it) {
-        if (it.key() == versteckt)
-            continue;
         VcInstance in;
-        in.model.translate(it->ist);
-        in.model.rotate(float(it->kursIst * 180.0 / PI), 0.f, 1.f, 0.f);
-        if (weit)
-            in.model.scale(std::max(1.f, abstand / 180.f));   // sonst in der Uebersicht kaum ein Pixel
+        in.model = modell(*it);
         in.tint = it->farbe;
         f.cars.append(in);
     }
@@ -713,12 +716,12 @@ void VirtualCam::tick()
     const QMatrix4x4 vp = proj * f.view;
     QList<QPair<float, int>> nah;
     for (auto it = m_zustand.cbegin(); it != m_zustand.cend(); ++it)
-        if (!m_motiv.autos.contains(it.key()) && it.key() != versteckt)
+        if (!m_motiv.autos.contains(it.key()) && it.key() != eigenes)
             nah.append({(it->ist - m_ziel3).length(), it.key()});
     std::sort(nah.begin(), nah.end());
     QList<int> beschriften;
     for (int idx : m_motiv.autos)
-        if (idx != versteckt)
+        if (idx != eigenes)
             beschriften.append(idx);
     for (int i = 0; i < nah.size() && i < 3 && nah[i].first < 150.f; ++i)
         beschriften.append(nah[i].second);
@@ -730,7 +733,10 @@ void VirtualCam::tick()
         const auto z = m_zustand.constFind(idx);
         if (!c || z == m_zustand.cend())
             continue;
-        const QVector4D clip = vp * QVector4D(z->ist + QVector3D(0, 2.2f, 0), 1.f);
+        // Von oben laege "ueber dem Auto" auf dem Auto - dort das Schild vor die Nase.
+        const QVector3D anker = m_kameraArt == QLatin1String("vogel") ? z->ist + vorwaerts(z->kursIst) * 4.f
+                                                                      : z->ist + QVector3D(0, 2.2f, 0);
+        const QVector4D clip = vp * QVector4D(anker, 1.f);
         if (clip.w() <= 0.1f)
             continue;
         const float x = (clip.x() / clip.w() + 1.f) / 2.f;

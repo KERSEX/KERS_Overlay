@@ -161,9 +161,9 @@ QJsonObject SettingsStore::layoutStandard()
         {"hotlaps", e("bc", 0, 28, 40)}, {"lowerthird", e("bc", 0, 380, 41)}, {"danger", e("bc", 0, 40, 46)},
         {"onboard", e("bl", 24, 28, 44)}, {"pitproj", e("bl", 24, 24, 44)}, {"pitcards", e("br", 24, 28, 45)},
         {"champ", e("br", 24, 40, 45)},
-        // VirtualCam unten links, rechts neben dem Tower (22 Zeilen reichen bis ganz unten)
+        // VirtualCam unten links (Fabian) - teilt sich die Ecke mit Onboard/Pit-Projektion
         // und damit auch neben Onboard/Pit-Projektion
-        {"virtualcam", e("bl", 420, 28, 44)},
+        {"virtualcam", e("bl", 24, 28, 44)},
     };
 }
 

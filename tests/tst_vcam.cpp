@@ -50,11 +50,22 @@ private slots:
         QCOMPARE(m.fuerPlatz, 4);
     }
 
-    void fokusUnbekanntHeisstUebersicht()
+    void fokusUnbekanntHeisstBildAus()
     {
         VcDirector d;
         const QList<VcCar> autos = {wagen(1, 1, 4000, 0), wagen(5, 2, 2000, 0.3)};
-        QCOMPARE(d.waehle(autos, 255, false, L, 1000).art, VcMotiv::Uebersicht);
+        QCOMPARE(d.waehle(autos, 255, false, L, 1000).art, VcMotiv::Keins);
+    }
+
+    void autoKameraFolge()
+    {
+        // Kampf: TV, dann Heckkamera des Vorderen, Verfolger, Onboard - alle 8 s weiter.
+        QCOMPARE(vcAutoKamera(VcMotiv::Kampf, 0), QStringLiteral("tv"));
+        QCOMPARE(vcAutoKamera(VcMotiv::Kampf, 8500), QStringLiteral("heck"));
+        QCOMPARE(vcAutoKamera(VcMotiv::Ueberholen, 17000), QStringLiteral("verfolger"));
+        QCOMPARE(vcAutoKamera(VcMotiv::Kampf, 33000), QStringLiteral("tv"));   // von vorn
+        QCOMPARE(vcAutoKamera(VcMotiv::Fuehrender, 0), QStringLiteral("heli"));
+        QCOMPARE(vcAutoKamera(VcMotiv::Hotlap, 0), QStringLiteral("verfolger"));
     }
 
     void keinKampfUnterSafetyCar()
@@ -95,10 +106,10 @@ private slots:
     {
         VcDirector d;
         QList<VcCar> autos = {wagen(7, 1, 290, 0), wagen(0, 2, 0, 1.0)};
-        QCOMPARE(d.waehle(autos, 0, false, L, 1000).art, VcMotiv::Uebersicht);   // 290 m: gesperrt
+        QCOMPARE(d.waehle(autos, 0, false, L, 1000).art, VcMotiv::Keins);        // 290 m: gesperrt
         autos[0].lapDist = 350;
         autos[0].p.setX(350);
-        QCOMPARE(d.waehle(autos, 0, false, L, 11000).art, VcMotiv::Uebersicht);  // 350 m: noch gesperrt
+        QCOMPARE(d.waehle(autos, 0, false, L, 11000).art, VcMotiv::Keins);       // 350 m: noch gesperrt
         autos[0].lapDist = 410;
         autos[0].p.setX(410);
         QCOMPARE(d.waehle(autos, 0, false, L, 21000).art, VcMotiv::Fuehrender);  // 410 m: frei

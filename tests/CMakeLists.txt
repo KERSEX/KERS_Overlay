@@ -23,6 +23,7 @@ kers_test(tst_champ)
 kers_test(tst_obs)
 kers_test(tst_design)
 kers_test(tst_hotlaps)
+kers_test(tst_vcam)
 # tst_design braucht eine GUI-Anwendung (Schriftdatenbank im Theme). Im statischen Qt
 # muss das offscreen-Plugin ausdruecklich hinein - sonst zeigt Windows eine Fehlermeldung
 # als Fenster, und der Test wartet ewig darauf.

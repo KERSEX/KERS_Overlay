@@ -50,6 +50,13 @@ QJsonObject buildLivePayload(const RaceState& st, const QJsonObject& settings, c
         const auto p = st.carPos().constFind(d.index);
         if (p != st.carPos().cend())
             o["pos_xz"] = QJsonArray{p->x(), p->y()};
+        // Ab 0.3.3 fuer die VirtualCam: Hoehe und Fahrtrichtung.
+        const auto m = st.carMotion().constFind(d.index);
+        if (m != st.carMotion().cend()) {
+            o["pos_y"] = m->y;
+            if (m->hasHeading)
+                o["heading"] = std::round(m->heading * 1000.0) / 1000.0;
+        }
         drivers.append(o);
     }
 

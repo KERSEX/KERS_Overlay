@@ -37,6 +37,7 @@ set(KERS_QML_FILES
     parts/Tower.qml
     parts/TowerRow.qml
     parts/Trackmap.qml
+    parts/VirtualCam.qml
 )
 
 set(_kers_qml_abs)

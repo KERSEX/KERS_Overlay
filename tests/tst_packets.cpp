@@ -353,12 +353,21 @@ private slots:
         Fixture f;
         Pkt p(0, T::SIZE_MOTION);
         p.f32(HDR + 0, 100.26f).f32(HDR + 8, -50.04f);
+        p.f32(HDR + 4, 12.34f).u16(HDR + 24, 23170).u16(HDR + 28, 23170);   // Hoehe, vorwaerts x/z (45 Grad)
         p.f32(HDR + 54, 3.0e38f).f32(HDR + 54 + 8, -3.0e38f);
+        p.u16(HDR + 2 * 54 + 24, -32767);                                    // Auto 2: genau -x
         f.st->feed(p);
         QCOMPARE(f.st->carPos().size(), 23);             // alle Nullen sind "gueltig", nur Auto 1 nicht
         QVERIFY(!f.st->carPos().contains(1));
         QCOMPARE(f.st->carPos()[0].x(), 100.3);
         QCOMPARE(f.st->carPos()[0].y(), -50.0);
+        // Ab 0.3.3 (VirtualCam): Hoehe und Fahrtrichtung
+        QCOMPARE(f.st->carMotion()[0].y, 12.3);
+        QVERIFY(f.st->carMotion()[0].hasHeading);
+        QVERIFY(qAbs(f.st->carMotion()[0].heading - M_PI / 4) < 1e-6);
+        QVERIFY(qAbs(f.st->carMotion()[2].heading + M_PI / 2) < 1e-6);
+        QVERIFY(!f.st->carMotion()[3].hasHeading);       // Nullvektor -> keine Richtung
+        QVERIFY(!f.st->carMotion().contains(1));
     }
 
     void damage()

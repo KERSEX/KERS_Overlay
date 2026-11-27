@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- KERS-VERSION: 0.0.5 — Einstellungen
+<!-- KERS-VERSION: 0.0.6 — Einstellungen
      Beim Aendern dieser Datei hochzaehlen. Wird in /settings angezeigt.
      ⚠ Der Marker wandert beim Kopieren test.html -> index.html mit. -->
 <html lang="de">
@@ -349,6 +349,19 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-
       <button type="button" id="designCopy">Als eigenes Design kopieren</button></div>
     <div class="psave"><button type="button" id="designOpen" style="background:rgba(255,255,255,.06);color:var(--txt)">Designs-Ordner öffnen</button></div>
     <div class="vnote" id="designNote"></div>
+  </div>
+
+  <div class="grp">
+    <h2>VirtualCam</h2>
+    <div class="row"><label>Bildrate<small>Bilder pro Sekunde für das Bild-im-Bild (an/aus und Kamera in der Regie) — mehr = flüssiger, aber mehr Grafiklast</small></label>
+      <div class="ctl"><select class="sel" data-sel="vcam_fps">
+        <option value="20">20</option>
+        <option value="25">25</option>
+        <option value="30">30</option>
+        <option value="40">40</option>
+        <option value="60">60</option>
+        <option value="120">120</option>
+      </select></div></div>
   </div>
 
   <div class="grp">

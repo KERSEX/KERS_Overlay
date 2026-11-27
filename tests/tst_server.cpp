@@ -239,6 +239,30 @@ private slots:
         QCOMPARE(nochmal.status, 304);
     }
 
+    void regieVirtualCam()
+    {
+        // Vorgabe aus, Auto; gueltige Werte kommen an, ungueltige bleiben liegen.
+        Antwort a = einmal("GET", "/api/regie");
+        QCOMPARE(a.json().value("vcam").toBool(), false);
+        QCOMPARE(a.json().value("vcam_kamera").toString(), QStringLiteral("auto"));
+        QCOMPARE(a.json().value("vcam_ziel").toInt(), -1);
+        a = einmal("POST", "/api/regie", R"({"vcam":true,"vcam_kamera":"heli","vcam_ziel":5})");
+        QCOMPARE(a.json().value("vcam").toBool(), true);
+        QCOMPARE(a.json().value("vcam_kamera").toString(), QStringLiteral("heli"));
+        QCOMPARE(a.json().value("vcam_ziel").toInt(), 5);
+        a = einmal("POST", "/api/regie", R"({"vcam_kamera":"drohne","vcam_ziel":24})");
+        QCOMPARE(a.json().value("vcam_kamera").toString(), QStringLiteral("heli"));
+        QCOMPARE(a.json().value("vcam_ziel").toInt(), 5);
+        a = einmal("POST", "/api/regie", R"({"vcam":false,"vcam_kamera":"auto","vcam_ziel":-1})");
+        QCOMPARE(a.json().value("vcam_ziel").toInt(), -1);
+        // Bildrate: nur die Stufen aus der Auswahl
+        a = einmal("POST", "/api/settings", R"({"vcam_fps":"60"})");
+        QCOMPARE(a.json().value("vcam_fps").toInt(), 60);
+        a = einmal("POST", "/api/settings", R"({"vcam_fps":59})");
+        QCOMPARE(a.json().value("vcam_fps").toInt(), 60);
+        einmal("POST", "/api/settings/reset");
+    }
+
     void settingsPresetsLayouts()
     {
         Antwort a = einmal("POST", "/api/settings", R"({"rows":"9","maprot":45})");
@@ -253,7 +277,7 @@ private slots:
         a = einmal("POST", "/api/layouts", R"({"name":"Leer"})");
         QVERIFY(a.json().value("layouts").toObject().contains("Leer"));
         a = einmal("GET", "/api/layout");
-        QCOMPARE(a.json().value("teile").toArray().size(), 13);
+        QCOMPARE(a.json().value("teile").toArray().size(), 14);
         QCOMPARE(a.json().value("ecken").toArray().size(), 9);
         a = einmal("POST", "/api/settings/reset");
         QCOMPARE(a.json().value("rows").toInt(), 0);

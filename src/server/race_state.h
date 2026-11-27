@@ -129,6 +129,13 @@ public:
     const SessionInfo& session() const { return m_session; }
     const QList<RaceControlMsg>& raceControl() const { return m_raceControl; }
     const QHash<int, QPointF>& carPos() const { return m_carPos; }
+    /// Zu carPos (ab 0.3.3, VirtualCam): Hoehe und Fahrtrichtung je Auto.
+    struct CarMotion {
+        double y = 0.0;
+        double heading = 0.0;     // atan2(vorwaerts.x, vorwaerts.z), Radiant
+        bool hasHeading = false;  // Vorwaertsvektor war (fast) null -> nicht verwertbar
+    };
+    const QHash<int, CarMotion>& carMotion() const { return m_carMotion; }
     const QList<QJsonObject>& finalClassification() const { return m_final; }
     const QMap<int, QMap<int, int>>& lapPositions() const { return m_lapPositions; }
     const StartLights& startLights() const { return m_lights; }
@@ -181,6 +188,7 @@ private:
     int m_rcId = 0;
     QHash<QString, double> m_lastQuali;
     QHash<int, QPointF> m_carPos;
+    QHash<int, CarMotion> m_carMotion;
     QList<QJsonObject> m_final;
     QMap<int, QMap<int, int>> m_lapPositions;
     StartLights m_lights;

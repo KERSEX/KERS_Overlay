@@ -113,7 +113,7 @@ Item {
         "flbanner":   [520, 90],  "lights":   [420, 90],  "battles":  [640, 220],
         "hotlaps":    [630, 210], "lowerthird": [560, 120], "danger": [460, 90],
         "onboard":    [230, 300], "pitproj":  [230, 120], "pitcards": [300, 200],
-        "champ":      [420, 300]
+        "champ":      [420, 300], "virtualcam": [480, 300]
     })
 
     /** Das y, das die LAGE bestimmt - nicht das gerade sichtbare.
@@ -169,7 +169,7 @@ Item {
     readonly property var teilNamen: [
         "tower", "trackmap", "racemsg", "flbanner", "lights", "battles",
         "hotlaps", "lowerthird", "danger", "onboard", "pitproj",
-        "pitcards", "champ"]
+        "pitcards", "champ", "virtualcam"]
 
     /** Der Platzhalter zu einem Schluessel. Gegenstueck zu echtes(). */
     function platzhalter(name) {
@@ -415,6 +415,18 @@ Item {
                    root.height - root.fbH(pitprojTeil)
                    - (onboard.visible ? 28 + root.fbH(onboard) + 10 : 24))
         z: root.lz("pitproj", 44)
+    }
+
+    // ── Unten links: VirtualCam (Bild-im-Bild, ab 0.3.3) ────────────────────
+    VirtualCam {
+        id: virtualcamTeil
+        objectName: "virtualcam"
+        transformOrigin: Item.TopLeft
+        scale: root.ls("virtualcam")
+        x: root.lx("virtualcam", root.fbW(virtualcamTeil), 420)
+        y: root.ly("virtualcam", root.fbH(virtualcamTeil),
+                   root.height - root.fbH(virtualcamTeil) - 28)
+        z: root.lz("virtualcam", 44)
     }
 
     // ── Unten rechts: Boxenstopps, darunter der WM-Stand ────────────────────

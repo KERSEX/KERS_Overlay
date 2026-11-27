@@ -405,6 +405,10 @@ void RegieState::apply(const QJsonObject& regie)
     set_battles(!(b.isBool() && !b.toBool()));
     const QJsonValue h = regie.value(QLatin1String("hotlap"));
     set_hotlap(!(h.isBool() && !h.toBool()));
+    set_vcam(jb(regie, "vcam"));
+    const QString kamera = js(regie, "vcam_kamera");
+    set_vcamKamera(kamera.isEmpty() ? QStringLiteral("auto") : kamera);
+    set_vcamZiel(ji(regie, "vcam_ziel", -1));
 }
 
 }  // namespace kers::hud

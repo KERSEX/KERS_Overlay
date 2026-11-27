@@ -77,7 +77,7 @@ struct LayoutTeil {
     const char* key;
     const char* label;
 };
-extern const LayoutTeil LAYOUT_TEILE[13];
+extern const LayoutTeil LAYOUT_TEILE[14];
 bool isLayoutTeil(const QString& key);
 
 // Trackmap darf nicht nach tl/lc - dort steht der Tower.

@@ -205,7 +205,7 @@ QString penaltyLabel(int type)
 
 const QStringList LAYOUT_ECKEN = {"tl", "tc", "tr", "lc", "cc", "rc", "bl", "bc", "br"};
 
-const LayoutTeil LAYOUT_TEILE[13] = {
+const LayoutTeil LAYOUT_TEILE[14] = {
     {"tower", "Timing Tower"},
     {"trackmap", "Trackmap"},
     {"racemsg", "Meldungs-Banner"},
@@ -219,6 +219,7 @@ const LayoutTeil LAYOUT_TEILE[13] = {
     {"pitproj", "Pit-Projektion"},
     {"pitcards", "Boxenstopp-Karten"},
     {"champ", "WM-Stand"},
+    {"virtualcam", "VirtualCam"},
 };
 
 bool isLayoutTeil(const QString& key)

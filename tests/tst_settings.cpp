@@ -215,7 +215,7 @@ private slots:
     void layoutStandardHatAlleBausteine()
     {
         const QJsonObject st = SettingsStore::layoutStandard();
-        QCOMPARE(st.size(), 13);
+        QCOMPARE(st.size(), 14);
         for (const LayoutTeil& t : LAYOUT_TEILE)
             QVERIFY(st.contains(QLatin1String(t.key)));
     }

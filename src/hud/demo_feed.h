@@ -51,6 +51,7 @@ private:
     static QString demoChart(double t);
     static QJsonArray buildTrack(int n = 600);
     QJsonArray trackPoint(double frac) const;
+    double trackHeading(double frac) const;
     static QJsonObject realSettings();
 
     bool m_quali;

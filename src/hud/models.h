@@ -214,6 +214,9 @@ class RegieState : public QObject {
     KERS_PROP(bool, champ, false)
     KERS_PROP(bool, battles, true)
     KERS_PROP(bool, hotlap, true)
+    KERS_PROP(bool, vcam, false)
+    KERS_PROP(QString, vcamKamera, QStringLiteral("auto"))   // auto|vogel|heli|verfolger|onboard|tv
+    KERS_PROP(int, vcamZiel, -1)                              // Fahrer-Index, -1 = Auto-Regie
 public:
     explicit RegieState(QObject* parent = nullptr) : QObject(parent) {}
     void apply(const QJsonObject& regie);

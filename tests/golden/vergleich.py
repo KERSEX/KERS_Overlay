@@ -12,7 +12,7 @@ from collections import Counter
 
 TOL = 1e-6
 # Felder, die erst die C++-Fassung liefert - der Python-Server kennt sie nicht.
-NUR_CPP = {"best_lap_sectors"}
+NUR_CPP = {"best_lap_sectors", "pos_y", "heading"}
 
 
 def num(x):

@@ -215,6 +215,7 @@ void RaceState::sessionWechsel()
     m_session.fastest_lap_driver.clear();
     m_raceControl.clear();
     m_carPos.clear();
+    m_carMotion.clear();
     m_final.clear();
     m_lapPositions.clear();
     m_lights = StartLights{};
@@ -567,8 +568,19 @@ void RaceState::handleMotion(const QByteArray& d)
         const float x = f32(d, start + 0);
         const float z = f32(d, start + 8);
         // Leere Slots senden Muell (±1e38, NaN) -> verwerfen.
-        if (x > -1e5f && x < 1e5f && z > -1e5f && z < 1e5f)
+        if (x > -1e5f && x < 1e5f && z > -1e5f && z < 1e5f) {
             m_carPos[i] = QPointF(round1(x), round1(z));
+            // Fuer die VirtualCam (ab 0.3.3): Hoehe @4, Vorwaertsvektor x/z @24/@28
+            // (int16, normiert auf 32767 - der Betrag kuerzt sich in atan2 heraus).
+            CarMotion m;
+            const float y = f32(d, start + 4);
+            m.y = (y > -1e5f && y < 1e5f) ? round1(y) : 0.0;
+            const double fx = static_cast<int16_t>(u16(d, start + 24));
+            const double fz = static_cast<int16_t>(u16(d, start + 28));
+            m.hasHeading = fx * fx + fz * fz > 1000.0 * 1000.0;
+            m.heading = m.hasHeading ? std::atan2(fx, fz) : 0.0;
+            m_carMotion[i] = m;
+        }
     }
     m_learner.learn(m_carPos, learnerCars(), m_session.track_length, m_session.track_id);
 }

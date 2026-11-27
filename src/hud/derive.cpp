@@ -35,6 +35,7 @@ const QVariantMap& Config::defaults()
         {"penhidefinish", true},
         {"podiumstil", QStringLiteral("flat")},
         {"champ_view", QStringLiteral("drivers")},
+        {"vcam_fps", 30},
         {"design", QString()},
         {"trackname", true},
         {"layout", QVariantMap()},

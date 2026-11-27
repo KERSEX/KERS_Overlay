@@ -20,6 +20,15 @@ qt_add_library(kers_hud STATIC
     hud_window.cpp
     obs_window.cpp
     design_scene.cpp
+    vcam_item.cpp
+    vcam_mesh.cpp
+    vcam.cpp
+)
+# VirtualCam (ab 0.3.3): eigene Shader, beim Bauen von qsb uebersetzt -> :/vcam/*.qsb
+qt_add_shaders(kers_hud "vcam_shaders"
+    PREFIX "/vcam"
+    BASE shaders
+    FILES shaders/vcam.vert shaders/vcam.frag
 )
 target_include_directories(kers_hud PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(kers_hud PUBLIC
@@ -28,6 +37,7 @@ target_link_libraries(kers_hud PUBLIC
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
+    Qt6::GuiPrivate     # QRhi (<rhi/qrhi.h>) fuer den VirtualCam-Renderer
     Qt6::Network
 )
 if(WIN32)

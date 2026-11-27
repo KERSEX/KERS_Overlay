@@ -56,6 +56,18 @@ public:
     void stop();
     /// Kontur direkt setzen, ohne den Server zu fragen (Demo-Modus).
     void loadPoints(const QJsonArray& pts, int ver = 1);
+
+    struct Pt {
+        double x = 0, z = 0, frac = -1;
+        int sector = 0;
+        int n = 2;       // wie viele Felder der Punkt urspruenglich hatte (2..4)
+    };
+    /// Die geglaettete Kontur - liest auch die VirtualCam (ab 0.3.3).
+    const QList<Pt>& points() const { return m_pts; }
+    int version() const { return m_ver; }
+    /// Welche Weltrichtung (x, z) auf der Minimap "oben" ist (Drehung maprot) -
+    /// die Uebersicht der VirtualCam richtet sich danach. Leer ohne Strecke.
+    std::optional<QPointF> mapOben() const;
     void update(const QList<QJsonObject>& drivers, int focusIndex, bool connected,
                 const QJsonObject& session, bool enabled, double nowMs);
 
@@ -64,11 +76,6 @@ signals:
     void carsChanged();
 
 private:
-    struct Pt {
-        double x = 0, z = 0, frac = -1;
-        int sector = 0;
-        int n = 2;       // wie viele Felder der Punkt urspruenglich hatte (2..4)
-    };
     struct Bounds {
         double minX, minZ, sc, offX, offZ;
     };

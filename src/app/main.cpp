@@ -27,6 +27,7 @@
 #include "data_source.h"
 #include "hud_state.h"
 #include "hud_window.h"
+#include "vcam_item.h"
 #include "icon.h"
 #include "kers_server.h"
 #include "local_link.h"
@@ -325,6 +326,7 @@ int main(int argc, char* argv[])
     }
     app::ServerControl& server = *serverCtl;
 
+    hud::registerVcamTypes();               // vor der ersten Szene: `import KersCam`
     HudWindow hud(state, args.demo, args.qmlDir);
     if (lokal) {
         // Das HUD haengt direkt am Server im Prozess - kein HTTP, kein SSE.

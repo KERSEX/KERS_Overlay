@@ -182,6 +182,23 @@ std::optional<QPointF> Trackmap::norm(double x, double z) const
     return QPointF((r.x() - m_fitCx) * m_fitF + 50, (r.y() - m_fitCz) * m_fitF + 50);
 }
 
+std::optional<QPointF> Trackmap::mapOben() const
+{
+    // Welt -> Karte ist linear (drehen, spiegeln, skalieren). Spalten der Matrix aus
+    // zwei Schritten, dann Karte-"oben" (0, -1) zurueckrechnen: M^-1 * (0, -1).
+    const auto o = norm(0, 0), a = norm(100, 0), b = norm(0, 100);
+    if (!o || !a || !b)
+        return std::nullopt;
+    const double m00 = a->x() - o->x(), m10 = a->y() - o->y();
+    const double m01 = b->x() - o->x(), m11 = b->y() - o->y();
+    const double det = m00 * m11 - m01 * m10;
+    if (std::abs(det) < 1e-12)
+        return std::nullopt;
+    const double wx = m01 / det, wz = -m00 / det;
+    const double len = std::hypot(wx, wz);
+    return QPointF(wx / len, wz / len);
+}
+
 void Trackmap::buildContour()
 {
     if (m_pts.isEmpty() || !m_bounds)

@@ -85,9 +85,21 @@ QJsonArray DemoFeed::buildTrack(int n)
 
 QJsonArray DemoFeed::trackPoint(double frac) const
 {
-    const int i = static_cast<int>(std::clamp(frac, 0.0, 0.9999) * m_track.size());
-    const QJsonArray p = m_track.at(i).toArray();
-    return QJsonArray{p.at(0).toDouble(), p.at(1).toDouble()};
+    // Zwischen zwei Konturpunkten weich - die VirtualCam sieht sonst jedes Springen.
+    const double f = std::clamp(frac, 0.0, 0.9999) * m_track.size();
+    const int i = static_cast<int>(f);
+    const QJsonArray a = m_track.at(i).toArray();
+    const QJsonArray b = m_track.at((i + 1) % m_track.size()).toArray();
+    const double t = f - i;
+    return QJsonArray{a.at(0).toDouble() + (b.at(0).toDouble() - a.at(0).toDouble()) * t,
+                      a.at(1).toDouble() + (b.at(1).toDouble() - a.at(1).toDouble()) * t};
+}
+
+double DemoFeed::trackHeading(double frac) const
+{
+    const QJsonArray a = trackPoint(frac);
+    const QJsonArray b = trackPoint(std::fmod(frac + 0.002, 1.0));
+    return std::atan2(b.at(0).toDouble() - a.at(0).toDouble(), b.at(1).toDouble() - a.at(1).toDouble());
 }
 
 DemoFeed::DemoFeed(int hz, bool quali, bool vorschau, QObject* parent)
@@ -330,8 +342,13 @@ void DemoFeed::emitPayload()
         o["pen_dt"] = (d.index == 8 && lap > 9) ? 1 : 0;
         o["corner_warnings"] = d.index == 11 ? (static_cast<int>(t / 20) % 3) : 0;
         o["lap_num"] = lap;
-        o["lap_distance"] = std::fmod(d.progress, 1.0) * 5300;
-        o["pos_xz"] = trackPoint(std::fmod(d.progress, 1.0));
+        // Ort auf der Strecke 30x langsamer als die Rundenzaehlung (sonst ~2 s je
+        // Runde): Trackmap und VirtualCam sehen so ein Feld mit ~200 km/h.
+        const double ort = std::fmod(d.progress / 30.0, 1.0);
+        o["lap_distance"] = ort * 5300;
+        o["pos_xz"] = trackPoint(ort);
+        o["pos_y"] = 18.0 * std::sin(ort * 2 * 3.14159265358979);   // sanfte Huegel
+        o["heading"] = trackHeading(ort);
         o["laps_down"] = (d.index == 17 && lap > 20) ? 1 : 0;
         o["sector"] = std::min(2, static_cast<int>(std::fmod(t, 8.0) / 2.7));
         o["grid_position"] = d.grid;
@@ -399,6 +416,11 @@ void DemoFeed::emitPayload()
     regie["champ"] = m_vorschau ? true : (std::fmod(t, 140.0) >= 100 && std::fmod(t, 140.0) < 125);
     regie["battles"] = true;
     regie["hotlap"] = true;
+    // VirtualCam: Demo + Layout-Vorschau zeigen das Bild-im-Bild. Fuer Screenshots je
+    // Kamera KERS_DEMO_VCAM=vogel|heli|verfolger|onboard|tv, "aus" fuer den Lastvergleich.
+    const QString vcamDemo = qEnvironmentVariable("KERS_DEMO_VCAM", QStringLiteral("auto"));
+    regie["vcam"] = vcamDemo != QLatin1String("aus");
+    regie["vcam_kamera"] = vcamDemo;
 
     QJsonObject data;
     data["drivers"] = out;

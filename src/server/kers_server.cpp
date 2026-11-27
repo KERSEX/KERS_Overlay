@@ -22,7 +22,9 @@ double wallSec()
 
 QJsonObject regieStart()
 {
-    return {{"chart", "none"}, {"strat", false}, {"champ", false}, {"battles", true}, {"hotlap", true}};
+    return {{"chart", "none"}, {"strat", false}, {"champ", false}, {"battles", true}, {"hotlap", true},
+            // VirtualCam (ab 0.3.3): Bild-im-Bild aus, Kamera Auto, Ziel Auto-Regie
+            {"vcam", false}, {"vcam_kamera", "auto"}, {"vcam_ziel", -1}};
 }
 
 }  // namespace

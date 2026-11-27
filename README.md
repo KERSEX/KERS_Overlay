@@ -15,6 +15,9 @@ mehr. Jeder Baustein lässt sich einzeln abschalten und frei platzieren.
 ohne zweiten Prozess. Einstellungen, WM-Stände und Fensterlage aus 0.2.x werden
 unverändert weiterbenutzt — siehe [Neu in 0.3.0](#neu-in-030).
 
+**Neu in 0.3.3:** VirtualCam — ein Bild-im-Bild mit eigener 3D-Kamera, das zeigt,
+was *woanders* auf der Strecke passiert. Siehe [Neu in 0.3.3](#neu-in-033).
+
 **Neu in 0.3.2:** Monitor für das HUD im Schaltbrett auswählen. Siehe
 [Neu in 0.3.2](#neu-in-032).
 
@@ -304,12 +307,43 @@ selbst, aber nur genau diesen aus dem eigenen Ordner.
 
 ---
 
+## Neu in 0.3.3
+
+* **VirtualCam (Bild-im-Bild):** ein kleines Fenster im HUD und im OBS-Fenster
+  mit einer eigenen 3D-Ansicht der Strecke — Autos in Teamfarben, Strecke mit
+  Höhenprofil, Namensschilder. Oben steht, was man sieht: `FIGHT FOR P6`,
+  `OVERTAKE FOR P3 · NAME`, `PIT STOP · NAME`, `HOT LAP · NAME`, `LEADER · NAME`
+  oder `OVERVIEW`, rechts die Kamera.
+* **Kameras:** Übersicht (ganze Strecke, gedreht wie die Minimap), Heli,
+  Verfolger, Onboard und feste TV-Kameras an der Kurvenaußenseite.
+* **Auto-Regie:** sucht selbst Kämpfe (< 1 s), frische Überholmanöver,
+  Boxenstopps, den Führenden und in der Quali die schnellen Runden. Sie zeigt
+  **nie ein Auto, das gerade im Spielbild ist** — also nicht das Kamera-Auto und
+  nichts im Umkreis von rund 300 m Strecke bzw. 150 m Luftlinie. Unter Safety
+  Car, VSC, in der Einführungsrunde und in den ersten zwei Runden gibt es keine
+  Kämpfe (das Feld ist dann ohnehin dicht). Ist das Kamera-Auto unbekannt (z. B.
+  beim Zuschauen), zeigt sie nur die Übersicht.
+* **Steuerung in der Regie**, Karte *VirtualCam*: an/aus, Kamera (Auto,
+  Übersicht, Heli, Verfolger, Onboard, TV) und Ziel (Auto-Regie oder ein
+  bestimmter Fahrer — der darf dann auch im Spielbild sein). *Alles ausblenden*
+  schaltet das Bild-im-Bild mit aus.
+* **Bildrate** in den Einstellungen (*VirtualCam*): 20, 25, 30, 40, 60 oder 120
+  Bilder pro Sekunde, Vorgabe 30. Bei 30 kostet das Bild-im-Bild etwa 5–10 %
+  eines CPU-Kerns.
+* **Platz:** unten links neben dem Tower; verschieben und skalieren wie jeder
+  andere Baustein über *Layout bearbeiten*.
+* Der Server liest dafür aus dem Motion-Paket jetzt auch Höhe und Fahrtrichtung
+  (`pos_y`, `heading` je Fahrer in `/api/live`).
+
+---
+
 ## Neu in 0.3.2
 
 * **Monitor wählen:** Bei mehreren Bildschirmen legt die Auswahl *Bildschirm* im
   Schaltbrett das HUD direkt auf den gewünschten Monitor — siehe
   [Die beiden Fenster](#die-beiden-fenster).
-* Die GFL-Logos sind nicht mehr eingebaut; die EXE ist dadurch rund 1,7 MB kleiner.
+* Die sechs Liga-Logos `GFL_*.png` sind nicht mehr eingebaut; die EXE ist dadurch
+  rund 1,7 MB kleiner. (`GFL.png` und `GFL Cut.png` bleiben.)
 
 ---
 

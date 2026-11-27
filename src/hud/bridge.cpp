@@ -37,6 +37,7 @@ OverlayBridge::OverlayBridge(const QString& baseUrl, int hz, const QString& demo
     , m_trackmap(new Trackmap(m_cfg, m_httpSource, this))
     , m_charts(new Charts(m_httpSource, m_shared, this))
     , m_champ(new Championship(m_httpSource, this))
+    , m_vcam(new VirtualCam(m_shared, m_cfg, m_trackmap, this))
     , m_hz(hz)
     , m_demoDauerhaft(!demo.isEmpty())
     , m_demoAn(!demo.isEmpty())
@@ -339,6 +340,12 @@ void OverlayBridge::updateParts(const QJsonObject& data, const QJsonObject& sess
     m_trackmap->update(drivers, focus, connected, session, m_cfg.b("map"), wall);
     m_charts->update(m_regie->chart(), wall);
     m_champ->update(m_regie->champ(), wall, m_cfg.s("champ_view"));
+    // VirtualCam braucht ALLE Autos - `drivers` ist auf die Zeilenzahl des Towers
+    // gekuerzt, dann fehlte womoeglich das Fokus-Auto und der Ausschluss griffe nicht.
+    QList<QJsonObject> alle;
+    for (const QJsonValue& v : data.value(QLatin1String("drivers")).toArray())
+        alle.append(v.toObject());
+    m_vcam->update(alle, session, focus, connected, m_regie->vcam(), m_regie->vcamKamera(), m_regie->vcamZiel());
 }
 
 void OverlayBridge::updateRedFlag(const QJsonObject& data, double now)

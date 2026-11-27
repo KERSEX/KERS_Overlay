@@ -576,9 +576,17 @@ HttpResponse KersServer::route(const HttpRequest& req, const AccessGuard::Result
             const QString chart = d.value("chart").toString();
             if (d.value("chart").isString() && QStringList{"none", "pos", "gap", "lap"}.contains(chart))
                 m_regie["chart"] = chart;
-            for (const char* k : {"strat", "champ", "battles", "hotlap"})
+            for (const char* k : {"strat", "champ", "battles", "hotlap", "vcam"})
                 if (d.contains(QLatin1String(k)))
                     m_regie[QLatin1String(k)] = py::truthy(d.value(QLatin1String(k)));
+            const QString kamera = d.value("vcam_kamera").toString();
+            if (QStringList{"auto", "vogel", "heli", "verfolger", "onboard", "tv"}.contains(kamera))
+                m_regie["vcam_kamera"] = kamera;
+            // Ziel: Fahrer-Index 0..23, -1 = Auto-Regie. Alles andere bleibt liegen.
+            const QJsonValue ziel = d.value("vcam_ziel");
+            if (ziel.isDouble() && ziel.toDouble() == std::floor(ziel.toDouble()) && ziel.toInt() >= -1
+                && ziel.toInt() <= 23)
+                m_regie["vcam_ziel"] = ziel.toInt();
             emit settingsChanged();
         }
         return HttpResponse::json(m_regie);

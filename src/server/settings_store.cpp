@@ -144,6 +144,8 @@ const QJsonObject& SettingsStore::defaults()
         {"champ_view", "drivers"},
         // Design des Desktop-HUD (ab 0.3.1): Ordnername, "" = Standard
         {"design", ""},
+        // VirtualCam (ab 0.3.3): Bilder je Sekunde fuer das Bild-im-Bild
+        {"vcam_fps", 30},
     };
     return d;
 }
@@ -159,6 +161,9 @@ QJsonObject SettingsStore::layoutStandard()
         {"hotlaps", e("bc", 0, 28, 40)}, {"lowerthird", e("bc", 0, 380, 41)}, {"danger", e("bc", 0, 40, 46)},
         {"onboard", e("bl", 24, 28, 44)}, {"pitproj", e("bl", 24, 24, 44)}, {"pitcards", e("br", 24, 28, 45)},
         {"champ", e("br", 24, 40, 45)},
+        // VirtualCam unten links, rechts neben dem Tower (22 Zeilen reichen bis ganz unten)
+        // und damit auch neben Onboard/Pit-Projektion
+        {"virtualcam", e("bl", 420, 28, 44)},
     };
 }
 
@@ -313,6 +318,13 @@ bool SettingsStore::apply(const QJsonObject& patch)
             const auto d = py::toFloat(v);
             if (d && std::isfinite(*d))
                 m_settings[k] = py::round(std::clamp(*d, 0.0, 1.0), 2);
+            continue;
+        }
+        if (k == QLatin1String("vcam_fps")) {
+            const auto n = py::toInt(v);
+            static const QList<long long> erlaubt = {20, 25, 30, 40, 60, 120};
+            if (n && erlaubt.contains(*n))
+                m_settings[k] = static_cast<int>(*n);
             continue;
         }
         if (k == QLatin1String("battleboxes") || k == QLatin1String("hotlapboxes")) {

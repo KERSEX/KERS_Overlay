@@ -22,6 +22,7 @@
 #include "feed.h"
 #include "models.h"
 #include "parts.h"
+#include "vcam.h"
 
 #include <QJsonObject>
 #include <QObject>
@@ -54,6 +55,7 @@ class OverlayBridge : public QObject {
     Q_PROPERTY(QObject* trackmap READ trackmap CONSTANT)
     Q_PROPERTY(QObject* charts READ charts CONSTANT)
     Q_PROPERTY(QObject* championship READ championship CONSTANT)
+    Q_PROPERTY(QObject* vcam READ vcam CONSTANT)
     Q_PROPERTY(bool layoutOffen READ layoutOffen NOTIFY layoutOffenChanged)
 public:
     // Wie lange der rote Rahmen nach einer roten Flagge stehen bleibt (tower.js: 15 s).
@@ -83,6 +85,7 @@ public:
     QObject* trackmap() const { return m_trackmap; }
     QObject* charts() const { return m_charts; }
     QObject* championship() const { return m_champ; }
+    QObject* vcam() const { return m_vcam; }
     bool layoutOffen() const { return m_layoutOffen.has_value(); }
 
     // ── Steuerung ────────────────────────────────────────────────────────────
@@ -158,6 +161,7 @@ private:
     Trackmap* m_trackmap;
     Charts* m_charts;
     Championship* m_champ;
+    VirtualCam* m_vcam;
 
     bool m_everConnected = false;
     double m_lastConnMs = 0.0;
